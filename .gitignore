@@ -1,0 +1,38 @@
+# 내부 문서 (로컬 전용) — 공개 저장소에 올리지 않음
+docs-internal/
+
+# 환경·비밀값
+.env
+.env.*
+!.env.example
+
+# OS
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 클로드 코드 개인 설정 (프로젝트 설정 .claude/settings.json 은 커밋)
+.claude/settings.local.json

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.ts|*.tsx) [ -f package.json ] && npx --no-install eslint --fix \"$f\" >/dev/null 2>&1; npx --no-install tsc --noEmit --pretty false 2>&1 | head -20 ;; esac; true"
+          }
+        ]
+      }
+    ]
+  }
+}
