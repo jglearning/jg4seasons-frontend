@@ -1,0 +1,38 @@
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.key {
+  height: var(--field-h-student);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  font-size: 22px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color var(--motion);
+}
+
+.key:active:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-2), black 4%);
+}
+
+.action {
+  background: var(--white);
+  font-size: 16px;
+}
+
+.action:active:not(:disabled) {
+  background: color-mix(in srgb, var(--white), black 4%);
+}
+
+.key:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
