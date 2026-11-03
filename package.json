@@ -14,7 +14,8 @@
     "format:check": "prettier --check . --ignore-path .gitignore --ignore-path .prettierignore --ignore-path .git/info/exclude",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev:mock": "vite --mode mock"
+    "dev:mock": "vite --mode mock",
+    "test:cloudfront": "node infra/cloudfront/run-tests.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.105.3",
