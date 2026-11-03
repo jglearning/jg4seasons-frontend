@@ -1,0 +1,75 @@
+/* 디자인 토큰 — 색·서체·간격·반경은 이 파일에서만 정의한다 (05 디자인가이드 §2~§4, §8) */
+
+:root {
+  color-scheme: light;
+
+  /* 중립색 §2.2 */
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --faint: #9ca3af; /* 14px 이상에서만 */
+  --line: #e5e7eb;
+  --line-strong: #cbd5e1;
+  --surface: #f9fafb;
+  --surface-2: #f3f4f6;
+  --white: #ffffff;
+
+  /* 상태색 §2.3 */
+  --warning: #b45309; /* 글자로만 */
+  --danger: #b91c1c;
+  --danger-line: #dc2626;
+  --danger-tint: #fef2f2; /* 밀린 수업 경고 칸·회차 타일에서만 채움 */
+  --danger-card-line: #fca5a5; /* OverdueAlert 항목 카드 테두리 §5 */
+  --current-col: #eef2ff;
+
+  /* 서체 §3 */
+  --font-sans: 'Pretendard Variable', Pretendard, 'Noto Sans KR', system-ui, sans-serif;
+  --tracking-title: -0.01em;
+  --tracking-code: 0.02em;
+  --tracking-join-code: 0.18em;
+
+  /* 간격 §4 — 4px 단위 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --gutter-student: 20px;
+  --gutter-teacher: 28px;
+  --student-max-width: 520px;
+  --sidebar-width: 240px;
+
+  /* 반경·테두리 §4 */
+  --radius-control: 12px; /* 버튼·입력창 */
+  --radius-card-student: 16px;
+  --radius-card-teacher: 10px;
+  --radius-tile: 10px;
+  --radius-word-card: 20px;
+  --radius-pill: 999px;
+  --border-control: 1.5px;
+  --border-card: 1px;
+
+  /* 크기 §5·§8 */
+  --touch-min: 44px;
+  --touch-student: 48px;
+  --button-h-student: 52px;
+  --button-h-teacher: 36px;
+  --field-h-student: 56px;
+  --field-h-teacher: 40px;
+  --row-h-teacher: 40px;
+
+  /* 포커스·모션 §6·§8 */
+  --focus-ring: 2px solid var(--ink);
+  --focus-offset: 2px;
+  --motion: 150ms ease-out;
+
+  /* 레벨 색 §2.1 — 실제 값은 서버 level.colorHex를 [data-level] 요소에 style로 주입 */
+  --level: var(--ink);
+}
+
+/* --level-tint는 --level이 바뀌는 요소에서 다시 계산되어야 하므로 :root와 [data-level] 양쪽에 둔다 */
+:root,
+[data-level] {
+  --level-tint: color-mix(in srgb, var(--level) 12%, white);
+}
