@@ -1,0 +1,10 @@
+.layout {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--student-max-width);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 0 var(--gutter-student);
+  display: flex;
+  flex-direction: column;
+}

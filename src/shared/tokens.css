@@ -63,6 +63,8 @@
   --focus-ring: 2px solid var(--ink);
   --focus-offset: 2px;
   --motion: 150ms ease-out;
+  /* hover·active에 섞어 어둡게 하는 색(§5 Button: hover 2%, active 4%) */
+  --shade: #000000;
 
   /* 레벨 색 §2.1 — 실제 값은 서버 level.colorHex를 [data-level] 요소에 style로 주입 */
   --level: var(--ink);
