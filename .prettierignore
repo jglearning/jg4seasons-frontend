@@ -4,3 +4,4 @@ package-lock.json
 src/api/generated
 public/mockServiceWorker.js
 docs-internal
+infra/cloudfront/viewer-request.js
