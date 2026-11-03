@@ -33,6 +33,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# 클로드 코드 개인 설정 (프로젝트 설정 .claude/settings.json 은 커밋)
-.claude/settings.local.json
