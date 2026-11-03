@@ -8,7 +8,14 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 export function readCsrfToken(cookie: string = document.cookie): string | undefined {
   for (const part of cookie.split(';')) {
     const [name, ...rest] = part.trim().split('=')
-    if (name === CSRF_COOKIE) return decodeURIComponent(rest.join('='))
+    if (name !== CSRF_COOKIE) continue
+    const raw = rest.join('=')
+    try {
+      return decodeURIComponent(raw)
+    } catch {
+      // 잘못된 % 인코딩이면 받은 그대로 보낸다(서버가 불일치로 403을 주면 원인이 드러난다)
+      return raw
+    }
   }
   return undefined
 }

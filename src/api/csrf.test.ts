@@ -10,6 +10,10 @@ describe('readCsrfToken', () => {
     expect(readCsrfToken('a=1; xcsrf=2')).toBeUndefined()
     expect(readCsrfToken('')).toBeUndefined()
   })
+
+  it('잘못된 % 인코딩이어도 던지지 않고 받은 값을 준다(모든 상태 변경 요청이 막히지 않게)', () => {
+    expect(readCsrfToken('csrf=abc%E0%A4')).toBe('abc%E0%A4')
+  })
 })
 
 describe('needsCsrf', () => {

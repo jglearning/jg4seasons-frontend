@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, toApiError, unwrap } from './errors'
 import { shouldRetry } from '../app/queryClient'
+import { ApiError, toApiError, unwrap, unwrapVoid } from './errors'
 
 describe('toApiError', () => {
   it('Problem Details의 code·title·detail·until·errors를 꺼낸다', () => {
@@ -24,10 +24,11 @@ describe('toApiError', () => {
       until: '2026-11-04T01:42:00Z',
       requestId: 'r1',
       fieldErrors: [{ field: 'personalCode', message: '숫자 4자리' }],
+      isProblem: true,
     })
   })
 
-  it('본문이 Problem Details가 아니면(예: 게이트웨이 HTML) 상태만 살리고 기본 문구를 쓴다', () => {
+  it('본문이 Problem Details가 아니면(예: 게이트웨이 HTML) 상태와 요청 ID만 살린다', () => {
     const error = toApiError(
       new Response(null, { status: 502, headers: { 'X-Request-Id': 'gw-1' } }),
       '<html>Bad Gateway</html>',
@@ -37,8 +38,25 @@ describe('toApiError', () => {
       status: 502,
       code: undefined,
       title: '잠시 후 다시 시도해 주세요',
+      requestId: 'gw-1',
+      isProblem: false,
     })
-    expect(error.requestId).toBe('gw-1')
+  })
+
+  it('code 없는 응답은 서버 title(프레임워크 기본 영어)·detail 대신 상태별 한국어 문구를 쓴다', () => {
+    const body = { title: 'Unauthorized', status: 401, detail: 'Full authentication is required' }
+
+    expect(toApiError(new Response(null, { status: 401 }), body)).toMatchObject({
+      title: '다시 들어와 주세요',
+      detail: undefined,
+    })
+    expect(toApiError(new Response(null, { status: 403 }), undefined).title).toBe(
+      '이 화면을 볼 수 없어요',
+    )
+    expect(toApiError(new Response(null, { status: 404 }), undefined).title).toBe('찾을 수 없어요')
+    expect(toApiError(new Response(null, { status: 413 }), undefined).title).toBe(
+      '요청을 처리하지 못했어요',
+    )
   })
 
   it('쿼리 재시도 정책과 이어진다: 4xx ApiError는 재시도하지 않고 5xx는 한 번 한다', () => {
@@ -63,5 +81,22 @@ describe('unwrap', () => {
         }),
       ),
     ).rejects.toMatchObject({ status: 401, code: 'INVALID_CREDENTIALS' })
+  })
+
+  it('성공인데 본문이 없으면(204 등) 데이터 대신 EMPTY_RESPONSE 오류', async () => {
+    await expect(
+      unwrap(Promise.resolve({ data: undefined, response: new Response(null, { status: 204 }) })),
+    ).rejects.toMatchObject({ status: 204, code: 'EMPTY_RESPONSE' })
+  })
+})
+
+describe('unwrapVoid', () => {
+  it('본문 없는 성공은 그대로 끝나고, 실패는 ApiError', async () => {
+    await expect(
+      unwrapVoid(Promise.resolve({ response: new Response(null, { status: 204 }) })),
+    ).resolves.toBeUndefined()
+    await expect(
+      unwrapVoid(Promise.resolve({ error: {}, response: new Response(null, { status: 500 }) })),
+    ).rejects.toMatchObject({ status: 500 })
   })
 })
