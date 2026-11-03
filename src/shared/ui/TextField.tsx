@@ -1,7 +1,9 @@
 import { useId, type ComponentPropsWithRef, type ReactNode } from 'react'
 import styles from './TextField.module.css'
 
-// 디자인 가이드 §5 Field. code는 가입 코드처럼 대문자·넓은 자간으로 보이는 입력
+// 디자인 가이드 §5 Field. code는 가입 코드처럼 대문자·넓은 자간으로 보이는 입력.
+// code의 대문자는 보이는 모양(text-transform)과 모바일 키보드(autoCapitalize)뿐이다 —
+// 서버로 보낼 값의 대문자 변환은 쓰는 화면의 onChange에서 한다
 type TextFieldProps = Omit<ComponentPropsWithRef<'input'>, 'size'> & {
   label: ReactNode
   hint?: ReactNode
@@ -9,6 +11,13 @@ type TextFieldProps = Omit<ComponentPropsWithRef<'input'>, 'size'> & {
   size?: 'student' | 'teacher'
   code?: boolean
 }
+
+const CODE_INPUT_PROPS = {
+  autoCapitalize: 'characters',
+  autoCorrect: 'off',
+  autoComplete: 'off',
+  spellCheck: false,
+} as const
 
 export function TextField({
   label,
@@ -36,10 +45,11 @@ export function TextField({
         className={[styles.input, styles[size], code && styles.code].filter(Boolean).join(' ')}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
+        {...(code ? CODE_INPUT_PROPS : {})}
         {...rest}
       />
       {error && (
-        <p id={errorId} className={styles.error}>
+        <p id={errorId} className={styles.error} role="alert">
           {error}
         </p>
       )}

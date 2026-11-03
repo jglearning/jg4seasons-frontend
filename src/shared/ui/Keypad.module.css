@@ -20,7 +20,7 @@
 }
 
 .key:active:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-2), black 4%);
+  background: color-mix(in srgb, var(--surface-2), var(--shade) 4%);
 }
 
 .action {
@@ -29,7 +29,7 @@
 }
 
 .action:active:not(:disabled) {
-  background: color-mix(in srgb, var(--white), black 4%);
+  background: color-mix(in srgb, var(--white), var(--shade) 4%);
 }
 
 .key:disabled {

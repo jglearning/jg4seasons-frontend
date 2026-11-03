@@ -29,10 +29,9 @@ export function Keypad({ onDigit, onDelete, onClear, disabled }: KeypadProps) {
         type="button"
         className={`${styles.key} ${styles.action}`}
         disabled={disabled}
-        aria-label="모두 지우기"
         onClick={onClear}
       >
-        지움
+        모두 지움
       </button>
       <button type="button" className={styles.key} disabled={disabled} onClick={() => onDigit('0')}>
         0

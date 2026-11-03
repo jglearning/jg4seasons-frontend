@@ -11,11 +11,21 @@ describe('Button', () => {
 })
 
 describe('TextField', () => {
-  it('라벨로 찾을 수 있고, 오류가 있으면 aria-invalid와 설명이 이어진다', () => {
+  it('라벨로 찾을 수 있고, 오류가 있으면 aria-invalid·설명이 이어지며 바로 읽힌다', () => {
     render(<TextField label="가입 코드" hint="8자리" error="코드를 확인해 주세요" />)
 
     const input = screen.getByLabelText('가입 코드')
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(input).toHaveAccessibleDescription('코드를 확인해 주세요 8자리')
+    expect(screen.getByRole('alert')).toHaveTextContent('코드를 확인해 주세요')
+  })
+
+  it('code 입력은 모바일에서 대문자로 치고 자동 고침을 끈다', () => {
+    render(<TextField label="가입 코드" code />)
+
+    const input = screen.getByLabelText('가입 코드')
+    expect(input).toHaveAttribute('autocapitalize', 'characters')
+    expect(input).toHaveAttribute('autocorrect', 'off')
+    expect(input).toHaveAttribute('spellcheck', 'false')
   })
 })

@@ -33,11 +33,11 @@
 }
 
 .primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ink), black 2%);
+  background: color-mix(in srgb, var(--ink), var(--shade) 2%);
 }
 
 .primary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--ink), black 4%);
+  background: color-mix(in srgb, var(--ink), var(--shade) 4%);
 }
 
 .secondary {
@@ -48,11 +48,11 @@
 }
 
 .secondary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--white), black 2%);
+  background: color-mix(in srgb, var(--white), var(--shade) 2%);
 }
 
 .secondary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--white), black 4%);
+  background: color-mix(in srgb, var(--white), var(--shade) 4%);
 }
 
 .button:disabled {
