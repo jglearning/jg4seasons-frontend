@@ -1,0 +1,63 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-control);
+  border: var(--border-control) solid transparent;
+  padding: 0 var(--space-5);
+  cursor: pointer;
+  transition: background-color var(--motion);
+}
+
+.student {
+  min-height: var(--button-h-student);
+  font-size: 16px;
+}
+
+.teacher {
+  min-height: var(--button-h-teacher);
+  padding: 0 var(--space-4);
+  font-size: 14px;
+}
+
+.block {
+  display: flex;
+  width: 100%;
+}
+
+.primary {
+  background: var(--ink);
+  color: var(--white);
+  font-weight: 700;
+}
+
+.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink), black 2%);
+}
+
+.primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--ink), black 4%);
+}
+
+.secondary {
+  background: var(--white);
+  color: var(--ink);
+  border-color: var(--line-strong);
+  font-weight: 500;
+}
+
+.secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--white), black 2%);
+}
+
+.secondary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--white), black 4%);
+}
+
+.button:disabled {
+  background: var(--white);
+  color: var(--faint);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
