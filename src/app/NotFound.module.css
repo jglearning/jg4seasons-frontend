@@ -1,0 +1,30 @@
+.page {
+  max-width: var(--student-max-width);
+  margin: 0 auto;
+  padding: var(--space-8) var(--gutter-student);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+}
+
+.body {
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.link {
+  align-self: flex-start;
+  min-height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+}
