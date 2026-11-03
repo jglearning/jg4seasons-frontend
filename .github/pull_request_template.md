@@ -1,6 +1,6 @@
 ## PR 제목
 
-<!-- 커밋 규칙과 같은 형식: feat(scope): 무엇을 했는지 -->
+<!-- [Feature|Fix|Chore|Infra] 제목 - #이슈번호 -->
 
 ## 변경 사항
 
