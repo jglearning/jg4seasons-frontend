@@ -3,8 +3,7 @@ import { createAuthFetch, type AuthFetchOptions } from './authFetch'
 import { badResponseError } from './errors'
 
 // openapi-fetch 클라이언트에 authFetch(X-CSRF, 401 → refresh 1회 후 재시도)를 꽂는다.
-// Paths는 src/api/generated의 생성 타입만 넣는다(손으로 쓴 타입 금지).
-// 실제 인스턴스는 백엔드 경로가 생긴 뒤 앱에 하나만 만든다: createApiClient<paths>({ onSessionExpired })
+// Paths는 src/api/generated의 생성 타입만 넣는다(손으로 쓴 타입 금지). 앱 인스턴스는 src/api/index.ts의 api 하나다
 // baseUrl 기본값은 현재 주소의 origin — 브라우저에서는 상대 주소와 같고, 테스트(jsdom + Node Request)에서도 절대 주소가 된다
 export function createApiClient<Paths extends object>({
   baseUrl = globalThis.location?.origin ?? '',
