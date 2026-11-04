@@ -1,0 +1,88 @@
+/* S-01·S-02 공통 — 학생 입장 화면 */
+.page {
+  padding: var(--space-8) 0 var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.brand {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.title {
+  margin-top: var(--space-2);
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+}
+
+.lead {
+  margin-top: var(--space-3);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.notice {
+  margin-top: var(--space-4);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.labelNote {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.link {
+  min-height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* S-02 저장된 반 */
+.saved {
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-student);
+  background: var(--surface);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.savedLabel {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.savedName {
+  margin-top: var(--space-1);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.savedName[data-muted] {
+  font-weight: 400;
+  color: var(--muted);
+}
