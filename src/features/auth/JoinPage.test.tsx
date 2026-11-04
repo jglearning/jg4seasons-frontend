@@ -153,6 +153,14 @@ describe('S-01 코드로 들어가기', () => {
     expect(screen.getByRole('heading', { name: '페이지를 찾을 수 없어요' })).toBeInTheDocument()
   })
 
+  it('교사 로그인 링크가 있다', () => {
+    renderJoin()
+    expect(screen.getByRole('link', { name: '교사 로그인' })).toHaveAttribute(
+      'href',
+      '/teacher/login',
+    )
+  })
+
   it('반 확인이 실패해도(429) 들어갈 수 있다', async () => {
     renderJoin()
     const user = userEvent.setup()

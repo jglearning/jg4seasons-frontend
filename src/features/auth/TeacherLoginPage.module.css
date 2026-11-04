@@ -1,0 +1,56 @@
+/* T-01 교사 로그인 — PC 1280 기준, 768에서도 같은 가운데 패널 */
+.page {
+  min-height: 100dvh;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--gutter-teacher);
+}
+
+.panel {
+  width: 100%;
+  max-width: 360px;
+  background: var(--white);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+  padding: var(--gutter-teacher);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.brand {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.title {
+  margin-top: var(--space-1);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+}
+
+.notice {
+  margin-top: var(--space-3);
+  font-size: 13px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.footer {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.link {
+  font-weight: 500;
+  color: var(--ink);
+}

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,18 +34,20 @@ describe('들어온 뒤의 세션', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  // T-01 화면은 교사 로그인 API(AUTH-04) 뒤에 붙는다 — 지금은 보내는 주소만 확인한다
-  it('교사 세션이 끝나면 저장된 반과 상관없이 T-01 주소로 보낸다', async () => {
+  it('교사가 로그인한 뒤 세션이 끝나면 저장된 반과 상관없이 T-01로 보내고 안내한다', async () => {
     saveJoinCode(AUTH_MOCK.joinCode)
-    setMockSession('teacher')
-    const { router, client } = renderRoutes(routes, { initialEntries: ['/teacher'] })
+    const { router, client } = renderRoutes(routes, { initialEntries: ['/teacher/login'] })
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('아이디'), 'teacher01')
+    await user.type(screen.getByLabelText('비밀번호'), `${AUTH_MOCK.staffPassword}{Enter}`)
     await screen.findByRole('heading', { name: '반 목록 화면 준비 중' })
 
     resetAuthMock()
     await client.invalidateQueries({ queryKey: ['me'] })
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/teacher/login'))
-    expect(router.state.location.state).toEqual({ reason: 'sessionExpired' })
+    expect(await screen.findByRole('heading', { name: '교사 로그인' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/teacher/login')
+    expect(screen.getByRole('status')).toHaveTextContent('로그인 시간이 지났습니다')
   })
 
   it('처음 열 때 세션이 없는 것은 "로그인이 끝났어요" 안내 없이 입장 화면만 보인다', async () => {
@@ -142,7 +144,8 @@ describe('로그인한 사람만 들어오는 경로(GET /me)', () => {
     saveJoinCode(AUTH_MOCK.joinCode)
     const { router } = renderRoutes(routes, { initialEntries: ['/teacher'] })
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/teacher/login'))
+    expect(await screen.findByRole('heading', { name: '교사 로그인' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/teacher/login')
   })
 
   it('학생 세션은 학생 홈을, 교사 주소로 오면 학생 홈으로 보낸다', async () => {

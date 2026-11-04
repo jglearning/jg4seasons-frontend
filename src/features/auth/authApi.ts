@@ -13,6 +13,10 @@ export function loginStudent(code: string, personalCode: string) {
   return unwrap(api.POST('/api/v1/auth/student/login', { body: { code, personalCode } }))
 }
 
+export function loginStaff(loginId: string, password: string) {
+  return unwrap(api.POST('/api/v1/auth/staff/login', { body: { loginId, password } }))
+}
+
 // 쿼리 키에는 이름·코드를 넣지 않는다(개발 콘솔에 찍힐 수 있다)
 export const meQuery = queryOptions({
   queryKey: ['me'],
