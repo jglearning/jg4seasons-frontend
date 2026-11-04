@@ -1,6 +1,50 @@
 // 생성 파일 — 직접 고치지 않는다. npm run api:sync
 
 export interface paths {
+    "/api/v1/admin/teachers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 교사·관리자 목록
+         * @description id 순
+         */
+        get: operations["list"];
+        put?: never;
+        /**
+         * 교사 생성
+         * @description 아이디가 이미 있으면(전체 학원, 대소문자 무관) 409 LOGIN_ID_TAKEN, 다른 학원 반이 있으면 404. X-CSRF 필요
+         */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/teachers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 교사 변경
+         * @description 빠진 칸은 그대로. 자기 비활성화는 409 SELF_CHANGE_NOT_ALLOWED, 다른 학원 교사·반은 404. 비활성화·비밀번호 재설정이면 그 교사의 refresh를 모두 끊음. X-CSRF 필요
+         */
+        patch: operations["update"];
+        trace?: never;
+    };
     "/api/v1/auth/code/verify": {
         parameters: {
             query?: never;
@@ -55,6 +99,26 @@ export interface paths {
          * @description 요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음. 회전된 지 10초 안의 옛 refresh는 200(쿠키 그대로 — 다른 탭이 받은 쿠키를 같이 씀), 그 뒤에 오면 그 사용자 refresh를 모두 끊고 401
          */
         post: operations["refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/staff/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 교사·관리자 로그인
+         * @description 성공하면 Set-Cookie access·refresh(14일)·csrf. 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 시도는 IP당 1분 10회(429, 성공·실패 모두). 아이디는 대소문자 구분 없음. CSRF 검사 없음
+         */
+        post: operations["staffLogin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -191,6 +255,18 @@ export interface components {
              */
             until?: string;
         };
+        StaffLoginRequest: {
+            /**
+             * @description 영문·숫자·.·_·- 3~30자. 대소문자 구분 없음, 앞뒤 공백은 서버가 정리
+             * @example teacher01
+             */
+            loginId: string;
+            /** @description 8~72자 */
+            password: string;
+        };
+        StaffLoginResponse: {
+            user: components["schemas"]["UserInfo"];
+        };
         StudentLoginRequest: {
             /**
              * @description 가입 코드(영숫자 8자). 소문자·앞뒤 공백은 서버가 정리한다
@@ -206,6 +282,54 @@ export interface components {
         StudentLoginResponse: {
             class: components["schemas"]["ClassRef"];
             user: components["schemas"]["UserInfo"];
+        };
+        TeacherCreateRequest: {
+            /** @description 담당 반 id. 없으면 빈 배열 */
+            classIds: number[];
+            /** @description 영문·숫자·.·_·- 3~30자. 대소문자 구분 없음(소문자로 저장), 전체 학원에서 고유 */
+            loginId: string;
+            /** @description 1~30자 */
+            name: string;
+            /** @description 8자 이상, 72바이트 이하 */
+            password: string;
+            /** @enum {string} */
+            role: "teacher" | "admin";
+        };
+        TeacherListResponse: {
+            items: components["schemas"]["TeacherResponse"][];
+            /** Format: int32 */
+            total: number;
+        };
+        TeacherResponse: {
+            /** @description 담당 반 id(오름차순) */
+            classIds: number[];
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: date-time
+             * @description 한 번도 로그인하지 않았으면 null(UTC)
+             */
+            lastLoginAt: string | null;
+            /** @description 로그인 수단이 없으면 null */
+            loginId: string | null;
+            name: string;
+            /** @enum {string} */
+            role: "teacher" | "admin";
+            /** @enum {string} */
+            status: "active" | "inactive";
+        };
+        TeacherUpdateRequest: {
+            /** @description 담당 반 id 전체(교체). 빈 배열이면 모두 해제 */
+            classIds?: number[];
+            /** @description 1~30자 */
+            name?: string;
+            /** @description 비밀번호 재설정(8자 이상, 72바이트 이하). 잠금이 풀리고 그 교사의 refresh를 모두 끊음 */
+            password?: string;
+            /**
+             * @description inactive면 로그인·refresh 불가, 그 교사의 refresh를 모두 끊음
+             * @enum {string}
+             */
+            status?: "active" | "inactive";
         };
         UserInfo: {
             /** Format: int64 */
@@ -223,6 +347,103 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TeacherListResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TeacherResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeacherUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TeacherResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     verify: {
         parameters: {
             query?: never;
@@ -299,6 +520,39 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    staffLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StaffLoginResponse"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
