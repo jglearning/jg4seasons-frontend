@@ -16,6 +16,10 @@ export const AUTH_MOCK = {
   lockedPersonalCode: '0000',
   /** 이 가입 코드는 verify 429 */
   rateLimitedJoinCode: 'ZZZZZZZZ',
+  /** 교사·관리자 비밀번호(백엔드 local 시드와 같은 값) */
+  staffPassword: 'local-teacher-1234',
+  /** 이 아이디는 423 LOCKED(교사 비밀번호 5회 실패) */
+  lockedLoginId: 'locked01',
   className: '겨울 그린 A반',
   academyName: 'JEY 어학원',
   /** 백엔드 LOCKED의 고정 문구 */
@@ -26,7 +30,6 @@ export const AUTH_MOCK = {
 } as const
 
 const STUDENT: MockUser = { id: 301, name: '김민준', role: 'student' }
-// 교사 로그인 API(AUTH-04)는 아직 없다 — 교사 세션은 setMockSession으로만 만든다
 const STAFF: Record<string, MockUser> = {
   teacher01: { id: 21, name: '이선생', role: 'teacher' },
   admin01: { id: 11, name: '박원장', role: 'admin' },
@@ -111,6 +114,25 @@ const authHandlers: AnyHandler[] = [
       user: STUDENT,
       class: { id: 12, name: AUTH_MOCK.className },
     })
+  }),
+
+  // 백엔드 AUTH-04: 아이디는 대소문자 구분 없음·앞뒤 공백 정리, 없는 아이디·틀린 비밀번호는 같은 401
+  http.post('*/api/v1/auth/staff/login', async ({ request }) => {
+    await delay()
+    const body = await readJson(request)
+    const loginId = typeof body.loginId === 'string' ? body.loginId.trim().toLowerCase() : ''
+    if (loginId === AUTH_MOCK.lockedLoginId) {
+      return problem(request, 423, 'LOCKED', AUTH_MOCK.lockedTitle, {
+        detail: AUTH_MOCK.lockedDetail,
+        until: AUTH_MOCK.lockedUntil,
+      })
+    }
+    const user = STAFF[loginId]
+    if (user === undefined || body.password !== AUTH_MOCK.staffPassword) {
+      return problem(request, 401, 'INVALID_CREDENTIALS', '입력한 정보가 맞지 않아요')
+    }
+    session = user
+    return HttpResponse.json<Schemas['StaffLoginResponse']>({ user })
   }),
 
   // 실제 백엔드는 200 + /me와 같은 본문(쿠키 회전)

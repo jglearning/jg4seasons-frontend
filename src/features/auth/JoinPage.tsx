@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type SubmitEvent, type ReactNode } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../api/errors'
 import { Button } from '../../shared/ui/Button'
 import { CodeBoxes } from '../../shared/ui/CodeBoxes'
@@ -145,6 +145,13 @@ export function JoinPage() {
             코드를 잃어버렸으면 담당 선생님께 물어보세요. 개인 코드는 친구에게 알려 주지 마세요.
           </p>
         </form>
+
+        <p className={styles.footer}>
+          선생님이신가요?
+          <Link to="/teacher/login" className={styles.link}>
+            교사 로그인
+          </Link>
+        </p>
       </div>
     </StudentLayout>
   )

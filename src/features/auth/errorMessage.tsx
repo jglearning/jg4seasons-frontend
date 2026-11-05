@@ -62,3 +62,9 @@ export const STUDENT_COPY: Copy = {
   codes: { INVALID_CREDENTIALS: '가입 코드 또는 개인 코드가 맞지 않아요' },
   unlockAt: (time) => `${time}부터 다시 할 수 있어요`,
 }
+
+// 교사·관리자(T-01) — 명사형
+export const STAFF_COPY: Copy = {
+  codes: { INVALID_CREDENTIALS: '아이디 또는 비밀번호가 맞지 않습니다' },
+  unlockAt: (time) => `${time} 이후 다시 로그인 가능`,
+}
