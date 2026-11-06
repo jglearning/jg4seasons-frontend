@@ -1,0 +1,44 @@
+/* 속도 세그먼트 0.8 | 1.0● | 1.2 — aria-pressed, 누르는 높이 40 */
+.segment {
+  display: inline-flex;
+  flex: none;
+  border: var(--border-control) solid var(--line-strong);
+  border-radius: var(--radius-tile);
+  background: var(--white);
+  overflow: hidden;
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 40px;
+  min-width: 44px;
+  padding: 0 var(--space-2);
+  border: none;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color var(--motion);
+}
+
+.option + .option {
+  border-left: var(--border-card) solid var(--line);
+}
+
+.option[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.required {
+  font-size: 12px;
+}
+
+.option:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}

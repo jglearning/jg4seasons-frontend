@@ -1,0 +1,160 @@
+/* 디자인 가이드 §5 Player(v0.3) — surface 배경, 위 1px line */
+.spacer {
+  flex: none;
+  height: calc(164px + env(safe-area-inset-bottom));
+}
+
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top: var(--border-card) solid var(--line);
+  background: var(--surface);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 바 바로 위에 띄우는 것(완료 전 안내 카드) — 학생 폭 안에서 */
+.overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + var(--space-3));
+  box-sizing: border-box;
+  max-width: var(--student-max-width);
+  margin: 0 auto;
+  padding: 0 var(--space-3);
+}
+
+.inner {
+  box-sizing: border-box;
+  max-width: var(--student-max-width);
+  margin: 0 auto;
+  padding: var(--space-3) var(--gutter-student);
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.title {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aside {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 소리가 안 날 때 안내 */
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 13px;
+  color: var(--danger);
+  word-break: keep-all;
+}
+
+.retry {
+  flex: none;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: var(--border-control) solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--white);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* 진행 바 8px: line 배경 위에 들은 구간만 레벨 fill, 지금 위치는 2px ink 세로선 */
+.track {
+  position: relative;
+  height: 8px;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  overflow: hidden;
+}
+
+.listened {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: var(--level);
+}
+
+.head {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  margin-left: -1px;
+  background: var(--ink);
+}
+
+.times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+}
+
+.round,
+.play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.round {
+  width: var(--touch-student);
+  height: var(--touch-student);
+  border: var(--border-control) solid var(--line-strong);
+  background: var(--white);
+  color: var(--ink);
+}
+
+.play {
+  width: 56px;
+  height: 56px;
+  border: none;
+  background: var(--ink);
+  color: var(--white);
+}
+
+.round:disabled,
+.play:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.play:disabled {
+  background: var(--line-strong);
+  color: var(--white);
+}
