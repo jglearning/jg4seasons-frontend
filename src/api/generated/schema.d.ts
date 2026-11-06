@@ -224,7 +224,7 @@ export interface paths {
         put?: never;
         /**
          * 청취 구간 전송
-         * @description 같은 세션의 같은 구간은 다시 세지 않는다(멱등). 잘못된 세그먼트는 버리고 dropped로 알린다(200). 내 반 진도표에 없는 회차 트랙 404, 수업일 전 423 LESSON_LOCKED, 다른 학생·트랙의 세션 id 400. CSRF는 헤더 X-CSRF 또는 바디 csrf(sendBeacon)
+         * @description 같은 세션의 같은 구간은 다시 세지 않는다(멱등). 잘못된 세그먼트는 버리고 dropped로 알린다(200). 어느 소속 반 진도표에도 없는 회차 트랙 404, 수업일 전 423 LESSON_LOCKED(소속 반이 둘이면 어느 반에서든 열렸으면 받는다), 다른 학생·트랙의 세션 id 400. CSRF는 헤더 X-CSRF 또는 바디 csrf(sendBeacon)
          */
         post: operations["flush"];
         delete?: never;
@@ -253,6 +253,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/student/classes/{classId}/lessons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 회차 목록
+         * @description 묶음(8회차씩)별 회차와 상태(completed·today·overdue·open·locked). 내가 지금 소속된 active 반만, 다른 학원·남의 반·퇴원한 반은 404
+         */
+        get: operations["lessons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 학생 홈
+         * @description 오늘 수업(수업일이 지난 회차 중 가장 늦은 것)·밀린 수업(ADR-24)·오늘 단어·다음 수업·통계. 오늘 = 학원 타임존 날짜. 현재 소속 반이 없으면 404
+         */
+        get: operations["home"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/student/lessons/{lessonCode}": {
         parameters: {
             query?: never;
@@ -262,7 +302,7 @@ export interface paths {
         };
         /**
          * 회차 상세
-         * @description 지문·문장·속도별 음원·문장 시각·들은 구간·완료 상태. 내 반 진도표에 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED
+         * @description 지문·문장·속도별 음원·문장 시각·들은 구간·완료 상태. 소속 반이 둘이면 어느 반에서든 열렸으면 연다. 어느 소속 반 진도표에도 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED
          */
         get: operations["detail"];
         put?: never;
@@ -329,6 +369,56 @@ export interface components {
             level: components["schemas"]["LevelInfo"];
             /** @example 겨울 그린 A반 */
             name: string;
+        };
+        ClassLessonsGroup: {
+            /**
+             * @description 시즌 이름 + 묶음 번호
+             * @example 겨울 1
+             */
+            label: string;
+            lessons: components["schemas"]["ClassLessonsLesson"][];
+            /**
+             * Format: int32
+             * @description 묶음 번호 1~3
+             */
+            module: number;
+            range: components["schemas"]["ClassLessonsRange"];
+        };
+        ClassLessonsLesson: {
+            /** @example L2-B1-05 */
+            code: string;
+            /** Format: int32 */
+            number: number;
+            progress: components["schemas"]["LessonProgressView"];
+            /**
+             * Format: date
+             * @description 진도표 수업일(휴강 뒤 옮겨졌으면 새 날짜)
+             */
+            scheduledDate: string;
+            /**
+             * @description open = 수업일 전이지만 열림(미래 회차 허용 반), locked = 수업일 전 또는 휴강만 있음
+             * @enum {string}
+             */
+            state: "completed" | "today" | "overdue" | "open" | "locked";
+            title: string;
+            /** @enum {string} */
+            type: "regular" | "module_review" | "integrated";
+        };
+        ClassLessonsRange: {
+            /**
+             * Format: date
+             * @description 묶음 첫 수업일
+             */
+            from: string;
+            /**
+             * Format: date
+             * @description 묶음 마지막 수업일
+             */
+            to: string;
+        };
+        ClassLessonsResponse: {
+            class: components["schemas"]["StudentClassInfo"];
+            groups: components["schemas"]["ClassLessonsGroup"][];
         };
         ClassListResponse: {
             items: components["schemas"]["ClassResponse"][];
@@ -565,6 +655,20 @@ export interface components {
              */
             total: number;
         };
+        LessonProgressView: {
+            /**
+             * Format: int32
+             * @description 완료한 지문 수
+             */
+            passagesDone: number;
+            /**
+             * Format: int32
+             * @description 지문 수(콘텐츠가 아직 없으면 0)
+             */
+            passagesTotal: number;
+            /** @enum {string} */
+            status: "not_started" | "in_progress" | "completed";
+        };
         LevelInfo: {
             /** @example L2 */
             code: string;
@@ -627,6 +731,130 @@ export interface components {
         };
         StaffLoginResponse: {
             user: components["schemas"]["UserInfo"];
+        };
+        StudentClassBook: {
+            /** @example L2-B1 */
+            code: string;
+            /**
+             * @description 머리글 표시 이름
+             * @example Book 1
+             */
+            label: string;
+            /** @enum {string} */
+            season: "겨울" | "봄" | "여름" | "가을";
+        };
+        StudentClassInfo: {
+            book: components["schemas"]["StudentClassBook"];
+            /** Format: int64 */
+            id: number;
+            level: components["schemas"]["StudentClassLevel"];
+            /** @example 겨울 그린 A반 */
+            name: string;
+        };
+        StudentClassLevel: {
+            /** @example L2 */
+            code: string;
+            /** @example #1F7A4F */
+            colorHex: string;
+            /** @example 그린 */
+            nameKo: string;
+        };
+        StudentHomeLessonRef: {
+            code: string;
+            title: string;
+        };
+        StudentHomeNext: {
+            lesson: components["schemas"]["StudentHomeLessonRef"];
+            /** Format: date */
+            scheduledDate: string;
+            /** Format: int32 */
+            seq: number;
+        };
+        StudentHomeOtherClass: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        StudentHomeOverdue: {
+            /**
+             * @description not_started 미참여 · stopped 멈춤
+             * @enum {string}
+             */
+            kind: "not_started" | "stopped";
+            lesson: components["schemas"]["StudentHomeLessonRef"];
+            progress: components["schemas"]["LessonProgressView"];
+            /** Format: date */
+            scheduledDate: string;
+            /** Format: int32 */
+            seq: number;
+        };
+        StudentHomePassageTitle: {
+            /** Format: int32 */
+            no: number;
+            title: string;
+        };
+        StudentHomeResponse: {
+            class: components["schemas"]["StudentClassInfo"];
+            /** @description 수업일이 오늘 뒤인 가장 이른 회차. 종강 뒤면 null */
+            next: components["schemas"]["StudentHomeNext"] | null;
+            otherClasses: components["schemas"]["StudentHomeOtherClass"][];
+            /** @description 밀린 수업(ADR-24), 오래된 순. 없으면 빈 배열 */
+            overdue: components["schemas"]["StudentHomeOverdue"][];
+            stats: components["schemas"]["StudentHomeStats"];
+            /** @description 수업일이 지난 회차 중 가장 늦은 것. 개강 전이면 null */
+            today: components["schemas"]["StudentHomeToday"] | null;
+            /** @description 오늘 회차의 단어. 오늘 회차가 없으면 null */
+            words: components["schemas"]["StudentHomeWords"] | null;
+        };
+        StudentHomeStats: {
+            /** Format: int32 */
+            completedLessons: number;
+            /**
+             * Format: int32
+             * @description overdue 배열 길이와 같다
+             */
+            overdueLessons: number;
+            /**
+             * Format: int32
+             * @description 진도표 회차 수
+             */
+            totalLessons: number;
+        };
+        StudentHomeToday: {
+            /**
+             * @description 시즌 이름 + 묶음 번호
+             * @example 겨울 1
+             */
+            groupLabel: string;
+            lesson: components["schemas"]["StudentHomeTodayLesson"];
+            progress: components["schemas"]["LessonProgressView"];
+            /** Format: date */
+            scheduledDate: string;
+            /** Format: int32 */
+            seq: number;
+        };
+        StudentHomeTodayLesson: {
+            /** @example L2-B1-05 */
+            code: string;
+            /** Format: int32 */
+            number: number;
+            passages: components["schemas"]["StudentHomePassageTitle"][];
+            title: string;
+            /** @enum {string} */
+            type: "regular" | "module_review" | "integrated";
+        };
+        StudentHomeWords: {
+            lessonCode: string;
+            /**
+             * Format: int32
+             * @description 암기 모드 '알아요' 최고 수
+             */
+            memKnown: number;
+            /**
+             * Format: int32
+             * @description 회차 단어 수
+             */
+            total: number;
         };
         StudentLoginRequest: {
             /**
@@ -1172,6 +1400,66 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    lessons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ClassLessonsResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    home: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StudentHomeResponse"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
