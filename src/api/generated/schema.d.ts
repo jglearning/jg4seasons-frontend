@@ -1,6 +1,74 @@
 // 생성 파일 — 직접 고치지 않는다. npm run api:sync
 
 export interface paths {
+    "/api/v1/admin/classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 반 목록
+         * @description id 순, 가입 코드 포함. status를 빼면 전부
+         */
+        get: operations["list_1"];
+        put?: never;
+        /**
+         * 반 생성
+         * @description 진도표 24회(개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요
+         */
+        post: operations["create_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/classes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 반 상세
+         * @description 다른 학원 반은 404
+         */
+        get: operations["find"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 반 변경
+         * @description 빠진 칸은 그대로. 권·개강일·요일은 바꿀 수 없음(새 반으로). active가 아니면 그 반 가입 코드로 입장할 수 없음. teacherIds는 전체 교체. 다른 학원 반·교사는 404. X-CSRF 필요
+         */
+        patch: operations["update_1"];
+        trace?: never;
+    };
+    "/api/v1/admin/classes/{id}/access-code/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 가입 코드 재발급
+         * @description 옛 코드로는 새로 입장할 수 없고, 이미 로그인한 학생은 그대로. 감사 로그에 남는다. 다른 학원 반은 404. X-CSRF 필요
+         */
+        post: operations["regenerateAccessCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/teachers": {
         parameters: {
             query?: never;
@@ -174,11 +242,44 @@ export interface components {
             id: number;
             name: string;
         };
+        AccessCodeResponse: {
+            /** @description 새 가입 코드 8자 */
+            accessCode: string;
+            /**
+             * Format: date-time
+             * @description 발급 시각(UTC, 초 단위)
+             */
+            codeIssuedAt: string;
+        };
         BookInfo: {
             /** @example L2-B1 */
             code: string;
             /** @enum {string} */
             season: "겨울" | "봄" | "여름" | "가을";
+        };
+        ClassCreateRequest: {
+            /**
+             * @description 권 코드(예: L2-B1). 없는 권이면 400 VALIDATION(bookCode)
+             * @example L2-B1
+             */
+            bookCode: string;
+            /** @description 앞뒤 공백을 뺀 1~50자. 같은 학원 안에서 겹쳐도 됨 */
+            name: string;
+            /**
+             * Format: date
+             * @description 개강일(학원 날짜). 지난 날짜도 됨. 이날이 수업 요일이면 1회차
+             */
+            startDate: string;
+            /** @description 담당 교사 id. 그 학원의 활성 교사·관리자만(아니면 404). 빈 배열 허용 */
+            teacherIds: number[];
+            /**
+             * @description 수업 요일 1(월)~7(일), 하나 이상, 겹침 없음. 아니면 400 VALIDATION(weekdays)
+             * @example [
+             *       1,
+             *       3
+             *     ]
+             */
+            weekdays: number[];
         };
         ClassInfo: {
             academyName: string;
@@ -189,10 +290,68 @@ export interface components {
             /** @example 겨울 그린 A반 */
             name: string;
         };
+        ClassListResponse: {
+            items: components["schemas"]["ClassResponse"][];
+            /** Format: int32 */
+            total: number;
+        };
         ClassRef: {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        ClassResponse: {
+            /** @description 가입 코드 8자 */
+            accessCode: string;
+            allowFutureLessons: boolean;
+            /** @example L2-B1 */
+            bookCode: string;
+            /**
+             * Format: date-time
+             * @description 가입 코드 발급 시각(UTC, 초 단위)
+             */
+            codeIssuedAt: string;
+            /** Format: int64 */
+            id: number;
+            /** @example L2 */
+            levelCode: string;
+            name: string;
+            /** @enum {string} */
+            season: "겨울" | "봄" | "여름" | "가을";
+            /**
+             * Format: date
+             * @description 개강일(학원 날짜)
+             */
+            startDate: string;
+            /** @enum {string} */
+            status: "active" | "finished" | "archived";
+            /**
+             * Format: int32
+             * @description 현재 소속 학생 수
+             */
+            studentCount: number;
+            /** @description 담당 교사(id 오름차순) */
+            teachers: components["schemas"]["ClassTeacher"][];
+            /** @description 수업 요일 1(월)~7(일), 오름차순 */
+            weekdays: number[];
+        };
+        ClassTeacher: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        ClassUpdateRequest: {
+            /** @description 미래 회차 미리 듣기 허용 */
+            allowFutureLessons?: boolean;
+            /** @description 앞뒤 공백을 뺀 1~50자 */
+            name?: string;
+            /**
+             * @description active가 아니면 그 반 가입 코드로 입장할 수 없음. 세 값 사이 자유롭게 바꿀 수 있음
+             * @enum {string}
+             */
+            status?: "active" | "finished" | "archived";
+            /** @description 담당 교사 id 전체(교체). 빈 배열이면 모두 해제. 새로 넣는 교사는 그 학원의 활성 교사·관리자만(아니면 404), 이미 이 반 담당인 교사는 비활성이어도 그대로 둘 수 있음 */
+            teacherIds?: number[];
         };
         CodeVerifyRequest: {
             /**
@@ -347,6 +506,168 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_1: {
+        parameters: {
+            query?: {
+                /** @description active · finished · archived */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ClassListResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ClassResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    find: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ClassResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ClassResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    regenerateAccessCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AccessCodeResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: never;
