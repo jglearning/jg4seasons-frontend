@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse, type AnyHandler } from 'msw'
 import type { components } from '../api/generated/schema'
 import { adminHandlers } from './adminData'
+import { recordFlush } from './lessonData'
 import { buildHome, buildLessons, STUDENT_MOCK } from './studentData'
 
 // dev:mock·테스트용 목 응답. 경로·본문은 openapi 생성 타입을 따른다(백엔드 PR #10 기준 문구·오류 code).
@@ -182,6 +183,22 @@ const studentHandlers: AnyHandler[] = [
       return problem(request, 403, 'FORBIDDEN', '이 반을 볼 수 없어요')
     }
     return HttpResponse.json(buildLessons())
+  }),
+
+  // 청취 flush(3.1) — fetch(application/json)와 sendBeacon(text/plain, 바디 csrf) 둘 다
+  http.post('*/api/v1/listening/flush', async ({ request }) => {
+    const denied = studentOnly(request)
+    if (denied) return denied
+    let body: unknown
+    try {
+      body = JSON.parse(await request.text())
+    } catch {
+      return problem(request, 400, 'VALIDATION', '요청 형식이 맞지 않아요')
+    }
+    const result = recordFlush(body as Parameters<typeof recordFlush>[0])
+    return result === undefined
+      ? problem(request, 400, 'VALIDATION', '트랙을 찾을 수 없어요')
+      : HttpResponse.json(result)
   }),
 ]
 
