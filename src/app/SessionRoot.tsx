@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { setSessionExpiredHandler } from '../api'
-import { meQuery } from '../features/auth/authApi'
+import { meQuery } from '../api/session'
 import { entryPathFor, isEntryPath, type EntryState } from '../features/auth/entry'
 
 // 모든 화면의 바깥 라우트. 세션이 끝나면(refresh 실패) 지금 주소에 맞는 입장 화면으로 보낸다.
