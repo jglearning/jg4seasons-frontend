@@ -1,4 +1,11 @@
 import type { RouteObject } from 'react-router'
+import { AdminOnly } from '../features/admin/AdminOnly'
+import { ClassDetailPage } from '../features/admin/ClassDetailPage'
+import { ClassesPage } from '../features/admin/ClassesPage'
+import { ClassNewPage } from '../features/admin/ClassNewPage'
+import { TeacherDetailPage } from '../features/admin/TeacherDetailPage'
+import { TeacherNewPage } from '../features/admin/TeacherNewPage'
+import { TeachersPage } from '../features/admin/TeachersPage'
 import { JoinPage } from '../features/auth/JoinPage'
 import { RejoinPage } from '../features/auth/RejoinPage'
 import { RequireSession } from '../features/auth/RequireSession'
@@ -6,6 +13,7 @@ import { TeacherLoginPage } from '../features/auth/TeacherLoginPage'
 import { NotFound } from './NotFound'
 import { StudentHomePlaceholder, TeacherHomePlaceholder } from './Placeholders'
 import { SessionRoot } from './SessionRoot'
+import { StaffShell } from './StaffShell'
 
 export const routes: RouteObject[] = [
   {
@@ -20,7 +28,25 @@ export const routes: RouteObject[] = [
       },
       {
         element: <RequireSession area="staff" />,
-        children: [{ path: '/teacher', element: <TeacherHomePlaceholder /> }],
+        children: [
+          {
+            element: <StaffShell />,
+            children: [
+              { path: '/teacher', element: <TeacherHomePlaceholder /> },
+              {
+                element: <AdminOnly />,
+                children: [
+                  { path: '/admin/classes', element: <ClassesPage /> },
+                  { path: '/admin/classes/new', element: <ClassNewPage /> },
+                  { path: '/admin/classes/:id', element: <ClassDetailPage /> },
+                  { path: '/admin/teachers', element: <TeachersPage /> },
+                  { path: '/admin/teachers/new', element: <TeacherNewPage /> },
+                  { path: '/admin/teachers/:id', element: <TeacherDetailPage /> },
+                ],
+              },
+            ],
+          },
+        ],
       },
       { path: '*', element: <NotFound /> },
     ],
