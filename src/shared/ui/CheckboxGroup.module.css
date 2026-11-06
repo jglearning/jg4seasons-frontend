@@ -1,0 +1,63 @@
+/* 여러 개 고르기 — 항목은 줄바꿈되는 칩(높이 36, 누르는 영역은 라벨 전체) */
+.group {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--button-h-teacher);
+  padding: 0 var(--space-3);
+  border: var(--border-control) solid var(--line-strong);
+  border-radius: var(--radius-card-teacher);
+  background: var(--white);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* 고른 칸: ink 테두리 + 굵게(체크 표시와 함께 — 색만으로 구분하지 않음) */
+.option:has(.box:checked) {
+  border-color: var(--ink);
+  font-weight: 700;
+}
+
+.box {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.group:disabled .option {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.error {
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+  color: var(--danger);
+}
