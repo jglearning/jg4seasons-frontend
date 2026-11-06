@@ -41,9 +41,7 @@ describe('S-02 다시 들어오기', () => {
     ).toBeInTheDocument()
     await pressDigits(user, AUTH_MOCK.personalCode)
 
-    expect(
-      await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
     expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
   })
@@ -128,9 +126,7 @@ describe('S-02 다시 들어오기', () => {
     expect(await screen.findByText('반 정보를 불러오지 못했어요')).toBeInTheDocument()
     await pressDigits(user, AUTH_MOCK.personalCode)
 
-    expect(
-      await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
     expect(readJoinCode()).toBe(AUTH_MOCK.joinCode)
   })
 

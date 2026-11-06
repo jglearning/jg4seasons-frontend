@@ -10,21 +10,28 @@ import { JoinPage } from '../features/auth/JoinPage'
 import { RejoinPage } from '../features/auth/RejoinPage'
 import { RequireSession } from '../features/auth/RequireSession'
 import { TeacherLoginPage } from '../features/auth/TeacherLoginPage'
+import { HomePage } from '../features/student/HomePage'
+import { LessonsPage } from '../features/student/LessonsPage'
 import { NotFound } from './NotFound'
-import { StudentHomePlaceholder, TeacherHomePlaceholder } from './Placeholders'
+import { RouteError } from './RouteError'
+import { TeacherHomePlaceholder } from './Placeholders'
 import { SessionRoot } from './SessionRoot'
 import { StaffShell } from './StaffShell'
 
 export const routes: RouteObject[] = [
   {
     element: <SessionRoot />,
+    errorElement: <RouteError />,
     children: [
       { path: '/join', element: <JoinPage /> },
       { path: '/rejoin', element: <RejoinPage /> },
       { path: '/teacher/login', element: <TeacherLoginPage /> },
       {
         element: <RequireSession area="student" />,
-        children: [{ path: '/', element: <StudentHomePlaceholder /> }],
+        children: [
+          { path: '/', element: <HomePage /> },
+          { path: '/lessons', element: <LessonsPage /> },
+        ],
       },
       {
         element: <RequireSession area="staff" />,

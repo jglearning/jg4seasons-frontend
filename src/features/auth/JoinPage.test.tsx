@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { AUTH_MOCK, resetAuthMock } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
+import { buildHome } from '../../mocks/studentData'
 import { renderRoutes } from '../../test/render'
 import { readJoinCode } from './joinCode'
 import { expectSecretNowhere, watchConsole } from './testUtils'
@@ -96,9 +97,7 @@ describe('S-01 코드로 들어가기', () => {
     await user.type(personalInput(), AUTH_MOCK.personalCode)
     await user.click(submitButton())
 
-    expect(
-      await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 
@@ -180,9 +179,7 @@ describe('S-01 코드로 들어가기', () => {
     await user.type(personalInput(), AUTH_MOCK.personalCode)
     await user.click(submitButton())
 
-    expect(
-      await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
     expect(readJoinCode()).toBe(AUTH_MOCK.joinCode)
     expect(Object.keys(localStorage)).toHaveLength(1)
@@ -191,17 +188,20 @@ describe('S-01 코드로 들어가기', () => {
 
   it('로그인하면 이전 사용자의 캐시를 비운다(같은 기기를 다른 학생이 쓸 때)', async () => {
     const { client } = renderJoin()
-    client.setQueryData(['student', 'home'], { previous: true })
+    // 이전 학생의 홈이 캐시에 남아 있다(30초 안이면 다시 받지 않고 그대로 그릴 수 있다)
+    const previous = buildHome()
+    previous.class.name = '이전 학생의 반'
+    client.setQueryData(['student', 'home'], previous)
+    client.setQueryData(['student', 'lessons', 99], { previous: true })
     const user = userEvent.setup()
 
     await user.type(joinInput(), AUTH_MOCK.joinCode)
     await user.type(personalInput(), AUTH_MOCK.personalCode)
     await user.click(submitButton())
 
-    expect(
-      await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' }),
-    ).toBeInTheDocument()
-    expect(client.getQueryData(['student', 'home'])).toBeUndefined()
+    expect(await screen.findByText('겨울 그린 A반 · 김민준')).toBeInTheDocument()
+    expect(screen.queryByText(/이전 학생의 반/)).not.toBeInTheDocument()
+    expect(client.getQueryData(['student', 'lessons', 99])).toBeUndefined()
   })
 
   it('요청을 보내자마자 개인 코드 칸을 비운다(응답을 기다리는 동안에도)', async () => {
