@@ -213,6 +213,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listening/flush": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 청취 구간 전송
+         * @description 같은 세션의 같은 구간은 다시 세지 않는다(멱등). 잘못된 세그먼트는 버리고 dropped로 알린다(200). 내 반 진도표에 없는 회차 트랙 404, 수업일 전 423 LESSON_LOCKED, 다른 학생·트랙의 세션 id 400. CSRF는 헤더 X-CSRF 또는 바디 csrf(sendBeacon)
+         */
+        post: operations["flush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -382,6 +402,78 @@ export interface components {
         };
         CodeVerifyResponse: {
             class: components["schemas"]["ClassInfo"];
+        };
+        FlushLesson: {
+            /** @example L2-B1-05 */
+            code: string;
+            /**
+             * Format: int32
+             * @description 완료한 지문 수
+             */
+            requiredDone: number;
+            /**
+             * Format: int32
+             * @description 지문 수
+             */
+            requiredTotal: number;
+            /** @enum {string} */
+            status: "not_started" | "in_progress" | "completed";
+        };
+        FlushRequest: {
+            /**
+             * @description 트랙 재생 시작 때 클라이언트가 만든 UUID. 재전송·멱등 키
+             * @example 7c2e0000-0000-4000-8000-000000000001
+             */
+            clientSessionId: string;
+            /** @description sendBeacon(text/plain)일 때만. fetch는 헤더 X-CSRF */
+            csrf?: string;
+            /** @description pause·ended·pagehide에서 true. 서버 동작은 같다 */
+            final?: boolean;
+            /** @description 빈 배열 허용. 앞 50개만 보고 나머지는 dropped */
+            segments: components["schemas"]["FlushSegment"][];
+            /**
+             * Format: date-time
+             * @description 세션 시작 시각(클라이언트, 첫 flush만 저장)
+             */
+            startedAt: string;
+            /** Format: int64 */
+            trackId: number;
+            /** @description 첫 flush만 저장, 200자에서 자름 */
+            userAgent?: string;
+        };
+        FlushResponse: {
+            /**
+             * Format: int32
+             * @description 버린 세그먼트 수(범위·길이·빠진 칸·50개 초과). 재전송 중복은 세지 않음
+             */
+            dropped: number;
+            lesson: components["schemas"]["FlushLesson"];
+            track: components["schemas"]["FlushTrack"];
+        };
+        FlushSegment: {
+            /**
+             * Format: int32
+             * @description 트랙 안 끝(ms), 시작보다 큼
+             */
+            endMs: number;
+            /**
+             * Format: date-time
+             * @description 기록 시각(클라이언트)
+             */
+            recordedAt: string;
+            /**
+             * Format: int32
+             * @description 트랙 안 시작(ms)
+             */
+            startMs: number;
+        };
+        FlushTrack: {
+            /** @description 완료 기준 도달(한 번 되면 유지) */
+            completed: boolean;
+            /** @description 청취율 0~1 */
+            coverage: number;
+            /** Format: int64 */
+            trackId: number;
         };
         LessonDetailCompletion: {
             /** Format: int32 */
@@ -1017,6 +1109,40 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["StudentLoginResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    flush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlushRequest"];
+                "text/plain": components["schemas"]["FlushRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FlushResponse"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
