@@ -1,0 +1,85 @@
+.alert {
+  /* 한국어는 낱말 중간에서 줄을 바꾸지 않는다("멈/춤" 방지) */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  border: 2px solid var(--danger-line);
+  border-radius: 14px;
+  background: var(--danger-tint);
+  padding: var(--space-4);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-card) solid var(--danger-card-line);
+  border-radius: var(--radius-control);
+  background: var(--white);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.detail {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.action {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--danger);
+  color: var(--white);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}

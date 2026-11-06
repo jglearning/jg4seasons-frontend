@@ -1,0 +1,15 @@
+.card {
+  box-sizing: border-box;
+  border: var(--border-card) solid var(--line);
+  background: var(--white);
+}
+
+.student {
+  border-radius: var(--radius-card-student);
+  padding: var(--space-5);
+}
+
+.teacher {
+  border-radius: var(--radius-card-teacher);
+  padding: var(--space-4);
+}
