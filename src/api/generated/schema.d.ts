@@ -233,6 +233,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/student/lessons/{lessonCode}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 회차 상세
+         * @description 지문·문장·속도별 음원·문장 시각·들은 구간·완료 상태. 내 반 진도표에 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED
+         */
+        get: operations["detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -362,6 +382,96 @@ export interface components {
         };
         CodeVerifyResponse: {
             class: components["schemas"]["ClassInfo"];
+        };
+        LessonDetailCompletion: {
+            /** Format: int32 */
+            passagesDone: number;
+            /** Format: int32 */
+            passagesTotal: number;
+            /** @enum {string} */
+            status: "not_started" | "in_progress" | "completed";
+            /** @description 트랙 완료 기준 청취율(0~1) */
+            threshold: number;
+        };
+        LessonDetailLesson: {
+            /** @example L2-B1-05 */
+            code: string;
+            /** Format: int32 */
+            number: number;
+            /** @example Reading Day 5 */
+            title: string;
+            /** @enum {string} */
+            type: "regular" | "module_review" | "integrated";
+        };
+        LessonDetailLevel: {
+            /** @example L2 */
+            code: string;
+            /** @example #1F7A4F */
+            colorHex: string;
+            /** @example 그린 */
+            nameKo: string;
+        };
+        LessonDetailPassage: {
+            /** Format: int32 */
+            no: number;
+            sentences: components["schemas"]["LessonDetailSentence"][];
+            speeds: components["schemas"]["LessonDetailSpeed"][];
+            title: string;
+            /** Format: int32 */
+            wordCount: number;
+        };
+        LessonDetailResponse: {
+            completion: components["schemas"]["LessonDetailCompletion"];
+            lesson: components["schemas"]["LessonDetailLesson"];
+            level: components["schemas"]["LessonDetailLevel"];
+            passages: components["schemas"]["LessonDetailPassage"][];
+            words: components["schemas"]["LessonDetailWords"];
+        };
+        LessonDetailSentence: {
+            /** Format: int32 */
+            no: number;
+            /** @description 대화문 화자. 대화문이 아니면 null */
+            speaker: string | null;
+            text: string;
+        };
+        LessonDetailSpeed: {
+            /** @description 같은 도메인 상대 경로 */
+            audioUrl: string;
+            completed: boolean;
+            /** @description 청취율 0~1(병합된 구간 / 길이) */
+            coverage: number;
+            /**
+             * Format: int32
+             * @description 음원 길이(ms)
+             */
+            durationMs: number;
+            /** @description 병합된 들은 구간 [시작, 끝] ms. 들은 적 없으면 빈 배열 */
+            heardRanges: number[][];
+            /** @description 지문 완료에 필요한 속도인가(완료 규칙 결과) */
+            required: boolean;
+            /** @description timings[i] = sentences[i]의 [시작, 끝] ms. 문장 시각이 아직 없으면 빈 배열 */
+            timings: number[][];
+            /** @description true면 1.0 시각을 길이 비율로 늘이거나 줄인 근사 */
+            timingsApproximate: boolean;
+            /** Format: int64 */
+            trackId: number;
+            /**
+             * @description 속도(0.8·1.0·1.2)
+             * @example 1.0
+             */
+            variant: string;
+        };
+        LessonDetailWords: {
+            /**
+             * Format: int32
+             * @description 암기 모드 '알아요' 최고 수
+             */
+            memKnown: number;
+            /**
+             * Format: int32
+             * @description 회차 단어 수
+             */
+            total: number;
         };
         LevelInfo: {
             /** @example L2 */
@@ -936,6 +1046,41 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description 회차 코드
+                 * @example L2-B1-05
+                 */
+                lessonCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LessonDetailResponse"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
