@@ -1,4 +1,5 @@
 import type { components } from '../api/generated/schema'
+import { PASSAGE_TITLES } from './lessonData'
 
 // 학생 홈·회차 목록 목 데이터(03 §2.1·§2.2 예시 + 회차 상세 목과 같은 지어낸 지문 제목).
 // 겨울 L2-B1, 24회차를 화·목·토 수업으로 배치: Day 1·2 완료, 3 멈춤(밀림), 4 미시작(밀림), 5 오늘, 6~ 잠김.
@@ -20,14 +21,7 @@ export const STUDENT_MOCK = {
   todayNumber: 5,
 } as const
 
-const PASSAGES_L2_B1_05 = [
-  'Talking While Driving',
-  'What Tree Rings Tell Us',
-  'A Hard Winter on the Farm',
-  'Mina Paints and Counts',
-  'Tea on Rainy Days',
-  'When Fuel Costs Go Up',
-]
+const PASSAGES_L2_B1_05 = PASSAGE_TITLES
 const WORD_TOTAL = 57
 
 const FIRST_DAY = Date.UTC(2026, 11, 10) // 2026-12-10(목)

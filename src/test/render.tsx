@@ -1,6 +1,6 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
-import type { ReactElement } from 'react'
+import { StrictMode, type ReactElement } from 'react'
 import { createMemoryRouter, type RouteObject } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import { createQueryClient } from '../app/queryClient'
@@ -23,18 +23,20 @@ export function renderWithClient(ui: ReactElement, client = createTestQueryClien
 }
 
 // 라우트 단위 화면 테스트. 앱의 routes 배열을 그대로 넘긴다(브라우저 라우터를 쓰지 않아 테스트끼리 주소가 이어지지 않는다)
+// strict: 운영 main.tsx처럼 StrictMode로 감싼다 — effect 두 번 실행(붙임 → 뗌 → 붙임)에도 안전한지 볼 때(청취 추적)
 export function renderRoutes(
   routes: RouteObject[],
-  { initialEntries = ['/'], client = createTestQueryClient() } = {},
+  { initialEntries = ['/'], client = createTestQueryClient(), strict = false } = {},
 ) {
   const router = createMemoryRouter(routes, { initialEntries })
+  const app = (
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  )
   return {
     client,
     router,
-    ...render(
-      <QueryClientProvider client={client}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
-    ),
+    ...render(strict ? <StrictMode>{app}</StrictMode> : app),
   }
 }
