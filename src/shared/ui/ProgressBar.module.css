@@ -1,0 +1,20 @@
+.track {
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+
+.student {
+  height: 8px;
+}
+
+.word {
+  height: 6px;
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--level);
+}

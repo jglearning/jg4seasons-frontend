@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse, type AnyHandler } from 'msw'
 import type { components } from '../api/generated/schema'
 import { adminHandlers } from './adminData'
+import { buildHome, buildLessons, STUDENT_MOCK } from './studentData'
 
 // dev:mock·테스트용 목 응답. 경로·본문은 openapi 생성 타입을 따른다(백엔드 PR #10 기준 문구·오류 code).
 // 인증 목은 로그인 상태를 메모리에 들고 있다 — 새로 고침하면 로그아웃 상태(S-02 확인용)
@@ -159,7 +160,33 @@ function me(user: MockUser): Schemas['MeResponse'] {
   return { ...user, academy: { id: 1, name: AUTH_MOCK.academyName } }
 }
 
+// 학생 API(03 §2) — 학생 세션이 없으면 401(교사는 403)
+function studentOnly(request: Request) {
+  if (!session) return problem(request, 401, 'UNAUTHORIZED', '다시 들어와 주세요')
+  if (session.role !== 'student')
+    return problem(request, 403, 'FORBIDDEN', '이 화면을 볼 수 없어요')
+  return undefined
+}
+
+const studentHandlers: AnyHandler[] = [
+  http.get('*/api/v1/student/home', async ({ request }) => {
+    await delay()
+    return studentOnly(request) ?? HttpResponse.json(buildHome())
+  }),
+
+  http.get('*/api/v1/student/classes/:classId/lessons', async ({ request, params }) => {
+    await delay()
+    const denied = studentOnly(request)
+    if (denied) return denied
+    if (Number(params.classId) !== STUDENT_MOCK.classId) {
+      return problem(request, 403, 'FORBIDDEN', '이 반을 볼 수 없어요')
+    }
+    return HttpResponse.json(buildLessons())
+  }),
+]
+
 export const handlers: AnyHandler[] = [
   ...authHandlers,
+  ...studentHandlers,
   ...adminHandlers({ problem, readJson, currentUser: () => session }),
 ]

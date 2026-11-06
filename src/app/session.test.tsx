@@ -1,3 +1,4 @@
+import { onlineManager } from '@tanstack/react-query'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -20,7 +21,7 @@ describe('들어온 뒤의 세션', () => {
     await user.type(screen.getByLabelText(/가입 코드/), AUTH_MOCK.joinCode)
     await user.type(screen.getByLabelText(/개인 코드/), AUTH_MOCK.personalCode)
     await user.click(screen.getByRole('button', { name: '들어가기' }))
-    await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' })
+    await screen.findByRole('heading', { name: '제이G 4 Seasons' })
 
     resetAuthMock() // 서버에서 세션이 끝남
     await client.invalidateQueries({ queryKey: ['me'] })
@@ -62,7 +63,7 @@ describe('들어온 뒤의 세션', () => {
     setMockSession('student')
     const { router, client } = renderRoutes(routes, { initialEntries: ['/'] })
     const user = userEvent.setup()
-    await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' })
+    await screen.findByRole('heading', { name: '제이G 4 Seasons' })
 
     resetAuthMock()
     await client.invalidateQueries({ queryKey: ['me'] })
@@ -76,14 +77,15 @@ describe('들어온 뒤의 세션', () => {
   it('이미 들어온 뒤 백그라운드 재조회가 5xx로 실패해도 보던 화면을 그대로 둔다', async () => {
     setMockSession('student')
     const { client } = renderRoutes(routes, { initialEntries: ['/'] })
-    await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' })
+    await screen.findByRole('heading', { name: '제이G 4 Seasons' })
 
     server.use(http.get('*/api/v1/me', () => HttpResponse.json({}, { status: 503 })))
     await client.refetchQueries({ queryKey: ['me'] })
 
     expect(client.getQueryState(['me'])?.status).toBe('error')
-    expect(screen.getByRole('heading', { name: '홈 화면은 준비 중이에요' })).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
+    // 가드의 오류 화면("다시 시도")으로 바뀌지 않는다(홈의 밀린 수업 칸도 role="alert"라 버튼으로 본다)
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
   })
 
   it('/me가 401이 아닌 4xx(403)면 다시 시도 대신 입장 화면으로 가는 길을 준다', async () => {
@@ -113,6 +115,20 @@ describe('들어온 뒤의 세션', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('인터넷 연결을 확인')
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
+  })
+
+  it('기기가 오프라인이면(요청이 멈춤) 빈 화면 대신 연결 문구, 연결되면 저절로 들어간다', async () => {
+    setMockSession('student')
+    onlineManager.setOnline(false)
+    try {
+      renderRoutes(routes, { initialEntries: ['/'] })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('인터넷 연결을 확인')
+      onlineManager.setOnline(true)
+      expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
+    } finally {
+      onlineManager.setOnline(true)
+    }
   })
 
   it('superadmin도 교사·관리자 쪽으로 보낸다', async () => {
@@ -152,9 +168,7 @@ describe('로그인한 사람만 들어오는 경로(GET /me)', () => {
     setMockSession('student')
     const { router } = renderRoutes(routes, { initialEntries: ['/teacher'] })
 
-    expect(
-      await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 
@@ -181,8 +195,6 @@ describe('로그인한 사람만 들어오는 경로(GET /me)', () => {
     expect(router.state.location.pathname).toBe('/')
     await user.click(screen.getByRole('button', { name: '다시 시도' }))
 
-    expect(
-      await screen.findByRole('heading', { name: '홈 화면은 준비 중이에요' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
   })
 })

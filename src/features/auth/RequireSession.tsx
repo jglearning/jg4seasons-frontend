@@ -4,7 +4,7 @@ import { ApiError } from '../../api/errors'
 import { Button } from '../../shared/ui/Button'
 import { isStaffRole, meQuery } from '../../api/session'
 import { entryPathFor } from './entry'
-import { errorMessage } from '../../shared/errorMessage'
+import { errorMessage, NETWORK_MESSAGE } from '../../shared/errorMessage'
 import styles from './RequireSession.module.css'
 
 type Area = 'student' | 'staff'
@@ -24,7 +24,18 @@ export function RequireSession({ area }: { area: Area }) {
     if (area === 'staff' && !staff) return <Navigate to="/" replace />
     return <Outlet />
   }
-  if (!me.isError) return null
+  if (!me.isError) {
+    // 오프라인이면 TanStack Query가 요청을 멈춘 채(paused) 오류를 내지 않는다 → 빈 화면 대신 연결 문구.
+    // 연결되면 저절로 다시 받는다
+    if (me.fetchStatus !== 'paused') return null
+    return (
+      <main className={styles.page}>
+        <p className={styles.message} role="alert">
+          {NETWORK_MESSAGE}
+        </p>
+      </main>
+    )
+  }
 
   const status = me.error instanceof ApiError ? me.error.status : undefined
   // 401은 이미 입장 화면으로 가는 중이다
