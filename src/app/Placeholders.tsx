@@ -9,10 +9,7 @@ export function StudentHomePlaceholder() {
   )
 }
 
+// 교사·관리자 틀(StaffShell)이 <main>을 그린다
 export function TeacherHomePlaceholder() {
-  return (
-    <main style={{ padding: 'var(--space-8) var(--gutter-teacher)' }}>
-      <h1 style={{ fontSize: 20 }}>반 목록 화면 준비 중</h1>
-    </main>
-  )
+  return <h1 style={{ margin: 0, fontSize: 20 }}>반 목록 화면 준비 중</h1>
 }

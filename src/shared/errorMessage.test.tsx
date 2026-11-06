@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '../../api/errors'
-import { errorMessage, STUDENT_COPY } from './errorMessage'
+import { ApiError } from '../api/errors'
+import { errorMessage, type Copy } from './errorMessage'
+
+const COPY: Copy = { unlockAt: (time) => `${time}부터 다시 할 수 있어요` }
 
 function locked(until: string | undefined) {
   return new ApiError({
@@ -15,7 +17,7 @@ function locked(until: string | undefined) {
 }
 
 function shown(error: unknown) {
-  const { container } = render(<p>{errorMessage(error, STUDENT_COPY)}</p>)
+  const { container } = render(<p>{errorMessage(error, COPY)}</p>)
   return container.textContent
 }
 

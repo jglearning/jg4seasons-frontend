@@ -1,0 +1,80 @@
+/* 교사 표 — 행 40, 헤더 surface, 셀 8/14, 가로 스크롤 + 첫 열 고정 */
+.scroll {
+  overflow-x: auto;
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+}
+
+.scroll:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.table th,
+.table td {
+  height: var(--row-h-teacher);
+  padding: var(--space-2) 14px;
+  border-bottom: var(--border-card) solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th {
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* 첫 열 고정(가로 스크롤 때) — 배경을 깔아 뒤 칸이 비치지 않게 */
+.table th:first-child,
+.table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  border-right: var(--border-card) solid var(--line);
+}
+
+.table td:first-child {
+  background: var(--white);
+}
+
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table .numeric {
+  text-align: right;
+}
+
+.empty {
+  color: var(--muted);
+}
+
+/* 표 안 링크(이름 → 상세): ink + 밑줄(파란 기본색을 쓰지 않음) */
+.table a {
+  color: var(--ink);
+  font-weight: 500;
+  text-underline-offset: 3px;
+}

@@ -1,5 +1,6 @@
 import { delay, http, HttpResponse, type AnyHandler } from 'msw'
 import type { components } from '../api/generated/schema'
+import { adminHandlers } from './adminData'
 
 // dev:mock·테스트용 목 응답. 경로·본문은 openapi 생성 타입을 따른다(백엔드 PR #10 기준 문구·오류 code).
 // 인증 목은 로그인 상태를 메모리에 들고 있다 — 새로 고침하면 로그아웃 상태(S-02 확인용)
@@ -158,4 +159,7 @@ function me(user: MockUser): Schemas['MeResponse'] {
   return { ...user, academy: { id: 1, name: AUTH_MOCK.academyName } }
 }
 
-export const handlers: AnyHandler[] = [...authHandlers]
+export const handlers: AnyHandler[] = [
+  ...authHandlers,
+  ...adminHandlers({ problem, readJson, currentUser: () => session }),
+]
