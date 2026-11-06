@@ -10,6 +10,7 @@ import { JoinPage } from '../features/auth/JoinPage'
 import { RejoinPage } from '../features/auth/RejoinPage'
 import { RequireSession } from '../features/auth/RequireSession'
 import { TeacherLoginPage } from '../features/auth/TeacherLoginPage'
+import { LessonPage } from '../features/player/LessonPage'
 import { HomePage } from '../features/student/HomePage'
 import { LessonsPage } from '../features/student/LessonsPage'
 import { NotFound } from './NotFound'
@@ -31,6 +32,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/lessons', element: <LessonsPage /> },
+          { path: '/lessons/:code', element: <LessonPage /> },
         ],
       },
       {

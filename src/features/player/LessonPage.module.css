@@ -1,0 +1,111 @@
+/* S-05 회차 듣기 (와이어프레임 S05_Player 11/5, 디자인 가이드 §3·§5) */
+
+.header {
+  padding: var(--space-6) 0 var(--space-4);
+  word-break: keep-all;
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+}
+
+.summary {
+  margin: var(--space-1) 0 0;
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.passage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+}
+
+/* 지문 제목 + 오른쪽 속도 세그먼트 */
+.passageHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.passageName {
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.passageTitle {
+  margin: 2px 0 0;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.fromStart {
+  align-self: flex-start;
+}
+
+/* 문장 상자 목록 — 화면 전체가 스크롤된다(목록만 따로 스크롤하지 않음) */
+.sentences {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.after {
+  padding: var(--space-5) 0 var(--space-6);
+}
+
+/* 마지막 지문: surface-2 칸 */
+.last {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-4);
+  border-radius: 14px;
+  background: var(--surface-2);
+  word-break: keep-all;
+}
+
+.lastTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.lastBody {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  /* surface-2 위 muted는 4.39:1(4.5 미달) — ink */
+  color: var(--ink);
+}
+
+.load {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-8) 0;
+}
+
+.loadMessage {
+  margin: 0;
+  padding-top: var(--space-8);
+  font-size: 16px;
+}

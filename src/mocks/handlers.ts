@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse, type AnyHandler } from 'msw'
 import type { components } from '../api/generated/schema'
 import { adminHandlers } from './adminData'
+import { buildLessonDetail, LESSON_MOCK, recordFlush } from './lessonData'
 import { buildHome, buildLessons, STUDENT_MOCK } from './studentData'
 
 // dev:mock·테스트용 목 응답. 경로·본문은 openapi 생성 타입을 따른다(백엔드 PR #10 기준 문구·오류 code).
@@ -182,6 +183,38 @@ const studentHandlers: AnyHandler[] = [
       return problem(request, 403, 'FORBIDDEN', '이 반을 볼 수 없어요')
     }
     return HttpResponse.json(buildLessons())
+  }),
+
+  // S-05 회차 상세(03 §2.3) — 목은 L2-B1-01~05만 열려 있다
+  http.get('*/api/v1/student/lessons/:code', async ({ request, params }) => {
+    await delay()
+    const denied = studentOnly(request)
+    if (denied) return denied
+    const code = String(params.code)
+    if (!/^L2-B1-\d{2}$/.test(code))
+      return problem(request, 404, 'NOT_FOUND', '회차를 찾을 수 없어요')
+    if (!LESSON_MOCK.openCodes.includes(code as (typeof LESSON_MOCK.openCodes)[number])) {
+      return problem(request, 423, 'LESSON_LOCKED', '아직 열리지 않은 회차예요', {
+        detail: '수업 날이 되면 열려요',
+      })
+    }
+    return HttpResponse.json(buildLessonDetail(code))
+  }),
+
+  // 청취 flush(3.1) — fetch(application/json)와 sendBeacon(text/plain, 바디 csrf) 둘 다
+  http.post('*/api/v1/listening/flush', async ({ request }) => {
+    const denied = studentOnly(request)
+    if (denied) return denied
+    let body: unknown
+    try {
+      body = JSON.parse(await request.text())
+    } catch {
+      return problem(request, 400, 'VALIDATION', '요청 형식이 맞지 않아요')
+    }
+    const result = recordFlush(body as Parameters<typeof recordFlush>[0])
+    return result === undefined
+      ? problem(request, 400, 'VALIDATION', '트랙을 찾을 수 없어요')
+      : HttpResponse.json(result)
   }),
 ]
 
