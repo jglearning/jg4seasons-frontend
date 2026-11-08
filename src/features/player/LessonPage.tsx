@@ -269,6 +269,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
         onToggle={player.toggle}
         onPrev={() => moveTo(Math.max(at - 1, 0))}
         onNext={() => moveTo(Math.min(at + 1, sentenceCount - 1))}
+        onSeek={player.seekTo}
         prevDisabled={!hasTimings || at <= 0}
         nextDisabled={!hasTimings || at >= sentenceCount - 1}
         error={

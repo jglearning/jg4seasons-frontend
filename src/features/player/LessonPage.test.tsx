@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -460,6 +460,90 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     expect(filled()).toEqual([`0-${seeded}`, '40000-45000'])
   })
 })
+
+describe('진행 바로 위치 옮기기(STU-05 — 11/9 실기기 요청)', () => {
+  const seekBar = () => within(player()).getByRole('slider', { name: '재생 위치' })
+  /** 바 영역(x 20~370, 폭 350)에 jsdom이 모르는 레이아웃을 넣는다 */
+  function layout() {
+    const area = seekBar().parentElement as HTMLElement
+    vi.spyOn(area, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 700, 350, 8))
+    return area
+  }
+  function pointer(target: Element, type: string, clientX: number) {
+    act(() => {
+      target.dispatchEvent(
+        new PointerEvent(type, { bubbles: true, clientX, pointerId: 1, isPrimary: true }),
+      )
+    })
+  }
+
+  it('누르고 끄는 동안은 위치만 보여 주고, 손을 뗄 때 한 번 옮긴다', async () => {
+    renderLesson()
+    await heading()
+    act(() => {
+      within(player()).getByRole('button', { name: '재생' }).click()
+    })
+    metadata(seconds(5))
+    const area = layout()
+    const duration = LESSON_MOCK.durationMs(5, '1.0')
+
+    pointer(area, 'pointerdown', 20 + 350 * 0.25)
+    pointer(area, 'pointermove', 20 + 350 * 0.5)
+    expect(audio().currentTime).toBe(0) // 끄는 중에는 옮기지 않는다(seek 한 번 = 구간 끊김 한 번)
+    expect(player()).toHaveTextContent(clockOf(duration * 0.5))
+
+    pointer(area, 'pointerup', 20 + 350 * 0.5)
+    expect(audio().currentTime).toBe(Math.round(duration * 0.5) / 1000)
+  })
+
+  it('바 밖으로 끌면 처음·끝에서 멈추고, 취소(pointercancel)되면 옮기지 않는다', async () => {
+    renderLesson()
+    await heading()
+    act(() => {
+      within(player()).getByRole('button', { name: '재생' }).click()
+    })
+    metadata(seconds(5))
+    const area = layout()
+    const end = clockOf(LESSON_MOCK.durationMs(5, '1.0'))
+
+    pointer(area, 'pointerdown', 500)
+    expect(seekBar()).toHaveAttribute('aria-valuetext', `${end} / ${end}`) // 끝을 넘어 보이지 않는다
+    pointer(area, 'pointercancel', 500)
+    expect(audio().currentTime).toBe(0)
+    expect(seekBar()).toHaveAttribute('aria-valuetext', `0:00 / ${end}`) // 지금 위치로 돌아온다
+
+    pointer(area, 'pointerdown', 500)
+    pointer(area, 'pointerup', 500)
+    expect(audio().currentTime).toBe(seconds(5))
+    pointer(area, 'pointerdown', -10)
+    pointer(area, 'pointerup', -10)
+    expect(audio().currentTime).toBe(0)
+  })
+
+  it('키보드(range 입력)로도 옮긴다 — 스크린 리더에는 "0:00 / 1:23"', async () => {
+    renderLesson()
+    await heading()
+    act(() => {
+      within(player()).getByRole('button', { name: '재생' }).click()
+    })
+    metadata(seconds(5))
+    expect(seekBar()).toBeEnabled()
+    expect(seekBar()).toHaveAttribute(
+      'aria-valuetext',
+      `0:00 / ${clockOf(LESSON_MOCK.durationMs(5, '1.0'))}`,
+    )
+    act(() => {
+      fireEvent.change(seekBar(), { target: { value: '30000' } })
+    })
+    expect(audio().currentTime).toBe(30)
+  })
+})
+
+/** 63000 → "1:03" */
+function clockOf(ms: number) {
+  const s = Math.floor(ms / 1000)
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
 
 describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
   it('완료 안 된 지문에서 "다음 지문" → 필수 속도의 들은 구간과 안 들은 문장', async () => {
