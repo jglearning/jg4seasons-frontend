@@ -4,6 +4,9 @@ import type { FlushPayload, FlushResult, FlushSegment } from './flushApi'
 // React와 떼어 둔 클래스: 미디어 이벤트·타이머·전송 함수만 알고, 화면은 모른다(useListeningTracker가 붙인다).
 //
 // - playing에서 구간 시작, timeupdate로 끝 갱신
+// - seeking이 없었으면 재생은 이어진 것: 멈춘 자리(또는 play를 누른 자리)보다 RESUME_SLACK_MS 안쪽 앞에서 playing이
+//   오면 그 자리부터 연다. 브라우저는 다시 재생할 때 play·playing의 currentTime이 멈춘 자리보다 40~110ms 앞서 있어
+//   (Chrome 11/9 실측) 그대로 열면 멈출 때마다 진행 바·서버 기록에 틈이 남는다
 // - seeking → 지금 구간을 닫고, 새 위치에서 새 구간(건너뛴 곳은 들은 것이 아니다)
 // - 10초마다 또는 닫힌 구간 5개 → fetch flush(헤더 X-CSRF). 한 요청에 최대 MAX_SEGMENTS_PER_FLUSH개(서버는 50개 넘게 받으면 버린다)
 // - 실패: 다시 보내도 같은 것(400·403·404 등)은 버리고 기록, 네트워크·5xx·429는 남겨 다음에 다시
@@ -46,6 +49,8 @@ export type TrackerDeps = {
 export const MAX_SEGMENT_MS = 60_000
 /** 서버는 한 요청에 50개까지 받는다(03 §3.1) — 여유를 두고 40개씩 */
 export const MAX_SEGMENTS_PER_FLUSH = 40
+/** seeking 없이 다시 재생할 때 멈춘 자리부터 이어 붙이는 최대 차이 — 실측 40~110ms의 넉넉한 위쪽 */
+const RESUME_SLACK_MS = 1_000
 const FLUSH_INTERVAL_MS = 10_000
 const FLUSH_AT_SEGMENTS = 5
 
@@ -66,6 +71,8 @@ export class ListeningTracker {
   private listened: Array<[number, number]> = []
   private timer: ReturnType<typeof setInterval> | undefined
   private started = false
+  /** seeking 없이 다시 재생하면 이어 붙일 자리(멈춘 자리·play를 누른 자리). seeking·ended면 버린다 */
+  private resumeAtMs: number | null = null
 
   constructor(media: MediaLike, trackId: number, deps: TrackerDeps) {
     this.media = media
@@ -76,6 +83,7 @@ export class ListeningTracker {
   start(): void {
     if (this.started) return
     this.started = true
+    this.media.addEventListener('play', this.onPlay)
     this.media.addEventListener('playing', this.onPlaying)
     this.media.addEventListener('timeupdate', this.onTimeUpdate)
     this.media.addEventListener('seeking', this.onSeeking)
@@ -91,6 +99,7 @@ export class ListeningTracker {
   stop(): void {
     if (!this.started) return
     this.started = false
+    this.media.removeEventListener('play', this.onPlay)
     this.media.removeEventListener('playing', this.onPlaying)
     this.media.removeEventListener('timeupdate', this.onTimeUpdate)
     this.media.removeEventListener('seeking', this.onSeeking)
@@ -119,6 +128,10 @@ export class ListeningTracker {
 
   // ── 미디어 이벤트 ──
 
+  private onPlay = () => {
+    if (this.resumeAtMs === null) this.resumeAtMs = this.positionMs()
+  }
+
   private onPlaying = () => {
     if (this.session === null) {
       this.session = {
@@ -127,7 +140,12 @@ export class ListeningTracker {
         userAgentSent: false,
       }
     }
-    if (this.open === null) this.openAt(this.positionMs())
+    const at = this.positionMs()
+    const from = this.resumeAtMs
+    this.resumeAtMs = null
+    // 뒤로 갔거나 많이 앞서 있으면 이어진 재생이 아니다 — 지금 자리부터
+    const continued = from !== null && at >= from && at - from <= RESUME_SLACK_MS
+    if (this.open === null) this.openAt(continued ? from : at)
   }
 
   private onTimeUpdate = () => {
@@ -141,6 +159,7 @@ export class ListeningTracker {
   }
 
   private onSeeking = () => {
+    this.resumeAtMs = null
     this.close()
     this.flushIfFull()
   }
@@ -148,12 +167,14 @@ export class ListeningTracker {
   private onPause = () => {
     // 끝까지 들으면 pause가 ended보다 먼저 온다 — ended가 처리하도록 둔다
     if (this.media.ended) return
+    this.resumeAtMs = this.positionMs()
     this.close()
     if (this.deps.finalVia === 'fetch') void this.sendFinal()
     else this.beaconAll()
   }
 
   private onEnded = () => {
+    this.resumeAtMs = null
     this.close()
     // 세션은 지금 끝낸다 — 전송 응답을 기다리는 사이 다시 재생하면 새 세션이어야 한다(한 번 재생 = 세션 하나)
     this.session = null

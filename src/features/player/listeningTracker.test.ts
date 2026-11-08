@@ -10,17 +10,29 @@ import {
 } from './listeningTracker'
 
 // 03 §3.1 클라이언트 규칙(TRK-01~03)을 오디오 없이 시험한다. 미디어는 이벤트만 흉내 낸 가짜 —
-// 이벤트 순서는 브라우저와 같게: seek은 seeking → timeupdate → seeked, 끝은 pause → ended(ended=true)
+// 이벤트 순서는 브라우저와 같게: 재생은 play → playing, seek은 seeking → timeupdate → seeked,
+// 끝은 pause → ended(ended=true)
 class FakeMedia extends EventTarget implements MediaLike {
   currentTime = 0
   playbackRate = 1
   paused = true
   ended = false
 
-  play(at = this.currentTime) {
-    this.currentTime = at
+  /** lag: 멈춘 자리보다 앞서서 이벤트가 오는 초(Chrome에서 play·playing 모두 40~110ms 앞섬 — 11/9 실측) */
+  play(at = this.currentTime, { lag = 0 }: { lag?: number } = {}) {
+    this.currentTime = at + lag
     this.paused = false
     this.ended = false
+    this.dispatchEvent(new Event('play'))
+    this.dispatchEvent(new Event('playing'))
+  }
+
+  /** play()를 불렀지만 음원 정보를 받은 뒤 위치를 옮기고서야 소리가 나는 경우(load 직후 이어 듣기) */
+  playAfterSeek(to: number) {
+    this.paused = false
+    this.ended = false
+    this.dispatchEvent(new Event('play'))
+    this.seek(to)
     this.dispatchEvent(new Event('playing'))
   }
 
@@ -241,6 +253,60 @@ describe('건너뛰기(TRK-03)', () => {
     media.advance(3)
 
     expect(tracker.listenedRanges()).toEqual([[0, 6000]])
+  })
+
+  it('멈춤 뒤 다시 재생하면 playing이 늦게 와도 멈춘 자리부터 이어 기록한다(틈 없음)', async () => {
+    const tracker = track()
+    media.play(0)
+    media.advance(3)
+    media.pause()
+    media.play(undefined, { lag: 0.06 })
+    media.advance(2)
+
+    expect(tracker.listenedRanges()).toEqual([[0, 5060]])
+    await vi.advanceTimersByTimeAsync(10_000)
+    // 서버에도 틈 없이 간다([0, 3000]은 pause 때 beacon으로 보낸 것을 다시 실은 것)
+    expect(ranges(sent)).toEqual([
+      [0, 3000],
+      [3000, 5060],
+    ])
+  })
+
+  it('멈춘 자리보다 1초 넘게 앞에서 다시 시작하면 이어 붙이지 않는다(seeking 없이 위치가 바뀐 경우)', () => {
+    const tracker = track()
+    media.play(0)
+    media.advance(3)
+    media.pause()
+    media.play(undefined, { lag: 1.5 })
+    media.advance(2)
+
+    expect(tracker.listenedRanges()).toEqual([
+      [0, 3000],
+      [4500, 6500],
+    ])
+  })
+
+  it('멈춘 뒤 조금(1초 안) 앞으로 옮기고 재생해도 옮긴 자리부터 — 건너뛴 곳은 이어 붙이지 않는다', () => {
+    const tracker = track()
+    media.play(0)
+    media.advance(3)
+    media.pause()
+    media.seek(3.5)
+    media.play()
+    media.advance(2)
+
+    expect(tracker.listenedRanges()).toEqual([
+      [0, 3000],
+      [3500, 5500],
+    ])
+  })
+
+  it('play 뒤 playing 전에 위치를 옮기면 옮긴 자리부터 기록한다(앞자리를 들은 것으로 치지 않는다)', () => {
+    const tracker = track()
+    media.playAfterSeek(30)
+    media.advance(2)
+
+    expect(tracker.listenedRanges()).toEqual([[30000, 32000]])
   })
 
   it('들은 구간 합치기(진행 바용) — 건너뛴 곳은 비운다', () => {
