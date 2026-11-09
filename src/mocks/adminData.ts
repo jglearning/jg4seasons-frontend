@@ -29,6 +29,15 @@ for (const level of ['L1', 'L2', 'L3', 'L4']) {
 }
 LEVEL_SEASON['K-B1'] = { level: 'K', season: '겨울' }
 
+// 레벨 이름·색(백엔드 시드 V2__reference_data와 같은 값)
+const LEVELS: Record<string, Class['level']> = {
+  L1: { code: 'L1', nameKo: '민트', colorHex: '#0F8A74' },
+  L2: { code: 'L2', nameKo: '그린', colorHex: '#1F7A4F' },
+  L3: { code: 'L3', nameKo: '블루', colorHex: '#2563EB' },
+  L4: { code: 'L4', nameKo: '네이비', colorHex: '#1E3A8A' },
+  K: { code: 'K', nameKo: '블랙', colorHex: '#111827' },
+}
+
 let teachers: Teacher[] = []
 let classes: Class[] = []
 let nextId = 100
@@ -80,6 +89,7 @@ export function resetAdminMock() {
       name: '겨울 그린 A반',
       bookCode: 'L2-B1',
       levelCode: 'L2',
+      level: LEVELS.L2,
       season: '겨울',
       startDate: '2026-12-10',
       weekdays: [2, 4, 6],
@@ -222,6 +232,7 @@ export function adminHandlers({ problem, readJson, currentUser }: Helpers): AnyH
         name,
         bookCode: String(body.bookCode),
         levelCode: book.level,
+        level: LEVELS[book.level],
         season: book.season,
         startDate: String(body.startDate),
         weekdays: [...weekdays].sort((a, b) => a - b),

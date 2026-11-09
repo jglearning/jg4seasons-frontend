@@ -39,6 +39,8 @@ const STAFF: Record<string, MockUser> = {
   super01: { id: 1, name: '운영자', role: 'superadmin' },
 }
 
+const MOCK_ACADEMY_ID = 1
+
 let session: MockUser | null = null
 
 export function resetAuthMock() {
@@ -131,11 +133,18 @@ const authHandlers: AnyHandler[] = [
       })
     }
     const user = STAFF[loginId]
-    if (user === undefined || body.password !== AUTH_MOCK.staffPassword) {
+    // 교사 로그인 응답은 교사·관리자만(StaffUserInfo)
+    if (
+      user === undefined ||
+      (user.role !== 'teacher' && user.role !== 'admin') ||
+      body.password !== AUTH_MOCK.staffPassword
+    ) {
       return problem(request, 401, 'INVALID_CREDENTIALS', '입력한 정보가 맞지 않아요')
     }
     session = user
-    return HttpResponse.json<Schemas['StaffLoginResponse']>({ user })
+    return HttpResponse.json<Schemas['StaffLoginResponse']>({
+      user: { id: user.id, name: user.name, role: user.role, academyId: MOCK_ACADEMY_ID },
+    })
   }),
 
   // 실제 백엔드는 200 + /me와 같은 본문(쿠키 회전)
@@ -158,7 +167,7 @@ const authHandlers: AnyHandler[] = [
 ]
 
 function me(user: MockUser): Schemas['MeResponse'] {
-  return { ...user, academy: { id: 1, name: AUTH_MOCK.academyName } }
+  return { ...user, academy: { id: MOCK_ACADEMY_ID, name: AUTH_MOCK.academyName } }
 }
 
 // 학생 API(03 §2) — 학생 세션이 없으면 401(교사는 403)
