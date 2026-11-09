@@ -20,7 +20,10 @@ import { LessonsPage } from '../features/student/LessonsPage'
 import { CardsPage } from '../features/words/CardsPage'
 import { WordsPage } from '../features/words/WordsPage'
 import { ClassesPage as TeacherClassesPage } from '../features/teacher/ClassesPage'
+import { LessonPage as TeacherLessonPage } from '../features/teacher/LessonPage'
 import { MatrixPage } from '../features/teacher/MatrixPage'
+import { SessionsPage } from '../features/teacher/SessionsPage'
+import { StudentPage as TeacherStudentPage } from '../features/teacher/StudentPage'
 import { NotFound } from './NotFound'
 import { RouteError } from './RouteError'
 import { SessionRoot } from './SessionRoot'
@@ -52,6 +55,12 @@ export const routes: RouteObject[] = [
             children: [
               { path: '/teacher', element: <TeacherClassesPage /> },
               { path: '/teacher/classes/:id', element: <MatrixPage /> },
+              {
+                path: '/teacher/classes/:id/students/:studentId',
+                element: <TeacherStudentPage />,
+              },
+              { path: '/teacher/classes/:id/lessons/:code', element: <TeacherLessonPage /> },
+              { path: '/teacher/classes/:id/sessions', element: <SessionsPage /> },
               {
                 element: <AdminOnly />,
                 children: [

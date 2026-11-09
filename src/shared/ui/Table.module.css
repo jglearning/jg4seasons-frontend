@@ -78,6 +78,11 @@
   background: var(--current-col);
 }
 
+/* 흐린 행 — 고정 첫 칸(흰 배경)까지 같이 덮는다 */
+.table tr.muted td {
+  background: var(--surface-2);
+}
+
 .empty {
   color: var(--muted);
 }
