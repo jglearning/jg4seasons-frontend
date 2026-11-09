@@ -1,0 +1,165 @@
+/* 개인 코드 발급 결과(화면)와 학생 카드(인쇄) — 그림자 없이 선과 글자, 채움은 레벨 칩과 코드 칸(surface-2)만 */
+
+.result {
+  margin: 0 0 var(--space-6);
+  max-width: 560px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.note {
+  margin: 0 0 var(--space-3);
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.code {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-join-code);
+}
+
+/* 인쇄용 카드 묶음 — 화면에서는 보이지 않는다 */
+.sheet {
+  display: none;
+}
+
+/* A4(210×297) - 여백 10mm = 190×277 → 카드 칸 95×68mm 2열 × 4행 = 8장, 9장째부터 다음 쪽 */
+@page {
+  size: A4;
+  margin: 10mm;
+}
+
+@media print {
+  :global(#root) {
+    display: none !important;
+  }
+
+  /* 칩·코드 칸 채움색이 인쇄에서 빠지지 않게 */
+  .sheet {
+    display: grid;
+    /* 왼쪽 점선 1px까지 190mm 안에 넣는다(넘치면 오른쪽 자르는 선이 잘림) */
+    box-sizing: border-box;
+    width: 190mm;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 68mm;
+    border-top: 1px dashed var(--line-strong);
+    border-left: 1px dashed var(--line-strong);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* 점선 = 자르는 선(옆 칸과 겹치지 않게 오른쪽·아래만) */
+  .cell {
+    box-sizing: border-box;
+    padding: 3mm;
+    border-right: 1px dashed var(--line-strong);
+    border-bottom: 1px dashed var(--line-strong);
+    break-inside: avoid;
+  }
+
+  .card {
+    box-sizing: border-box;
+    display: flex;
+    gap: 4mm;
+    height: 100%;
+    padding: 12px;
+    border: var(--border-card) solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--white);
+  }
+
+  .main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .service {
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    background: var(--level);
+    color: var(--white);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .classLine {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .name {
+    margin: 2px 0 0;
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .codes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: auto 0 0;
+  }
+
+  .codeBox {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: var(--radius-tile);
+    background: var(--surface-2);
+  }
+
+  .codeBox dt {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .codeBox dd {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tracking-join-code);
+  }
+
+  .site {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+}

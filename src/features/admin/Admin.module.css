@@ -147,3 +147,86 @@
 .muted {
   color: var(--muted);
 }
+
+/* A-02 학생 명단 — 선택 도구줄, 행 버튼, 한 학생 확인 칸 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: 14px;
+}
+
+.rowCheck {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  /* 폭은 아래 명단 표와 같게(11/8 와이어프레임, T-06과 같음). 안의 입력칸은 제 폭 그대로 */
+  margin: 0 0 var(--space-5);
+  padding: var(--space-4);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+}
+
+.panel .sectionTitle {
+  margin: 0;
+}
+
+.done {
+  margin: 0 0 var(--space-4);
+  font-size: 14px;
+}
+
+/* A-02 학생 추가 — 한 줄에 학생 하나(이름·학교·학년·지우기) */
+.studentRow {
+  display: grid;
+  grid-template-columns: 2rem minmax(10rem, 1.4fr) minmax(8rem, 1fr) minmax(6rem, 0.7fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* 첫 줄: 라벨(약 19.5) + 간격 8 아래 입력칸(40) 가운데에 맞춘 값(11/8 브라우저에서 잼) */
+.rowNo {
+  padding-top: 37px;
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowRemove {
+  padding-top: 29.5px;
+}
+
+/* 2번 줄부터 — 라벨이 눈에 안 보여 입력칸(40)이 맨 위. 번호·지우기를 칸 가운데에 맞춘다 */
+.studentRowBare .rowNo {
+  padding-top: 10px;
+}
+
+.studentRowBare .rowRemove {
+  padding-top: 2px;
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 760px;
+}

@@ -35,12 +35,18 @@ function renderAt(path: string) {
 const menu = () => screen.getByRole('navigation', { name: '관리 메뉴' })
 
 describe('교사·관리자 틀과 관리자만', () => {
-  it('관리자 메뉴: 반 목록·반 관리·교사 관리, 지금 메뉴 표시와 이름·역할', async () => {
+  it('관리자 메뉴: 반 목록·반 관리·학생 관리·교사 관리·학원 현황, 지금 메뉴 표시와 이름·역할', async () => {
     renderAt('/admin/classes')
     await screen.findByRole('heading', { name: '반 관리' })
 
     const links = within(menu()).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['반 목록', '반 관리', '교사 관리'])
+    expect(links.map((l) => l.textContent)).toEqual([
+      '반 목록',
+      '반 관리',
+      '학생 관리',
+      '교사 관리',
+      '학원 현황',
+    ])
     expect(within(menu()).getByRole('link', { name: '반 관리' })).toHaveAttribute(
       'aria-current',
       'page',

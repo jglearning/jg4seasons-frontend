@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type SubmitEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { errorMessage } from '../../shared/errorMessage'
-import { Button } from '../../shared/ui/Button'
+import { Button, ButtonLink } from '../../shared/ui/Button'
 import { CheckboxGroup } from '../../shared/ui/CheckboxGroup'
 import { SelectField } from '../../shared/ui/SelectField'
 import { TextField } from '../../shared/ui/TextField'
@@ -59,6 +59,9 @@ function ClassBody({ data }: { data: AdminClass }) {
             {classStatusLabel(data.status)} · 학생 {data.studentCount}명
           </p>
         </div>
+        <ButtonLink to={`/admin/classes/${data.id}/students`} variant="secondary" size="teacher">
+          학생 명단
+        </ButtonLink>
       </div>
       <dl className={styles.facts}>
         <dt>권</dt>

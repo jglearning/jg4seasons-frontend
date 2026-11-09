@@ -55,6 +55,11 @@ export function teacherStatusLabel(status: keyof typeof TEACHER_STATUS): string 
   return TEACHER_STATUS[status]
 }
 
+const STUDENT_STATUS = { active: '재원', inactive: '퇴원' } as const
+export function studentStatusLabel(status: keyof typeof STUDENT_STATUS): string {
+  return STUDENT_STATUS[status]
+}
+
 const KOREA = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Seoul',
   year: 'numeric',
@@ -65,8 +70,24 @@ const KOREA = new Intl.DateTimeFormat('en-CA', {
   hourCycle: 'h23',
 })
 
+function koreaParts(iso: string): Record<string, string> {
+  return Object.fromEntries(KOREA.formatToParts(new Date(iso)).map((p) => [p.type, p.value]))
+}
+
 /** 서버 UTC 시각 → 한국 시간 "2026-11-06 18:20" */
 export function koreaDateTime(iso: string): string {
-  const parts = Object.fromEntries(KOREA.formatToParts(new Date(iso)).map((p) => [p.type, p.value]))
+  const parts = koreaParts(iso)
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`
+}
+
+/** 서버 UTC 시각 → 한국 시간 "11/6 18:20"(연도 없이 — 교사 화면 시각과 같은 꼴, A-02 명단) */
+export function koreaShortDateTime(iso: string): string {
+  const parts = koreaParts(iso)
+  return `${Number(parts.month)}/${Number(parts.day)} ${parts.hour}:${parts.minute}`
+}
+
+/** 레벨 칩 글자 — "그린 · 겨울" */
+export function levelSeasonLabel(levelCode: string, season: string): string {
+  const level = LEVELS.find((l) => l.code === levelCode)?.name ?? levelCode
+  return `${level} · ${season}`
 }

@@ -29,6 +29,15 @@ for (const level of ['L1', 'L2', 'L3', 'L4']) {
 }
 LEVEL_SEASON['K-B1'] = { level: 'K', season: '겨울' }
 
+// 레벨 이름·색(백엔드 시드 V2__reference_data와 같은 값)
+const LEVELS: Record<string, Class['level']> = {
+  L1: { code: 'L1', nameKo: '민트', colorHex: '#0F8A74' },
+  L2: { code: 'L2', nameKo: '그린', colorHex: '#1F7A4F' },
+  L3: { code: 'L3', nameKo: '블루', colorHex: '#2563EB' },
+  L4: { code: 'L4', nameKo: '네이비', colorHex: '#1E3A8A' },
+  K: { code: 'K', nameKo: '블랙', colorHex: '#111827' },
+}
+
 let teachers: Teacher[] = []
 let classes: Class[] = []
 let nextId = 100
@@ -80,6 +89,7 @@ export function resetAdminMock() {
       name: '겨울 그린 A반',
       bookCode: 'L2-B1',
       levelCode: 'L2',
+      level: LEVELS.L2,
       season: '겨울',
       startDate: '2026-12-10',
       weekdays: [2, 4, 6],
@@ -90,8 +100,146 @@ export function resetAdminMock() {
       teachers: [{ id: 21, name: '이선생' }],
       studentCount: 18,
     },
+    {
+      id: 13,
+      name: '겨울 그린 B반',
+      bookCode: 'L2-B1',
+      levelCode: 'L2',
+      level: LEVELS.L2,
+      season: '겨울',
+      startDate: '2026-12-11',
+      weekdays: [1, 3, 5],
+      accessCode: 'H4PN8RT2',
+      codeIssuedAt: '2026-11-01T01:00:00Z',
+      allowFutureLessons: false,
+      status: 'active',
+      teachers: [],
+      studentCount: 0,
+    },
   ]
+  resetStudentMock()
 }
+
+// ── 학생 명단(03 §5.2, BE #27) ──
+// 개인 코드는 서버처럼 평문을 보관하지 않는다(겹침 검사용 집합만). 평문은 만들기·재발급 응답에만
+
+type Student = Schemas['StudentResponse']
+type StudentRow = Student & { classId: number }
+
+let students: StudentRow[] = []
+let usedCodes = new Set<string>()
+let codeCursor = 0
+
+const ROSTER_12 = [
+  ['김민준', 'A중', '중1'],
+  ['이서연', 'A중', '중1'],
+  ['박지호', 'B중', '중1'],
+  ['최하은', 'A중', '중2'],
+  ['정도윤', 'B중', '중1'],
+  ['강수아', null, null],
+  ['조예준', 'A중', '중1'],
+  ['윤지우', 'C중', '중1'],
+  ['장시우', 'A중', '중2'],
+  ['임하린', 'B중', '중1'],
+  ['한주원', 'A중', '중1'],
+  ['오서윤', 'C중', '중2'],
+  ['서지안', 'A중', '중1'],
+  ['신유준', 'B중', '중1'],
+  ['권채원', 'A중', '중1'],
+  ['황은우', 'C중', '중1'],
+  ['안다은', 'A중', '중2'],
+  ['송건우', 'B중', '중1'],
+] as const
+
+export const STUDENT_MOCK = {
+  /** 명단 첫 학생(학생 목 세션 김민준과 같은 id) */
+  firstId: 301,
+  /** 이미 퇴원한 학생 */
+  inactiveName: '문하준',
+  /** 이 이름으로 만들면 서버가 400 VALIDATION(칸 오류)을 낸다 */
+  invalidName: '오류',
+}
+
+export function resetStudentMock() {
+  codeCursor = 0
+  usedCodes = new Set(['3817'])
+  students = ROSTER_12.map(([name, school, grade], i) => ({
+    id: STUDENT_MOCK.firstId + i,
+    classId: 12,
+    name,
+    school,
+    grade,
+    status: 'active' as const,
+    // 강수아(5번)는 개인 코드가 없는 학생(BE #27 codeIssuedAt null)
+    codeIssuedAt: i === 5 ? null : '2026-11-02T01:00:00Z',
+    lastLoginAt: i % 3 === 2 ? null : '2026-11-06T09:00:00Z',
+  }))
+  students.push({
+    id: 330,
+    classId: 12,
+    name: STUDENT_MOCK.inactiveName,
+    school: 'A중',
+    grade: '중1',
+    status: 'inactive',
+    codeIssuedAt: '2026-11-02T01:00:00Z',
+    lastLoginAt: null,
+  })
+  syncStudentCounts()
+}
+
+/** 반의 학생 수 = 그 반의 활성 학생 */
+function syncStudentCounts() {
+  for (const c of classes) {
+    c.studentCount = students.filter((s) => s.classId === c.id && s.status === 'active').length
+  }
+}
+
+/** 학원 안에서 겹치지 않는 4자리 */
+function newPersonalCode(): string {
+  let code: string
+  do {
+    codeCursor += 1
+    code = String((5092 + codeCursor * 37) % 10000).padStart(4, '0')
+  } while (usedCodes.has(code))
+  usedCodes.add(code)
+  return code
+}
+
+/** 응답에는 반 id가 없다 */
+function studentView(row: StudentRow): Student {
+  const student: Partial<StudentRow> = { ...row }
+  delete student.classId
+  return student as Student
+}
+
+/** 교사 목(teacherData)이 읽는 운영 중인 반 — 관리자 화면에서 바꾼 것이 교사 화면에도 보이게 */
+export function mockActiveClasses(): readonly Class[] {
+  return classes.filter((c) => c.status === 'active')
+}
+
+/** 교사 목이 읽는 반의 재원 학생(id 순) */
+export function mockActiveStudents(classId: number) {
+  return students
+    .filter((s) => s.classId === classId && s.status === 'active')
+    .sort((a, b) => a.id - b.id)
+    .map(({ id, name, school, grade }) => ({ id, name, school, grade }))
+}
+
+/** 교사 목이 읽는 학생 한 명(반 id·마지막 로그인 포함). 없으면 undefined */
+export function mockStudent(studentId: number) {
+  const row = students.find((s) => s.id === studentId)
+  return row === undefined ? undefined : { ...row }
+}
+
+/** 교사 목의 개인 코드 재발급(4.8) — 관리자 재발급과 같은 코드 규칙(학원 안에서 겹치지 않음) */
+export function mockRegeneratePersonalCode(studentId: number): string | undefined {
+  const row = students.find((s) => s.id === studentId)
+  if (row === undefined) return undefined
+  row.codeIssuedAt = '2026-12-19T11:00:00Z'
+  return newPersonalCode()
+}
+
+// 학생 선언 뒤에 불러야 한다(resetStudentMock이 위 let을 쓴다)
 resetAdminMock()
 
 /** 반의 담당 교사와 교사의 담당 반을 서로 맞춘다 */
@@ -222,6 +370,7 @@ export function adminHandlers({ problem, readJson, currentUser }: Helpers): AnyH
         name,
         bookCode: String(body.bookCode),
         levelCode: book.level,
+        level: LEVELS[book.level],
         season: book.season,
         startDate: String(body.startDate),
         weekdays: [...weekdays].sort((a, b) => a - b),
@@ -281,6 +430,131 @@ export function adminHandlers({ problem, readJson, currentUser }: Helpers): AnyH
       return HttpResponse.json<Schemas['AccessCodeResponse']>({
         accessCode: found.accessCode,
         codeIssuedAt: found.codeIssuedAt,
+      })
+    }),
+
+    // ── 학생(§5.2) ──
+
+    http.get('*/api/v1/admin/classes/:id/students', async ({ request, params }) => {
+      await delay()
+      const denied = adminOnly(request)
+      if (denied) return denied
+      const classId = Number(params.id)
+      if (!classes.some((c) => c.id === classId))
+        return problem(request, 404, 'NOT_FOUND', '반을 찾을 수 없어요')
+      const items = students.filter((s) => s.classId === classId).map(studentView)
+      return HttpResponse.json<Schemas['StudentListResponse']>({
+        items,
+        total: items.length,
+      })
+    }),
+
+    http.post('*/api/v1/admin/classes/:id/students', async ({ request, params }) => {
+      await delay()
+      const denied = adminOnly(request)
+      if (denied) return denied
+      const classId = Number(params.id)
+      if (!classes.some((c) => c.id === classId))
+        return problem(request, 404, 'NOT_FOUND', '반을 찾을 수 없어요')
+      const body = await readJson(request)
+      const list = Array.isArray(body.students) ? (body.students as Record<string, unknown>[]) : []
+      if (list.length === 0 || list.length > 50)
+        return validation(request, [{ field: 'students', message: '학생은 1~50명' }])
+      const errors: Array<{ field: string; message: string }> = []
+      list.forEach((item, i) => {
+        const name = String(item.name ?? '').trim()
+        if (name === '' || name.length > 30 || name === STUDENT_MOCK.invalidName)
+          errors.push({ field: `students[${i}].name`, message: '이름은 1~30자' })
+      })
+      if (errors.length > 0) return validation(request, errors)
+      const created = list.map((item) => {
+        const student: StudentRow = {
+          id: nextId++,
+          classId,
+          name: String(item.name).trim(),
+          school: typeof item.school === 'string' && item.school.trim() ? item.school.trim() : null,
+          grade: typeof item.grade === 'string' && item.grade.trim() ? item.grade.trim() : null,
+          status: 'active',
+          codeIssuedAt: '2026-11-07T02:00:00Z',
+          lastLoginAt: null,
+        }
+        students.push(student)
+        return { id: student.id, name: student.name, personalCode: newPersonalCode() }
+      })
+      syncStudentCounts()
+      return HttpResponse.json<Schemas['StudentCreatedResponse']>({ created }, { status: 201 })
+    }),
+
+    http.post(
+      '*/api/v1/admin/classes/:id/students/personal-codes/regenerate',
+      async ({ request, params }) => {
+        await delay()
+        const denied = adminOnly(request)
+        if (denied) return denied
+        const classId = Number(params.id)
+        const body = await readJson(request)
+        const wanted = ids(body.studentIds)
+        const targets = students.filter((s) => s.classId === classId && wanted.includes(s.id))
+        if (wanted.length === 0 || targets.length !== wanted.length)
+          return validation(request, [{ field: 'studentIds', message: '이 반 학생을 골라 주세요' }])
+        const items = targets.map((s) => {
+          s.codeIssuedAt = '2026-11-07T03:00:00Z'
+          return { id: s.id, name: s.name, personalCode: newPersonalCode() }
+        })
+        return HttpResponse.json<Schemas['PersonalCodesResponse']>({ items })
+      },
+    ),
+
+    http.patch('*/api/v1/admin/students/:id', async ({ request, params }) => {
+      await delay()
+      const denied = adminOnly(request)
+      if (denied) return denied
+      const student = students.find((s) => s.id === Number(params.id))
+      if (!student) return problem(request, 404, 'NOT_FOUND', '학생을 찾을 수 없어요')
+      const body = await readJson(request)
+      if (body.status === 'active' || body.status === 'inactive') student.status = body.status
+      syncStudentCounts()
+      return HttpResponse.json(studentView(student))
+    }),
+
+    http.post('*/api/v1/admin/students/:id/move', async ({ request, params }) => {
+      await delay()
+      const denied = adminOnly(request)
+      if (denied) return denied
+      const student = students.find((s) => s.id === Number(params.id))
+      if (!student) return problem(request, 404, 'NOT_FOUND', '학생을 찾을 수 없어요')
+      const body = await readJson(request)
+      const target = classes.find((c) => c.id === body.toClassId)
+      if (!target || target.status !== 'active' || target.id === student.classId)
+        return validation(request, [{ field: 'toClassId', message: '옮길 반을 골라 주세요' }])
+      student.classId = target.id
+      syncStudentCounts()
+      return HttpResponse.json(studentView(student))
+    }),
+
+    // ── 학원 현황(§5.4) ──
+
+    http.get('*/api/v1/admin/dashboard', async ({ request }) => {
+      await delay()
+      const denied = adminOnly(request)
+      if (denied) return denied
+      return HttpResponse.json<Schemas['DashboardResponse']>({
+        classes: classes
+          .filter((c) => c.status === 'active')
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            current:
+              c.id === 12
+                ? {
+                    seq: 5,
+                    lesson: { code: 'L2-B1-05', title: 'Reading Day 5' },
+                    scheduledDate: '2026-12-19',
+                  }
+                : null,
+            completedRate: c.id === 12 ? 0.64 : 0,
+          })),
+        activeStudentsToday: 12,
       })
     }),
   ]

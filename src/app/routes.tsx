@@ -3,6 +3,10 @@ import { AdminOnly } from '../features/admin/AdminOnly'
 import { ClassDetailPage } from '../features/admin/ClassDetailPage'
 import { ClassesPage } from '../features/admin/ClassesPage'
 import { ClassNewPage } from '../features/admin/ClassNewPage'
+import { DashboardPage } from '../features/admin/DashboardPage'
+import { StudentNewPage } from '../features/admin/StudentNewPage'
+import { StudentsIndexPage } from '../features/admin/StudentsIndexPage'
+import { StudentsPage } from '../features/admin/StudentsPage'
 import { TeacherDetailPage } from '../features/admin/TeacherDetailPage'
 import { TeacherNewPage } from '../features/admin/TeacherNewPage'
 import { TeachersPage } from '../features/admin/TeachersPage'
@@ -48,6 +52,10 @@ export const routes: RouteObject[] = [
                   { path: '/admin/classes', element: <ClassesPage /> },
                   { path: '/admin/classes/new', element: <ClassNewPage /> },
                   { path: '/admin/classes/:id', element: <ClassDetailPage /> },
+                  { path: '/admin/classes/:id/students', element: <StudentsPage /> },
+                  { path: '/admin/classes/:id/students/new', element: <StudentNewPage /> },
+                  { path: '/admin/students', element: <StudentsIndexPage /> },
+                  { path: '/admin/dashboard', element: <DashboardPage /> },
                   { path: '/admin/teachers', element: <TeachersPage /> },
                   { path: '/admin/teachers/new', element: <TeacherNewPage /> },
                   { path: '/admin/teachers/:id', element: <TeacherDetailPage /> },
