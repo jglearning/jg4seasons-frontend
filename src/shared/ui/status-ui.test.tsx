@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { BottomBar, type BottomTab } from './BottomBar'
 import { OverdueAlert } from './OverdueAlert'
 import { ProgressBar } from './ProgressBar'
+import { levelProps } from '../level'
 import { StudentLayout } from './StudentLayout'
 
 function inRouter(ui: ReactElement, path = '/') {
@@ -52,6 +53,18 @@ describe('StudentLayout', () => {
     rerender(<StudentLayout levelColorHex="red; background: url(x)">x</StudentLayout>)
     expect(main.style.getPropertyValue('--level')).toBe('')
     expect(main).not.toHaveAttribute('data-level')
+  })
+})
+
+describe('levelProps', () => {
+  it('#RRGGBB만 --level·data-level로, 아니면 아무것도 넣지 않는다', () => {
+    expect(levelProps('#1f7a4f')).toEqual({
+      style: { '--level': '#1f7a4f' },
+      'data-level': '',
+    })
+    expect(levelProps(undefined)).toEqual({})
+    expect(levelProps('#1F7A4')).toEqual({})
+    expect(levelProps('red')).toEqual({})
   })
 })
 
