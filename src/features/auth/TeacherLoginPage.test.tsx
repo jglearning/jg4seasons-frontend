@@ -27,7 +27,7 @@ describe('T-01 교사 로그인', () => {
     await user.type(screen.getByLabelText('비밀번호'), AUTH_MOCK.staffPassword)
     await user.click(screen.getByRole('button', { name: '로그인' }))
 
-    expect(await screen.findByRole('heading', { name: '반 목록 화면 준비 중' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '반 목록', level: 1 })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/teacher')
     expect(Object.keys(localStorage)).toHaveLength(0)
     expectSecretNowhere(AUTH_MOCK.staffPassword, { client, router })
@@ -41,7 +41,7 @@ describe('T-01 교사 로그인', () => {
     await user.type(screen.getByLabelText('아이디'), 'teacher01')
     await user.type(screen.getByLabelText('비밀번호'), `${AUTH_MOCK.staffPassword}{Enter}`)
 
-    expect(await screen.findByRole('heading', { name: '반 목록 화면 준비 중' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '반 목록', level: 1 })).toBeInTheDocument()
     expect(client.getQueryData(['teacher', 'classes'])).toBeUndefined()
   })
 

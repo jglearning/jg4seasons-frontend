@@ -19,9 +19,10 @@ import { HomePage } from '../features/student/HomePage'
 import { LessonsPage } from '../features/student/LessonsPage'
 import { CardsPage } from '../features/words/CardsPage'
 import { WordsPage } from '../features/words/WordsPage'
+import { ClassesPage as TeacherClassesPage } from '../features/teacher/ClassesPage'
+import { MatrixPage } from '../features/teacher/MatrixPage'
 import { NotFound } from './NotFound'
 import { RouteError } from './RouteError'
-import { TeacherHomePlaceholder } from './Placeholders'
 import { SessionRoot } from './SessionRoot'
 import { StaffShell } from './StaffShell'
 
@@ -49,7 +50,8 @@ export const routes: RouteObject[] = [
           {
             element: <StaffShell />,
             children: [
-              { path: '/teacher', element: <TeacherHomePlaceholder /> },
+              { path: '/teacher', element: <TeacherClassesPage /> },
+              { path: '/teacher/classes/:id', element: <MatrixPage /> },
               {
                 element: <AdminOnly />,
                 children: [

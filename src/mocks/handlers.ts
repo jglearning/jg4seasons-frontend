@@ -3,6 +3,7 @@ import type { components } from '../api/generated/schema'
 import { adminHandlers } from './adminData'
 import { buildLessonDetail, LESSON_MOCK, recordFlush } from './lessonData'
 import { buildHome, buildLessons, STUDENT_MOCK } from './studentData'
+import { teacherHandlers } from './teacherData'
 import { buildWords, recordWordStudy } from './wordData'
 
 // dev:mock·테스트용 목 응답. 경로·본문은 openapi 생성 타입을 따른다(백엔드 PR #10 기준 문구·오류 code).
@@ -253,4 +254,5 @@ export const handlers: AnyHandler[] = [
   ...authHandlers,
   ...studentHandlers,
   ...adminHandlers({ problem, readJson, currentUser: () => session }),
+  ...teacherHandlers({ problem, readJson, currentUser: () => session }),
 ]
