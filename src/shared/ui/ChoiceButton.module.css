@@ -1,0 +1,48 @@
+/* 리콜 선택지 — 높이 52, 반경 12 */
+.choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--button-h-student);
+  padding: 0 var(--space-4);
+  border: var(--border-control) solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--motion),
+    border-color var(--motion);
+}
+
+.choice[aria-disabled='true'] {
+  cursor: default;
+}
+
+.label {
+  font-size: 16px;
+  font-weight: 700;
+  word-break: keep-all;
+}
+
+.mark {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.correct {
+  border-color: var(--level);
+  background: var(--level);
+  color: var(--white);
+}
+
+.wrong {
+  border: 2px solid var(--danger-line);
+  color: var(--danger);
+}

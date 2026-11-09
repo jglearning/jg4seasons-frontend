@@ -1,0 +1,164 @@
+/* 디자인 가이드 §5 WordCard — 남는 높이를 채움(최소 360), 반경 20, 앞면 흰 / 뒷면 surface, 3D 플립 없음 */
+.card {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 360px;
+  padding: var(--space-8) var(--space-5) var(--space-5);
+  border: var(--border-control) solid var(--line-strong);
+  border-radius: var(--radius-word-card);
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--motion);
+}
+
+.back {
+  background: var(--surface);
+}
+
+.face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  animation: fade var(--motion);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .face {
+    animation: none;
+  }
+}
+
+.passage {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  padding: 1px 6px;
+  border: var(--border-card) solid var(--line);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.corner {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pos {
+  padding: 1px 8px;
+  border: var(--border-card) solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.word {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.autoplay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.headRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.smallWord {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.meaning {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.rule {
+  align-self: stretch;
+  height: 1px;
+  background: var(--line);
+}
+
+.label {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.example {
+  align-self: stretch;
+  font-size: 15px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+/* 예문 속 그 단어 — 레벨 색 700 */
+.match {
+  color: var(--level);
+  font-weight: 700;
+}
+
+.exampleKo {
+  align-self: stretch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: left;
+  word-break: keep-all;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
