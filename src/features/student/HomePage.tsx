@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Settings } from 'lucide-react'
 import { Link } from 'react-router'
 import { meQuery } from '../../api/session'
 import { ButtonLink } from '../../shared/ui/Button'
@@ -36,11 +37,17 @@ export function HomePage() {
   return (
     <StudentLayout levelColorHex={data.class.level.colorHex}>
       <header className={styles.header}>
+        {/* 오른쪽: 레벨 칩 → 설정 아이콘(S07 검토 안 A, 11/9) */}
         <div className={styles.brandRow}>
           <h1 className={styles.brand}>제이G 4 Seasons</h1>
-          <LevelChip>
-            {data.class.level.nameKo} · {data.class.book.season}
-          </LevelChip>
+          <div className={styles.headEnd}>
+            <LevelChip>
+              {data.class.level.nameKo} · {data.class.book.season}
+            </LevelChip>
+            <Link to="/settings" className={styles.settingsLink} aria-label="설정">
+              <Settings size={22} strokeWidth={2} aria-hidden />
+            </Link>
+          </div>
         </div>
         <p className={styles.who}>
           {data.class.name}
