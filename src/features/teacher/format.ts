@@ -37,6 +37,36 @@ export function koreaTime(iso: string): string {
   return `${Number(parts.month)}/${Number(parts.day)} ${parts.hour}:${parts.minute}`
 }
 
+/** 밀리초 → "1:05" (재생 시간·길이 표시) */
+export function playTime(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+/** 서버 청취율 0~1 → "94%"(교사 화면만 퍼센트) */
+export function percent(coverage: number): string {
+  return `${Math.round(coverage * 100)}%`
+}
+
+/** "지문 1 · 1.0×" */
+export function trackName(passageNo: number, variant: string): string {
+  return `지문 ${passageNo} · ${variant}×`
+}
+
+type LessonStatus = 'not_started' | 'in_progress' | 'completed'
+
+/** 회차 상태 알약(서버 status·requiredDone 그대로) */
+export function lessonLook(
+  status: LessonStatus,
+  requiredDone: number,
+  requiredTotal: number,
+): { status: Status; text: string } {
+  if (status === 'completed') return { status: 'completed', text: '완료' }
+  if (status === 'in_progress')
+    return { status: 'in_progress', text: `진행 중 ${requiredDone} / ${requiredTotal}` }
+  return { status: 'open', text: '미시작' }
+}
+
 export type CellLook = {
   status: Status
   /** 칸에 보이는 글자(완료는 아이콘이라 빈 글자) */
