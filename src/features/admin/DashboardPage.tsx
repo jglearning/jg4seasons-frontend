@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { Table, type Column } from '../../shared/ui/Table'
 import { AdminLoadState } from './AdminLoadState'
+import { shortDate } from './format'
 import { dashboardQuery, type Dashboard } from './studentsApi'
 import styles from './Admin.module.css'
 
@@ -22,7 +23,7 @@ export function DashboardPage() {
       key: 'current',
       header: '현재 회차',
       cell: (c) =>
-        c.current ? `${c.current.lesson.title} · ${c.current.scheduledDate}` : '수업 전',
+        c.current ? `${c.current.lesson.title} · ${shortDate(c.current.scheduledDate)}` : '수업 전',
     },
     {
       key: 'rate',
@@ -37,8 +38,9 @@ export function DashboardPage() {
       <div className={styles.head}>
         <div>
           <h1 className={styles.title}>학원 현황</h1>
+          {/* 서버 activeStudentsToday = 오늘(학원 날짜) 한 번이라도 들은 학생(BE #30) */}
           {dashboard.data && (
-            <p className={styles.sub}>오늘 접속 학생 {dashboard.data.activeStudentsToday}명</p>
+            <p className={styles.sub}>오늘 들은 학생 {dashboard.data.activeStudentsToday}명</p>
           )}
         </div>
       </div>

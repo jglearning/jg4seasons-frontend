@@ -86,6 +86,21 @@ export function koreaShortDateTime(iso: string): string {
   return `${Number(parts.month)}/${Number(parts.day)} ${parts.hour}:${parts.minute}`
 }
 
+const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
+
+/**
+ * 학원 날짜 "2026-11-05" → "11/5 (목)"(A-04). 읽을 수 없으면 받은 글자 그대로.
+ * 교사 화면 shortDate와 같은 방식 — 기능 폴더끼리 import하지 않아 따로 둔다
+ */
+export function shortDate(date: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (m === null) return date
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  const utc = new Date(Date.UTC(year, month - 1, day))
+  if (utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) return date
+  return `${month}/${day} (${DAY_NAMES[utc.getUTCDay()]})`
+}
+
 /** 레벨 칩 글자 — "그린 · 겨울" */
 export function levelSeasonLabel(levelCode: string, season: string): string {
   const level = LEVELS.find((l) => l.code === levelCode)?.name ?? levelCode

@@ -21,7 +21,8 @@ import {
 import { useSubmit } from './useSubmit'
 import styles from './Admin.module.css'
 
-// A-02 학생 명단(03 §5.2): 명단 표, 여러 명 개인 코드 재발급(AUTH-05 묶음), 반 이동·퇴원·복귀(ADM-06 최소).
+// A-02 학생 명단(03 §5.2): 명단 표, 여러 명 개인 코드 재발급(AUTH-05 묶음), 반 이동·퇴원(ADM-06 최소).
+// 명단은 지금 이 반 학생만 온다(BE #30) — 퇴원하면 명단에서 빠지고, 퇴원생 찾기·복귀는 학원 전체 검색과 함께 2차.
 // 확인창 대신 화면 안에서 한 번 더 누른다(A-01 가입 코드 재발급과 같은 방식)
 export function StudentsPage() {
   const classId = Number(useParams().id)
@@ -42,7 +43,7 @@ export function StudentsPage() {
   )
 }
 
-type RowAction = { kind: 'move' | 'withdraw' | 'restore'; student: AdminStudent }
+type RowAction = { kind: 'move' | 'withdraw'; student: AdminStudent }
 
 function Roster({ klass, students }: { klass: AdminClass; students: AdminStudent[] }) {
   const queryClient = useQueryClient()
@@ -54,7 +55,6 @@ function Roster({ klass, students }: { klass: AdminClass; students: AdminStudent
   const regen = useSubmit()
 
   const active = students.filter((s) => s.status === 'active')
-  const inactiveCount = students.length - active.length
   // 퇴원했거나 다른 반으로 간 학생은 선택에서 뺀다
   const selectedActive = selected.filter((id) => active.some((s) => s.id === id))
 
@@ -133,16 +133,7 @@ function Roster({ klass, students }: { klass: AdminClass; students: AdminStudent
               퇴원
             </Button>
           </div>
-        ) : (
-          <Button
-            variant="secondary"
-            size="teacher"
-            aria-label={`${s.name} 복귀`}
-            onClick={() => openAction({ kind: 'restore', student: s })}
-          >
-            복귀
-          </Button>
-        ),
+        ) : null,
     },
   ]
 
@@ -151,9 +142,7 @@ function Roster({ klass, students }: { klass: AdminClass; students: AdminStudent
       <div className={styles.head}>
         <div>
           <h1 className={styles.title}>{klass.name} 학생 명단</h1>
-          <p className={styles.sub}>
-            재원 {active.length}명{inactiveCount > 0 && ` · 퇴원 ${inactiveCount}명`}
-          </p>
+          <p className={styles.sub}>재원 {active.length}명</p>
         </div>
         <ButtonLink to={`/admin/classes/${klass.id}/students/new`} size="teacher">
           학생 추가
@@ -241,9 +230,9 @@ function Roster({ klass, students }: { klass: AdminClass; students: AdminStudent
   )
 }
 
-const ACTION_TITLE = { move: '반 이동', withdraw: '퇴원', restore: '복귀' } as const
+const ACTION_TITLE = { move: '반 이동', withdraw: '퇴원' } as const
 
-/** 한 학생의 반 이동·퇴원·복귀 확인 칸 */
+/** 한 학생의 반 이동·퇴원 확인 칸 */
 function ActionPanel({
   action,
   klass,
@@ -271,10 +260,8 @@ function ActionPanel({
       if (moved !== undefined) onDone(`${student.name} → ${target.name} 이동함`)
       return
     }
-    const status = kind === 'withdraw' ? 'inactive' : 'active'
-    const updated = await submit.run(() => setStudentStatus(student.id, status))
-    if (updated !== undefined)
-      onDone(`${student.name} ${kind === 'withdraw' ? '퇴원 처리함' : '복귀함'}`)
+    const updated = await submit.run(() => setStudentStatus(student.id, 'inactive'))
+    if (updated !== undefined) onDone(`${student.name} 퇴원 처리함`)
   }
 
   const title = `${student.name} ${ACTION_TITLE[kind]}`
@@ -295,11 +282,9 @@ function ActionPanel({
         />
       )}
       {kind === 'withdraw' && (
-        <p className={styles.notice}>퇴원하면 이 학생은 들어올 수 없음. 듣기 기록은 남음</p>
-      )}
-      {kind === 'restore' && (
         <p className={styles.notice}>
-          복귀하면 다시 들어올 수 있음. 개인 코드를 잃어버렸으면 재발급
+          퇴원하면 명단에서 빠지고 이 학생은 들어올 수 없음. 이 화면에서는 되돌릴 수 없음(듣기
+          기록은 남음)
         </p>
       )}
       {kind === 'move' && <p className={styles.muted}>옮긴 뒤에는 옮긴 반 가입 코드로 들어옴</p>}

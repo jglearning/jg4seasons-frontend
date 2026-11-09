@@ -69,12 +69,12 @@ describe('A-02 진입', () => {
 })
 
 describe('A-02 학생 명단', () => {
-  it('표: 재원·퇴원 수, 학교·학년·상태, 퇴원생은 선택 칸 없이 복귀만', async () => {
+  it('표: 재원 수, 학교·학년·상태 — 퇴원생은 명단에 없다(서버는 지금 반 학생만)', async () => {
     renderAt('/admin/classes/12/students')
     const table = await rosterTable()
 
     expect(screen.getByRole('heading', { name: '겨울 그린 A반 학생 명단' })).toBeInTheDocument()
-    expect(screen.getByText('재원 18명 · 퇴원 1명')).toBeInTheDocument()
+    expect(screen.getByText('재원 18명')).toBeInTheDocument()
     const first = within(table).getByRole('row', { name: /김민준/ })
     expect(first).toHaveTextContent('A중')
     expect(first).toHaveTextContent('중1')
@@ -91,12 +91,10 @@ describe('A-02 학생 명단', () => {
     const noCode = within(within(table).getByRole('row', { name: /강수아/ })).getAllByRole('cell')
     expect(noCode[headers.indexOf('코드 발급')]).toHaveTextContent(/^없음$/)
 
-    const gone = within(table).getByRole('row', { name: new RegExp(STUDENT_MOCK.inactiveName) })
-    expect(gone).toHaveTextContent('퇴원')
-    expect(within(gone).queryByRole('checkbox')).not.toBeInTheDocument()
     expect(
-      within(gone).getByRole('button', { name: `${STUDENT_MOCK.inactiveName} 복귀` }),
-    ).toBeInTheDocument()
+      within(table).queryByRole('row', { name: new RegExp(STUDENT_MOCK.inactiveName) }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /복귀/ })).not.toBeInTheDocument()
   })
 
   it('개인 코드 재발급: 고른 학생만 보내고, 결과 코드는 화면에만(쿼리 캐시에 없음), 카드 인쇄', async () => {
@@ -206,37 +204,24 @@ describe('A-02 학생 명단', () => {
     expect(screen.getByText('선택 0명')).toBeInTheDocument()
   })
 
-  it('퇴원: 확인 칸에서 한 번 더 → PATCH status inactive, 명단 갱신', async () => {
+  it('퇴원: 되돌릴 수 없다고 알리고, 한 번 더 → PATCH status inactive, 명단에서 빠진다', async () => {
     const user = userEvent.setup()
     renderAt('/admin/classes/12/students')
     await rosterTable()
 
     await user.click(screen.getByRole('button', { name: '김민준 퇴원' }))
     const panel = screen.getByRole('region', { name: '김민준 퇴원' })
-    expect(panel).toHaveTextContent('퇴원하면 이 학생은 들어올 수 없음')
+    expect(panel).toHaveTextContent('퇴원하면 명단에서 빠지고 이 학생은 들어올 수 없음')
+    expect(panel).toHaveTextContent('이 화면에서는 되돌릴 수 없음')
     await user.click(within(panel).getByRole('button', { name: '퇴원' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('김민준 퇴원 처리함')
     expect(sent).toEqual([
       { method: 'PATCH', path: '/api/v1/admin/students/301', body: { status: 'inactive' } },
     ])
-    expect(await screen.findByText('재원 17명 · 퇴원 2명')).toBeInTheDocument()
+    expect(await screen.findByText('재원 17명')).toBeInTheDocument()
+    expect(screen.queryByRole('row', { name: /김민준/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '김민준 퇴원' })).not.toBeInTheDocument()
-  })
-
-  it('복귀: PATCH status active', async () => {
-    const user = userEvent.setup()
-    renderAt('/admin/classes/12/students')
-    await rosterTable()
-
-    await user.click(screen.getByRole('button', { name: `${STUDENT_MOCK.inactiveName} 복귀` }))
-    const panel = screen.getByRole('region', { name: `${STUDENT_MOCK.inactiveName} 복귀` })
-    await user.click(within(panel).getByRole('button', { name: '복귀' }))
-
-    expect(await screen.findByText('재원 19명')).toBeInTheDocument()
-    expect(sent).toEqual([
-      { method: 'PATCH', path: '/api/v1/admin/students/330', body: { status: 'active' } },
-    ])
   })
 
   it('반 이동: 운영 중인 다른 반만 고를 수 있고, 옮기면 이 반 명단에서 빠진다', async () => {
@@ -262,7 +247,7 @@ describe('A-02 학생 명단', () => {
     expect(sent).toEqual([
       { method: 'POST', path: '/api/v1/admin/students/302/move', body: { toClassId: 13 } },
     ])
-    expect(await screen.findByText('재원 17명 · 퇴원 1명')).toBeInTheDocument()
+    expect(await screen.findByText('재원 17명')).toBeInTheDocument()
     expect(
       within(await rosterTable()).queryByRole('row', { name: /이서연/ }),
     ).not.toBeInTheDocument()
@@ -303,7 +288,7 @@ describe('A-02 학생 추가', () => {
     await user.click(screen.getByRole('link', { name: '학생 명단으로' }))
     const table = await rosterTable()
     expect(within(table).getByRole('row', { name: /새학생/ })).toBeInTheDocument()
-    expect(screen.getByText('재원 20명 · 퇴원 1명')).toBeInTheDocument()
+    expect(screen.getByText('재원 20명')).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent(code)
   })
 
@@ -366,13 +351,13 @@ describe('A-02 학생 추가', () => {
 })
 
 describe('A-04 학원 현황', () => {
-  it('오늘 접속 학생 수, 반별 현재 회차·완료율(서버 값 그대로 %)', async () => {
+  it('오늘 들은 학생 수, 반별 현재 회차(날짜는 11/5 (목) 꼴)·완료율(서버 값 그대로 %)', async () => {
     renderAt('/admin/dashboard')
     const table = await screen.findByRole('table', { name: '반별 완료율' })
 
-    expect(screen.getByText('오늘 접속 학생 12명')).toBeInTheDocument()
+    expect(screen.getByText('오늘 들은 학생 12명')).toBeInTheDocument()
     const a = within(table).getByRole('row', { name: /겨울 그린 A반/ })
-    expect(a).toHaveTextContent('Reading Day 5 · 2026-12-19')
+    expect(a).toHaveTextContent('Reading Day 5 · 12/19 (토)')
     // 칸 글자 전체가 같아야 한다(0.64%도 '64%'를 품는다)
     expect(within(a).getByRole('cell', { name: '64%' })).toBeInTheDocument()
     expect(within(a).getByRole('link', { name: '겨울 그린 A반' })).toHaveAttribute(
