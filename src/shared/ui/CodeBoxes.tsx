@@ -18,6 +18,8 @@ type CodeBoxesProps = {
   autoFocus?: boolean
   inputMode?: 'numeric' | 'none'
   showNext?: boolean
+  /** 칸에 숫자 대신 ·(점)을 보인다 — QR로 채워진 개인 코드를 옆 사람에게 안 보이게(S-01, #38) */
+  masked?: boolean
 }
 
 function keepDigits(raw: string, length: number): string {
@@ -40,6 +42,7 @@ export function CodeBoxes({
   autoFocus,
   inputMode = 'numeric',
   showNext = false,
+  masked = false,
 }: CodeBoxesProps) {
   const id = useId()
   const errorId = error ? `${id}-error` : undefined
@@ -71,7 +74,7 @@ export function CodeBoxes({
                 .filter(Boolean)
                 .join(' ')}
             >
-              {value[i] ?? ''}
+              {filled ? (masked ? '•' : value[i]) : ''}
             </div>
           )
         })}
