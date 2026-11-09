@@ -1,5 +1,6 @@
 import { onlineManager } from '@tanstack/react-query'
 import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
@@ -344,5 +345,55 @@ describe('S-03 홈', () => {
     for (const key of keys) {
       expect(key).not.toMatch(/김민준|L2-B1|G7KM2XP4/)
     }
+  })
+})
+
+// #38 홈 화면에 추가 안내(안 B) — 홈 맨 위, 닫으면 이 기기에서 다시 안 보임
+describe('S-03 홈 화면에 추가 안내', () => {
+  const hint = () => screen.queryByRole('region', { name: '홈 화면에 추가' })
+
+  it('홈 맨 위에 보이고, 닫으면 기기에 닫은 표시만 남기고 다시 열어도 안 보인다', async () => {
+    const { container, unmount } = renderHome()
+    await heading()
+
+    const card = hint()!
+    expect(card).toHaveTextContent('홈 화면에 추가하면 다음부터 바로 열 수 있어요')
+    // 홈 칸들 중 첫째
+    expect(card.parentElement!.firstElementChild).toBe(card)
+    expect(container.contains(card)).toBe(true)
+
+    await userEvent.setup().click(within(card).getByRole('button', { name: '닫기' }))
+    expect(hint()).not.toBeInTheDocument()
+    expect({ ...localStorage }).toEqual({ 'jg4s.homeScreenHintDismissed': '1' })
+
+    unmount()
+    renderHome()
+    await heading()
+    expect(hint()).not.toBeInTheDocument()
+  })
+
+  it('이미 홈 화면 앱으로 열었으면(standalone) 보이지 않는다', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({ matches: query === '(display-mode: standalone)' })),
+    )
+    renderHome()
+    await heading()
+
+    expect(hint()).not.toBeInTheDocument()
+  })
+
+  it('기기 저장소를 못 써도 홈은 그대로, 닫기는 이 화면에서만', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError')
+    })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError')
+    })
+    renderHome()
+    await heading()
+
+    await userEvent.setup().click(within(hint()!).getByRole('button', { name: '닫기' }))
+    expect(hint()).not.toBeInTheDocument()
   })
 })
