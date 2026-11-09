@@ -1,5 +1,6 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import QRCode from 'qrcode'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { resetAdminMock, STUDENT_MOCK } from '../../mocks/adminData'
@@ -34,6 +35,16 @@ function renderAt(path: string) {
 }
 
 const rosterTable = () => screen.findByRole('table', { name: '학생 명단' })
+
+/** 이 주소로 만든 QR의 검은 칸을 카드 SVG 경로와 같은 꼴로(여백 2칸) */
+function qrPath(text: string): string {
+  const modules = QRCode.create(text, { errorCorrectionLevel: 'M' }).modules
+  let d = ''
+  for (let row = 0; row < modules.size; row++)
+    for (let col = 0; col < modules.size; col++)
+      if (modules.get(row, col)) d += `M${col + 2},${row + 2}h1v1h-1z`
+  return d
+}
 
 describe('A-02 진입', () => {
   it('학생 관리: 반 고르기 표에서 반 이름이 명단으로 간다', async () => {
@@ -144,7 +155,15 @@ describe('A-02 학생 명단', () => {
     expect(cards[0]).toHaveTextContent('그린 · 겨울')
     const boxes = cards[0].querySelectorAll('dl > div')
     expect([...boxes].map((d) => d.textContent)).toEqual(['가입 코드G7KM2XP4', `개인 코드${code}`])
-    await user.click(screen.getByRole('button', { name: '카드 인쇄' }))
+    // QR(#38): 라이브러리를 불러온 뒤 인쇄할 수 있고, 카드마다 그 학생의 S-01 주소(# 뒤 두 코드)
+    const printButton = screen.getByRole('button', { name: '카드 인쇄' })
+    await waitFor(() => expect(printButton).toBeEnabled())
+    expect(cards[0]).toHaveTextContent('폰 카메라로 찍어요')
+    const qrOf = (card: Element) => card.querySelector('svg path')?.getAttribute('d')
+    expect(qrOf(cards[0])).toBe(qrPath(`${window.location.origin}/join#c=G7KM2XP4&p=${code}`))
+    const code2 = rows[1].textContent!.slice(-4)
+    expect(qrOf(cards[1])).toBe(qrPath(`${window.location.origin}/join#c=G7KM2XP4&p=${code2}`))
+    await user.click(printButton)
     expect(print).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: /닫기/ })).not.toBeInTheDocument()
 

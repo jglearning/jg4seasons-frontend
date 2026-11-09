@@ -161,6 +161,33 @@
   flex-wrap: wrap;
 }
 
+/* 홈 화면에 추가 안내(#38) */
+.hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.hintText {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.hintClose {
+  flex: none;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+}
+
 .textLink {
   display: inline-flex;
   align-items: center;

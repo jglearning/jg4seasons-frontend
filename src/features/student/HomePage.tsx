@@ -9,6 +9,7 @@ import { ProgressBar } from '../../shared/ui/ProgressBar'
 import { StatusPill, type Status } from '../../shared/ui/StatusPill'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { longDate, shortDate } from './dates'
+import { HomeScreenHint } from './HomeScreenHint'
 import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, type StudentHome } from './studentApi'
@@ -48,6 +49,7 @@ export function HomePage() {
       </header>
 
       <div className={styles.sections}>
+        <HomeScreenHint />
         <OverdueAlert items={data.overdue.map(overdueItem)} />
         <TodayCard today={data.today} />
         <div className={styles.pair}>

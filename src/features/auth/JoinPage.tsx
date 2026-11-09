@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, type SubmitEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type SubmitEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../api/errors'
 import { Button } from '../../shared/ui/Button'
@@ -13,6 +13,7 @@ import { STUDENT_COPY } from './studentCopy'
 import styles from './StudentEntry.module.css'
 import { useMountedRef } from './useMountedRef'
 import { entryReason } from './entry'
+import { readQrJoinHash } from '../../shared/qrJoin'
 
 const PERSONAL_CODE_LENGTH = 4
 const JOIN_CODE_HINT = '대소문자 구분 없음 · 0/O, 1/I는 쓰지 않아요'
@@ -26,14 +27,59 @@ export function JoinPage() {
   const mounted = useMountedRef()
   const reason = entryReason(location.state)
 
-  const [joinCode, setJoinCode] = useState('')
+  // 카드 QR(#38): `/join#c=…&p=…`로 열리면 두 칸을 채운다. 코드는 아래 state에만 두고 주소에서는 바로 지운다.
+  // 자동 로그인은 하지 않는다 — 학생이 "들어가기"를 한 번 누른다
+  const [joinCode, setJoinCode] = useState(() => readQrJoinHash(location.hash)?.joinCode ?? '')
   // 개인 코드는 이 state에만(요청 직후 비움)
-  const [personalCode, setPersonalCode] = useState('')
+  const [personalCode, setPersonalCode] = useState(
+    () => readQrJoinHash(location.hash)?.personalCode ?? '',
+  )
+  const [fromQr, setFromQr] = useState(() => readQrJoinHash(location.hash) !== undefined)
   const [submitting, setSubmitting] = useState(false)
   const [loginError, setLoginError] = useState<ReactNode>()
 
   // 반 확인은 표시용(선택) — 실패해도 로그인은 할 수 있다(03 §1.1)
   const verify = useMutation({ mutationFn: verifyJoinCode })
+
+  // 이 화면이 이미 열린 탭에 QR 주소가 다시 들어오면(같은 문서 안 # 이동 — 위 첫 값은 다시 돌지 않음) 그리는 중에 채운다.
+  // 주소 이동마다 바뀌는 location.key로 알아챈다(코드가 든 주소를 state에 두지 않는다)
+  const [seenKey, setSeenKey] = useState(location.key)
+  if (location.key !== seenKey) {
+    setSeenKey(location.key)
+    const codes = readQrJoinHash(location.hash)
+    if (codes !== undefined && !submitting) {
+      setJoinCode(codes.joinCode ?? '')
+      setPersonalCode(codes.personalCode ?? '')
+      setFromQr(true)
+      setLoginError(undefined)
+    }
+  }
+
+  // `#` 뒤에 무엇이 있든(모양이 틀려도) 주소에서 지운다 — 뒤로 가기·주소창·공유에 개인 코드가 남지 않게
+  useEffect(() => {
+    if (location.hash === '') return
+    void navigate(
+      { pathname: location.pathname, search: location.search },
+      { replace: true, state: location.state },
+    )
+  }, [location, navigate])
+
+  // QR로 채운 가입 코드도 직접 친 것처럼 반을 확인한다. 같은 코드는 한 번만(개발 모드의 effect 두 번 실행 포함)
+  const qrVerified = useRef<string>(undefined)
+  useEffect(() => {
+    if (!fromQr || joinCode.length !== JOIN_CODE_LENGTH) return
+    if (qrVerified.current === joinCode || verify.variables === joinCode) return
+    qrVerified.current = joinCode
+    verify.mutate(joinCode)
+  }, [fromQr, joinCode, verify])
+
+  function clearCodes() {
+    if (submitting) return
+    setJoinCode('')
+    setPersonalCode('')
+    setFromQr(false)
+    setLoginError(undefined)
+  }
   const verified = verify.variables === joinCode ? verify : undefined
   const invalidCode = verified?.error instanceof ApiError && verified.error.code === 'INVALID_CODE'
 
@@ -103,6 +149,7 @@ export function JoinPage() {
             <br />
             바로 들어가요
           </h1>
+          {fromQr && <p className={styles.qrNotice}>카드의 QR로 열었어요</p>}
           <p className={styles.lead}>
             선생님께 받은 카드에 둘 다 적혀 있어요.
             <br />
@@ -138,10 +185,16 @@ export function JoinPage() {
             value={personalCode}
             onChange={changePersonalCode}
             error={loginError}
+            masked={fromQr}
           />
           <Button type="submit" block disabled={!canSubmit}>
             {submitting ? '들어가는 중' : '들어가기'}
           </Button>
+          {fromQr && (
+            <button type="button" className={styles.textButton} onClick={clearCodes}>
+              다른 코드로 들어가기
+            </button>
+          )}
           <p className={styles.note}>
             코드를 잃어버렸으면 담당 선생님께 물어보세요. 개인 코드는 친구에게 알려 주지 마세요.
           </p>

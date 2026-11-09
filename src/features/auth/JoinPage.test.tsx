@@ -268,3 +268,99 @@ describe('S-01 코드로 들어가기', () => {
     await waitFor(() => expect(submitButton()).toBeDisabled())
   })
 })
+
+// #38 카드 QR로 열기 — `/join#c=…&p=…`
+describe('S-01 카드 QR로 열기', () => {
+  const qrPath = (c: string, p: string) => `/join#c=${c}&p=${p}`
+  const renderQr = (path: string) => renderRoutes(routes, { initialEntries: [path] })
+  // 개인 코드 4칸(눈에 보이는 칸, aria-hidden)의 글자
+  const personalBoxes = () => personalInput().parentElement!.textContent
+
+  it('두 칸을 채우고, 주소에서 # 뒤를 바로 지우고, 개인 코드는 점으로 가린다. 자동으로 들어가지 않는다', async () => {
+    const { router, client } = renderQr(qrPath('g7km2xp4', AUTH_MOCK.personalCode))
+
+    expect(screen.getByText('카드의 QR로 열었어요')).toBeInTheDocument()
+    expect(joinInput()).toHaveValue(AUTH_MOCK.joinCode)
+    expect(personalInput()).toHaveValue(AUTH_MOCK.personalCode)
+    expect(personalBoxes()).toBe('••••')
+    await waitFor(() => expect(router.state.location.hash).toBe(''))
+    expect(router.state.location.pathname).toBe('/join')
+    // 채운 가입 코드도 반을 확인한다
+    expect(
+      await screen.findByText(`${AUTH_MOCK.className} · ${AUTH_MOCK.academyName}`),
+    ).toBeInTheDocument()
+    expect(submitButton()).toBeEnabled()
+    expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
+
+    await userEvent.setup().click(submitButton())
+    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
+    expect(readJoinCode()).toBe(AUTH_MOCK.joinCode)
+    expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
+  })
+
+  it('개인 코드가 틀리면 기존 문구와 개인 코드 칸 오류', async () => {
+    renderQr(qrPath(AUTH_MOCK.joinCode, '1111'))
+    await screen.findByText(`${AUTH_MOCK.className} · ${AUTH_MOCK.academyName}`)
+
+    await userEvent.setup().click(submitButton())
+
+    expect(await screen.findByText('가입 코드 또는 개인 코드가 맞지 않아요')).toBeInTheDocument()
+    expect(personalInput()).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('카드의 QR로 열었어요')).toBeInTheDocument()
+  })
+
+  it('없는 가입 코드면 가입 코드 칸 오류, 들어가기를 막는다', async () => {
+    renderQr(qrPath('AAAABBBB', AUTH_MOCK.personalCode))
+
+    expect(await screen.findByText(/없는 가입 코드예요/)).toBeInTheDocument()
+    expect(joinInput()).toHaveAttribute('aria-invalid', 'true')
+    expect(submitButton()).toBeDisabled()
+  })
+
+  it('다른 코드로 들어가기: 두 칸을 비우고 QR 안내를 거둔다', async () => {
+    renderQr(qrPath(AUTH_MOCK.joinCode, AUTH_MOCK.personalCode))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: '다른 코드로 들어가기' }))
+
+    expect(joinInput()).toHaveValue('')
+    expect(personalInput()).toHaveValue('')
+    expect(screen.queryByText('카드의 QR로 열었어요')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다른 코드로 들어가기' })).not.toBeInTheDocument()
+    // 이제 직접 치는 숫자는 그대로 보인다
+    await user.type(personalInput(), '12')
+    expect(personalBoxes()).toBe('12')
+  })
+
+  it('이미 열린 S-01에 QR 주소가 다시 들어와도(같은 탭) 채우고 주소에서 지운다', async () => {
+    const { router, client } = renderJoin()
+    expect(joinInput()).toHaveValue('')
+
+    await act(() => router.navigate(qrPath(AUTH_MOCK.joinCode, AUTH_MOCK.personalCode)))
+
+    expect(joinInput()).toHaveValue(AUTH_MOCK.joinCode)
+    expect(personalInput()).toHaveValue(AUTH_MOCK.personalCode)
+    expect(screen.getByText('카드의 QR로 열었어요')).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.hash).toBe(''))
+    expect(
+      await screen.findByText(`${AUTH_MOCK.className} · ${AUTH_MOCK.academyName}`),
+    ).toBeInTheDocument()
+    expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
+  })
+
+  it('모양이 틀린 # 뒤 값은 채우지 않고 주소에서만 지운다', async () => {
+    const { router } = renderQr('/join#c=G7KM&p=12345')
+
+    await waitFor(() => expect(router.state.location.hash).toBe(''))
+    expect(joinInput()).toHaveValue('')
+    expect(personalInput()).toHaveValue('')
+    expect(screen.queryByText('카드의 QR로 열었어요')).not.toBeInTheDocument()
+  })
+
+  it('그냥 열면 QR 안내와 다른 코드 버튼이 없다', () => {
+    renderJoin()
+
+    expect(screen.queryByText('카드의 QR로 열었어요')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다른 코드로 들어가기' })).not.toBeInTheDocument()
+  })
+})
