@@ -442,7 +442,11 @@ export function adminHandlers({ problem, readJson, currentUser }: Helpers): AnyH
       const classId = Number(params.id)
       if (!classes.some((c) => c.id === classId))
         return problem(request, 404, 'NOT_FOUND', '반을 찾을 수 없어요')
-      const items = students.filter((s) => s.classId === classId).map(studentView)
+      // 서버(BE #30)와 같게: 지금 이 반 학생만(퇴원생 빠짐), 이름 순 → 같으면 id 순
+      const items = students
+        .filter((s) => s.classId === classId && s.status === 'active')
+        .sort((a, b) => (a.name === b.name ? a.id - b.id : a.name < b.name ? -1 : 1))
+        .map(studentView)
       return HttpResponse.json<Schemas['StudentListResponse']>({
         items,
         total: items.length,
