@@ -17,6 +17,7 @@ import { TeacherLoginPage } from '../features/auth/TeacherLoginPage'
 import { LessonPage } from '../features/player/LessonPage'
 import { HomePage } from '../features/student/HomePage'
 import { LessonsPage } from '../features/student/LessonsPage'
+import { SettingsPage } from '../features/student/SettingsPage'
 import { CardsPage } from '../features/words/CardsPage'
 import { WordsPage } from '../features/words/WordsPage'
 import { ClassesPage as TeacherClassesPage } from '../features/teacher/ClassesPage'
@@ -42,6 +43,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/lessons', element: <LessonsPage /> },
+          { path: '/settings', element: <SettingsPage /> },
           { path: '/lessons/:code', element: <LessonPage /> },
           { path: '/lessons/:code/words', element: <WordsPage /> },
           { path: '/lessons/:code/cards', element: <CardsPage /> },
