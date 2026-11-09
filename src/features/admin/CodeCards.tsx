@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { create as createQr } from 'qrcode'
+import { levelProps } from '../../shared/level'
 import { qrJoinUrl } from '../../shared/qrJoin'
 import { Button } from '../../shared/ui/Button'
 import { Table, type Column } from '../../shared/ui/Table'
@@ -15,7 +16,7 @@ import styles from './CodeCards.module.css'
 type CodeCardsProps = {
   /** 결과 제목(예: "등록 결과 3명") */
   title: string
-  klass: Pick<AdminClass, 'name' | 'accessCode' | 'levelCode' | 'season'>
+  klass: Pick<AdminClass, 'name' | 'accessCode' | 'levelCode' | 'season' | 'level'>
   items: PersonalCodeItem[]
 }
 
@@ -90,8 +91,8 @@ export function CodeCards({ title, klass, items }: CodeCardsProps) {
       <Table caption="개인 코드" columns={columns} rows={items} rowKey={(s) => s.id} />
       {createPortal(
         // 칸(점선 = 자르는 선) 안에 카드. 왼쪽 열은 글자, 오른쪽 위는 QR(#38 — 찍으면 두 코드가 채워진 S-01).
-        // 레벨 칩 색: 지금은 기본(--level = ink). 반 응답 level.colorHex로 칠하는 것은 남은 일(issues)
-        <div className={styles.sheet} aria-hidden="true">
+        // 레벨 칩 색은 반 응답의 level.colorHex(값이 이상하면 기본 ink)
+        <div className={styles.sheet} aria-hidden="true" {...levelProps(klass.level.colorHex)}>
           {items.map((s) => (
             <div key={s.id} className={styles.cell}>
               <div className={styles.card}>
