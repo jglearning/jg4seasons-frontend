@@ -153,6 +153,10 @@ describe('A-02 학생 명단', () => {
     expect(cards[0]).toHaveTextContent('G7KM2XP4')
     expect(cards[0]).toHaveTextContent(code)
     expect(cards[0]).toHaveTextContent('그린 · 겨울')
+    // 레벨 칩 색 = 반 응답 level.colorHex(그린 #1F7A4F)
+    const sheet = cards[0].parentElement!
+    expect(sheet.style.getPropertyValue('--level')).toBe('#1F7A4F')
+    expect(sheet).toHaveAttribute('data-level', '')
     const boxes = cards[0].querySelectorAll('dl > div')
     expect([...boxes].map((d) => d.textContent)).toEqual(['가입 코드G7KM2XP4', `개인 코드${code}`])
     // QR(#38): 라이브러리를 불러온 뒤 인쇄할 수 있고, 카드마다 그 학생의 S-01 주소(# 뒤 두 코드)

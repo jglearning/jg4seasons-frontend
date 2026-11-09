@@ -41,7 +41,7 @@ describe('들어온 뒤의 세션', () => {
     const user = userEvent.setup()
     await user.type(screen.getByLabelText('아이디'), 'teacher01')
     await user.type(screen.getByLabelText('비밀번호'), `${AUTH_MOCK.staffPassword}{Enter}`)
-    await screen.findByRole('heading', { name: '반 목록 화면 준비 중' })
+    await screen.findByRole('heading', { name: '반 목록', level: 1 })
 
     resetAuthMock()
     await client.invalidateQueries({ queryKey: ['me'] })
@@ -135,7 +135,7 @@ describe('들어온 뒤의 세션', () => {
     setMockSession('superadmin')
     const { router } = renderRoutes(routes, { initialEntries: ['/'] })
 
-    expect(await screen.findByRole('heading', { name: '반 목록 화면 준비 중' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '반 목록', level: 1 })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/teacher')
   })
 })
@@ -176,7 +176,7 @@ describe('로그인한 사람만 들어오는 경로(GET /me)', () => {
     setMockSession('admin')
     const { router } = renderRoutes(routes, { initialEntries: ['/'] })
 
-    expect(await screen.findByRole('heading', { name: '반 목록 화면 준비 중' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '반 목록', level: 1 })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/teacher')
   })
 

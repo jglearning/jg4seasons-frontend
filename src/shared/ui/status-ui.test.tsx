@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest'
 import { BottomBar, type BottomTab } from './BottomBar'
 import { OverdueAlert } from './OverdueAlert'
 import { ProgressBar } from './ProgressBar'
+import { levelProps } from '../level'
+import { StatusPill } from './StatusPill'
 import { StudentLayout } from './StudentLayout'
+import { Table } from './Table'
 
 function inRouter(ui: ReactElement, path = '/') {
   const router = createMemoryRouter(
@@ -19,6 +22,30 @@ function inRouter(ui: ReactElement, path = '/') {
   )
   return render(<RouterProvider router={router} />)
 }
+
+describe('Table', () => {
+  it('center·current 열은 머리글과 칸 모두에 클래스가 붙는다(매트릭스 지금 회차 열)', () => {
+    render(
+      <Table
+        caption="청취 현황"
+        columns={[
+          { key: 'name', header: '학생', cell: (r: { n: number }) => `학생 ${r.n}` },
+          { key: 'day', header: 'Day 5', cell: () => '완료', center: true, current: true },
+        ]}
+        rows={[{ n: 1 }]}
+        rowKey={(r) => r.n}
+      />,
+    )
+    for (const el of [
+      screen.getByRole('columnheader', { name: 'Day 5' }),
+      screen.getByRole('cell', { name: '완료' }),
+    ]) {
+      expect(el.className).toMatch(/center/)
+      expect(el.className).toMatch(/current/)
+    }
+    expect(screen.getByRole('columnheader', { name: '학생' })).not.toHaveAttribute('class')
+  })
+})
 
 describe('ProgressBar', () => {
   it('서버 값을 그대로 aria로 알리고 폭은 비율만큼', () => {
@@ -52,6 +79,37 @@ describe('StudentLayout', () => {
     rerender(<StudentLayout levelColorHex="red; background: url(x)">x</StudentLayout>)
     expect(main.style.getPropertyValue('--level')).toBe('')
     expect(main).not.toHaveAttribute('data-level')
+  })
+})
+
+describe('levelProps', () => {
+  it('#RRGGBB만 --level·data-level로, 아니면 아무것도 넣지 않는다', () => {
+    expect(levelProps('#1f7a4f')).toEqual({
+      style: { '--level': '#1f7a4f' },
+      'data-level': '',
+    })
+    expect(levelProps(undefined)).toEqual({})
+    expect(levelProps('#1F7A4')).toEqual({})
+    expect(levelProps('red')).toEqual({})
+  })
+})
+
+describe('StatusPill', () => {
+  it('srLabel이 있으면 보이는 기호는 숨기고 낭독 글자만 읽는다', () => {
+    render(
+      <StatusPill status="in_progress" shape="cell" srLabel="김민준 Reading Day 5 진행 중 3 / 6">
+        3/6
+      </StatusPill>,
+    )
+    const visible = screen.getByText('3/6')
+    expect(visible).toHaveAttribute('aria-hidden', 'true')
+    const pill = screen.getByText('김민준 Reading Day 5 진행 중 3 / 6').parentElement
+    expect(pill).toHaveAttribute('data-status', 'in_progress')
+  })
+
+  it('srLabel이 없으면 글자를 그대로(숨기지 않음)', () => {
+    render(<StatusPill status="overdue">밀림</StatusPill>)
+    expect(screen.getByText('밀림')).not.toHaveAttribute('aria-hidden')
   })
 })
 

@@ -68,6 +68,16 @@
   text-align: right;
 }
 
+.table .center {
+  text-align: center;
+}
+
+/* 지금 회차 열(매트릭스) — 머리글·칸 모두. 첫 열 고정 배경보다 뒤에 둔다 */
+.table th.current,
+.table td.current {
+  background: var(--current-col);
+}
+
 .empty {
   color: var(--muted);
 }
