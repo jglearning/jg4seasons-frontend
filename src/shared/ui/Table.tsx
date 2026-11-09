@@ -5,10 +5,15 @@ import styles from './Table.module.css'
 // 열 정의(머리글·셀 그리기)는 쓰는 쪽이 넘긴다
 export type Column<T> = {
   key: string
-  header: string
+  /** 머리글. 매트릭스처럼 두 줄(회차·날짜)이면 요소를 넘긴다 */
+  header: ReactNode
   cell: (row: T) => ReactNode
   /** 숫자 열(오른쪽 맞춤·고정폭 숫자) */
   numeric?: boolean
+  /** 가운데 맞춤(매트릭스 상태 칸) */
+  center?: boolean
+  /** 지금 회차 열 — 머리글·칸 배경을 current-col로 */
+  current?: boolean
 }
 
 type TableProps<T> = {
@@ -21,6 +26,15 @@ type TableProps<T> = {
   empty?: string
 }
 
+function cellClass<T>(column: Column<T>): string | undefined {
+  const names = [
+    column.numeric && styles.numeric,
+    column.center && styles.center,
+    column.current && styles.current,
+  ].filter(Boolean)
+  return names.length === 0 ? undefined : names.join(' ')
+}
+
 export function Table<T>({ caption, columns, rows, rowKey, empty = '없음' }: TableProps<T>) {
   return (
     // 가로 스크롤 영역은 키보드로도 움직일 수 있게 포커스를 받는다
@@ -30,11 +44,7 @@ export function Table<T>({ caption, columns, rows, rowKey, empty = '없음' }: T
         <thead>
           <tr>
             {columns.map((column) => (
-              <th
-                key={column.key}
-                scope="col"
-                className={column.numeric ? styles.numeric : undefined}
-              >
+              <th key={column.key} scope="col" className={cellClass(column)}>
                 {column.header}
               </th>
             ))}
@@ -51,7 +61,7 @@ export function Table<T>({ caption, columns, rows, rowKey, empty = '없음' }: T
             rows.map((row) => (
               <tr key={rowKey(row)}>
                 {columns.map((column) => (
-                  <td key={column.key} className={column.numeric ? styles.numeric : undefined}>
+                  <td key={column.key} className={cellClass(column)}>
                     {column.cell(row)}
                   </td>
                 ))}

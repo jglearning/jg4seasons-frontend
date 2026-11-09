@@ -7,15 +7,27 @@ export type Status = 'completed' | 'in_progress' | 'open' | 'locked' | 'overdue'
 
 type StatusPillProps = {
   status: Status
-  /** pill: 작은 알약(카드 안 상태) · tile: 회차 타일(S-04) */
-  shape?: 'pill' | 'tile'
+  /** pill: 작은 알약(카드 안 상태) · tile: 회차 타일(S-04) · cell: 교사 매트릭스 칸(36×26) */
+  shape?: 'pill' | 'tile' | 'cell'
+  /**
+   * 화면 낭독기가 읽을 글자. 주면 보이는 글자(✓·—·3/6)는 읽지 않고 이것만 읽는다.
+   * 매트릭스 칸처럼 기호만 보이는 곳에서 "김민준 Reading Day 5 진행 중 3 / 6"처럼 넣는다
+   */
+  srLabel?: string
   children: ReactNode
 }
 
-export function StatusPill({ status, shape = 'pill', children }: StatusPillProps) {
+export function StatusPill({ status, shape = 'pill', srLabel, children }: StatusPillProps) {
   return (
     <span className={`${styles.base} ${styles[shape]} ${styles[status]}`} data-status={status}>
-      {children}
+      {srLabel === undefined ? (
+        children
+      ) : (
+        <>
+          <span aria-hidden>{children}</span>
+          <span className={styles.srOnly}>{srLabel}</span>
+        </>
+      )}
     </span>
   )
 }
