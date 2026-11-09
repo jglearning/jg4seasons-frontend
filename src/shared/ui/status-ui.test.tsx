@@ -45,6 +45,20 @@ describe('Table', () => {
     }
     expect(screen.getByRole('columnheader', { name: '학생' })).not.toHaveAttribute('class')
   })
+
+  it('mutedRow가 참인 행에만 흐린 행 클래스가 붙는다', () => {
+    render(
+      <Table
+        caption="진도표"
+        columns={[{ key: 'n', header: '회차', cell: (r: { n: number }) => `${r.n}회` }]}
+        rows={[{ n: 1 }, { n: 2 }]}
+        rowKey={(r) => r.n}
+        mutedRow={(r) => r.n === 2}
+      />,
+    )
+    expect(screen.getByRole('row', { name: '1회' })).not.toHaveAttribute('class')
+    expect(screen.getByRole('row', { name: '2회' }).className).toMatch(/muted/)
+  })
 })
 
 describe('ProgressBar', () => {

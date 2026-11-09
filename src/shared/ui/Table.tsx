@@ -24,6 +24,8 @@ type TableProps<T> = {
   rowKey: (row: T) => string | number
   /** 행이 없을 때 */
   empty?: string
+  /** 흐린 행(진도표 휴강 등) — 행 배경 surface-2. 상태는 쓰는 쪽이 글자로도 보인다 */
+  mutedRow?: (row: T) => boolean
 }
 
 function cellClass<T>(column: Column<T>): string | undefined {
@@ -35,7 +37,14 @@ function cellClass<T>(column: Column<T>): string | undefined {
   return names.length === 0 ? undefined : names.join(' ')
 }
 
-export function Table<T>({ caption, columns, rows, rowKey, empty = '없음' }: TableProps<T>) {
+export function Table<T>({
+  caption,
+  columns,
+  rows,
+  rowKey,
+  empty = '없음',
+  mutedRow,
+}: TableProps<T>) {
   return (
     // 가로 스크롤 영역은 키보드로도 움직일 수 있게 포커스를 받는다
     <div className={styles.scroll} role="region" aria-label={caption} tabIndex={0}>
@@ -59,7 +68,7 @@ export function Table<T>({ caption, columns, rows, rowKey, empty = '없음' }: T
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={rowKey(row)}>
+              <tr key={rowKey(row)} className={mutedRow?.(row) ? styles.muted : undefined}>
                 {columns.map((column) => (
                   <td key={column.key} className={cellClass(column)}>
                     {column.cell(row)}
