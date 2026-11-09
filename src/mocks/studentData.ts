@@ -1,5 +1,6 @@
 import type { components } from '../api/generated/schema'
 import { PASSAGE_TITLES } from './lessonData'
+import { WORD_MOCK } from './wordData'
 
 // 학생 홈·회차 목록 목 데이터(03 §2.1·§2.2 예시 + 회차 상세 목과 같은 지어낸 지문 제목).
 // 겨울 L2-B1, 24회차를 화·목·토 수업으로 배치: Day 1·2 완료, 3 멈춤(밀림), 4 미시작(밀림), 5 오늘, 6~ 잠김.
@@ -22,7 +23,6 @@ export const STUDENT_MOCK = {
 } as const
 
 const PASSAGES_L2_B1_05 = PASSAGE_TITLES
-const WORD_TOTAL = 57
 
 const FIRST_DAY = Date.UTC(2026, 11, 10) // 2026-12-10(목)
 const WEEKDAY_STEPS = [2, 3, 2] // 목→토(2일) →화(3일) →목(2일) …
@@ -141,7 +141,7 @@ export function buildHome(): Home {
         progress: { ...NOT_STARTED },
       },
     ],
-    words: { lessonCode: code(n), total: WORD_TOTAL, memKnown: 0 },
+    words: { lessonCode: code(n), total: WORD_MOCK.total, memKnown: WORD_MOCK.study.memKnown },
     next: {
       seq: n + 1,
       scheduledDate: scheduledDate(n + 1),

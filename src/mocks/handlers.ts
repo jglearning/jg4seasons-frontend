@@ -3,6 +3,7 @@ import type { components } from '../api/generated/schema'
 import { adminHandlers } from './adminData'
 import { buildLessonDetail, LESSON_MOCK, recordFlush } from './lessonData'
 import { buildHome, buildLessons, STUDENT_MOCK } from './studentData'
+import { buildWords, recordWordStudy } from './wordData'
 
 // dev:mock·테스트용 목 응답. 경로·본문은 openapi 생성 타입을 따른다(백엔드 PR #10 기준 문구·오류 code).
 // 인증 목은 로그인 상태를 메모리에 들고 있다 — 새로 고침하면 로그아웃 상태(S-02 확인용)
@@ -208,6 +209,27 @@ const studentHandlers: AnyHandler[] = [
       })
     }
     return HttpResponse.json(buildLessonDetail(code))
+  }),
+
+  // S-06·S-06b 단어(03 §2.4) — 회차 상세와 같은 잠금
+  http.get('*/api/v1/student/lessons/:code/words', async ({ request, params }) => {
+    await delay()
+    const denied = studentOnly(request)
+    if (denied) return denied
+    const code = String(params.code)
+    if (!LESSON_MOCK.openCodes.includes(code as (typeof LESSON_MOCK.openCodes)[number])) {
+      return problem(request, 423, 'LESSON_LOCKED', '아직 열리지 않은 회차예요', {
+        detail: '수업 날이 되면 열려요',
+      })
+    }
+    return HttpResponse.json(buildWords())
+  }),
+
+  // 카드·학습 결과 저장(2.5) — 모든 값 단조 증가
+  http.put('*/api/v1/student/lessons/:code/word-study', async ({ request }) => {
+    const denied = studentOnly(request)
+    if (denied) return denied
+    return HttpResponse.json(recordWordStudy(await readJson(request)))
   }),
 
   // 청취 flush(3.1) — fetch(application/json)와 sendBeacon(text/plain, 바디 csrf) 둘 다
