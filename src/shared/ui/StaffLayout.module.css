@@ -54,11 +54,45 @@
   font-weight: 700;
 }
 
-.user {
+/* 사이드바 맨 아래: 이름 · 역할, 그 아래 로그아웃(공통 틀 S4) */
+.account {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
   margin: auto 0 0;
   padding: 0 var(--space-2);
+}
+
+.user {
+  margin: 0;
   font-size: 13px;
   color: var(--muted);
+}
+
+/* 텍스트 버튼(13px, 밑줄) — 누를 자리는 44 높이 */
+.logout {
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.logout:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.logoutError {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger);
 }
 
 .main {
@@ -94,9 +128,22 @@
     white-space: nowrap;
   }
 
-  .user {
+  /* 위 가로 줄 오른쪽: "이선생 · 교사  로그아웃" 한 줄 */
+  .account {
     flex: none;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
     margin: 0 0 0 auto;
+    padding: 0;
+  }
+
+  .user {
+    white-space: nowrap;
+  }
+
+  .logout {
+    white-space: nowrap;
   }
 
   .main {
