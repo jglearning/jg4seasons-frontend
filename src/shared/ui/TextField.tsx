@@ -10,6 +10,8 @@ type TextFieldProps = Omit<ComponentPropsWithRef<'input'>, 'size'> & {
   error?: ReactNode
   size?: 'student' | 'teacher'
   code?: boolean
+  /** 라벨을 눈에서만 숨긴다(읽는 이름은 그대로) — 같은 칸이 줄마다 반복될 때 첫 줄만 보이게 */
+  labelHidden?: boolean
 }
 
 const CODE_INPUT_PROPS = {
@@ -25,6 +27,7 @@ export function TextField({
   error,
   size = 'student',
   code = false,
+  labelHidden = false,
   id,
   className,
   ...rest
@@ -37,7 +40,7 @@ export function TextField({
 
   return (
     <div className={[styles.field, className].filter(Boolean).join(' ')}>
-      <label htmlFor={inputId} className={styles.label}>
+      <label htmlFor={inputId} className={labelHidden ? styles.srOnly : styles.label}>
         {label}
       </label>
       <input

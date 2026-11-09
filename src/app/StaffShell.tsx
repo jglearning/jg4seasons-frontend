@@ -9,7 +9,9 @@ const TEACHER_NAV: StaffNavItem[] = [{ to: '/teacher', label: '반 목록' }]
 const ADMIN_NAV: StaffNavItem[] = [
   ...TEACHER_NAV,
   { to: '/admin/classes', label: '반 관리' },
+  { to: '/admin/students', label: '학생 관리' },
   { to: '/admin/teachers', label: '교사 관리' },
+  { to: '/admin/dashboard', label: '학원 현황' },
 ]
 const ROLE_LABEL = {
   teacher: '교사',
