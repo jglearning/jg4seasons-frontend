@@ -61,7 +61,7 @@ describe('sendFlush · 실패 구분', () => {
     setMockSession('student')
     resetLessonMock()
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
-    const body = { ...PAYLOAD, trackId: LESSON_MOCK.passageTrackId(1, '1.0') }
+    const body = { ...PAYLOAD, trackId: LESSON_MOCK.passageTrackId(1, 'us_w') }
 
     await sendFlush(body, { keepalive: true })
 

@@ -16,4 +16,4 @@ export function lessonQuery(code: string) {
 
 export type LessonDetail = Awaited<ReturnType<typeof fetchLesson>>
 export type Passage = LessonDetail['passages'][number]
-export type Speed = Passage['speeds'][number]
+export type Voice = Passage['voices'][number]

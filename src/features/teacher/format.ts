@@ -1,5 +1,6 @@
 import type { MatrixCell, MatrixSession } from './teacherApi'
 import type { Status } from '../../shared/ui/StatusPill'
+import { voiceLabel } from '../../shared/lessonLabel'
 
 // 교사 화면 글자. 날짜·상태는 서버 값을 글자로만 바꾼다(열림·밀림·완료를 판단하지 않음).
 // 날짜 함수는 학생 화면(features/student/dates.ts)과 같은 방식 — 기능 폴더끼리 import하지 않아 따로 둔다
@@ -48,9 +49,9 @@ export function percent(coverage: number): string {
   return `${Math.round(coverage * 100)}%`
 }
 
-/** "지문 1 · 1.0×" */
+/** "지문 1 · 미국 여". 4.3·4.4가 아직 옛 속도 값(0.8·1.0·1.2)이면 "지문 1 · 1.0×" */
 export function trackName(passageNo: number, variant: string): string {
-  return `지문 ${passageNo} · ${variant}×`
+  return `지문 ${passageNo} · ${voiceLabel(variant) ?? `${variant}×`}`
 }
 
 type LessonStatus = 'not_started' | 'in_progress' | 'completed'

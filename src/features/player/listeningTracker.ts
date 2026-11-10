@@ -14,7 +14,8 @@ import type { FlushPayload, FlushResult, FlushSegment } from './flushApi'
 //   화면 숨김·pagehide·떼기(stop): sendBeacon(final:true, 바디 csrf) — 응답은 못 받는다
 // - beacon으로 보낸 구간은 메모리에 남겼다가 다음 fetch에 다시 싣는다 — 화면이 꺼진 채 오래 들으면
 //   access가 만료돼 beacon이 401로 버려질 수 있다(BE #20 권장). 같은 구간은 서버가 거른다. 저장소에는 두지 않는다
-// - ratechange → playbackRate 1로(배속 금지. 속도 0.8·1.0·1.2는 파일 선택)
+// - ratechange → 0.8·1.0·1.2(PLAYBACK_RATES)만 허용, 그 밖이면 마지막 허용 속도로 되돌린다(ADR-27, docs/adr/0001).
+//   currentTime은 음원 시간이라 속도와 무관 — 구간·서버 기록은 그대로
 // - clientSessionId는 재생을 시작할 때 발급하고, ended 순간 끝낸다 — 다시 재생하면 새 세션(한 번 재생 = 세션 하나)
 // - 구간은 자기 세션과 함께 쌓는다: 세션이 바뀌어도 늦게 보내는 구간이 엉뚱한 세션으로 가지 않는다
 // 같은 구간이 두 번 가도 서버가 병합하므로(멱등) 잃어버리는 쪽보다 겹쳐 보내는 쪽을 고른다
@@ -45,6 +46,14 @@ export type TrackerDeps = {
   userAgent?: string
 }
 
+/** 재생 속도(playbackRate) — 이 셋만 허용. 몇 배속이든 다 들으면 완료(서버, ADR-27) */
+export const PLAYBACK_RATES = [0.8, 1, 1.2] as const
+export type PlaybackRate = (typeof PLAYBACK_RATES)[number]
+
+export function isPlaybackRate(value: number): value is PlaybackRate {
+  return (PLAYBACK_RATES as readonly number[]).includes(value)
+}
+
 /** 서버는 60초보다 긴 구간을 버린다(03 §3.1) — 백그라운드에서 타이머가 늦어져도 이보다 길게 보내지 않는다 */
 export const MAX_SEGMENT_MS = 60_000
 /** 서버는 한 요청에 50개까지 받는다(03 §3.1) — 여유를 두고 40개씩 */
@@ -73,6 +82,8 @@ export class ListeningTracker {
   private started = false
   /** seeking 없이 다시 재생하면 이어 붙일 자리(멈춘 자리·play를 누른 자리). seeking·ended면 버린다 */
   private resumeAtMs: number | null = null
+  /** 마지막으로 허용한 재생 속도 — 허용 밖으로 바뀌면 여기로 되돌린다 */
+  private rate: PlaybackRate = 1
 
   constructor(media: MediaLike, trackId: number, deps: TrackerDeps) {
     this.media = media
@@ -83,6 +94,7 @@ export class ListeningTracker {
   start(): void {
     if (this.started) return
     this.started = true
+    if (isPlaybackRate(this.media.playbackRate)) this.rate = this.media.playbackRate
     this.media.addEventListener('play', this.onPlay)
     this.media.addEventListener('playing', this.onPlaying)
     this.media.addEventListener('timeupdate', this.onTimeUpdate)
@@ -183,7 +195,9 @@ export class ListeningTracker {
   }
 
   private onRateChange = () => {
-    if (this.media.playbackRate !== 1) this.media.playbackRate = 1
+    const next = this.media.playbackRate
+    if (isPlaybackRate(next)) this.rate = next
+    else this.media.playbackRate = this.rate
   }
 
   private onVisibility = () => {

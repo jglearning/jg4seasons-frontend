@@ -9,6 +9,7 @@ import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, lessonsQuery, type LessonState, type StudentLessons } from './studentApi'
 import styles from './Student.module.css'
+import { lessonTileNo } from '../../shared/lessonLabel'
 
 // S-04 회차 목록(STU-02, 와이어프레임 S04_Lessons). 반 id·머리글·레벨 색은 홈 응답에서,
 // 회차 상태(state)는 서버 값 그대로 — 날짜로 열림·밀림을 계산하지 않는다
@@ -70,8 +71,7 @@ export function LessonsPage() {
           {klass.book.season} · {klass.book.label}
         </h1>
         <p className={styles.who}>
-          Reading Day 1~{stats.totalLessons} · 완료 {stats.completedLessons} · 밀림{' '}
-          {stats.overdueLessons}
+          전체 {stats.totalLessons}회 · 완료 {stats.completedLessons} · 밀림 {stats.overdueLessons}
         </p>
         <ul className={styles.legend} aria-label="회차 상태">
           {legend.map((state) => (
@@ -123,7 +123,7 @@ function LessonTile({ lesson }: { lesson: StudentLessons['groups'][number]['less
   const tile = (
     <StatusPill status={look?.status ?? 'open'} shape="tile">
       <span className={styles.tileTop}>
-        <span className={styles.tileNo}>{String(lesson.number).padStart(2, '0')}</span>
+        <span className={styles.tileNo}>{lessonTileNo(lesson.code)}</span>
         {look !== undefined && lesson.state !== 'locked' && (
           <span className={styles.tileTag} aria-hidden={lesson.state === 'open' || undefined}>
             {look.icon}

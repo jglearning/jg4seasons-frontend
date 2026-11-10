@@ -19,6 +19,7 @@ import {
 } from './teacherApi'
 import { TeacherLoadState } from './TeacherLoadState'
 import styles from './Teacher.module.css'
+import { lessonDayLabel } from '../../shared/lessonLabel'
 
 // T-03 반 청취 현황(03 §4.2). 학생 × 회차 표, 8회차 묶음(겨울 1·2·3)씩.
 // 칸 상태(완료·진행·미시작·밀림·수업 전)는 서버 값을 모양으로만 바꾼다(format.ts cellLook).
@@ -168,7 +169,7 @@ function MatrixTable({ classId, data }: { classId: number; data: Matrix }) {
 function SessionHeader({ session }: { session: MatrixSession }) {
   return (
     <span className={styles.sessionHead}>
-      <span>Day {session.lesson.number}</span>{' '}
+      <span>{lessonDayLabel(session.lesson.code)}</span>{' '}
       <span className={styles.sessionDate}>{monthDay(session.scheduledDate)}</span>
       {session.isCurrent && <span className={styles.srOnly}> 지금 회차</span>}
     </span>

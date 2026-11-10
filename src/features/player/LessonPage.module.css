@@ -27,11 +27,10 @@
   padding-top: var(--space-5);
 }
 
-/* 지문 제목 + 오른쪽 속도 세그먼트 */
+/* 지문 이름(eyebrow + 제목) */
 .passageHead {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
   gap: 10px;
 }
 
@@ -39,6 +38,32 @@
   min-width: 0;
   word-break: keep-all;
   overflow-wrap: break-word;
+}
+
+/* 목소리(한 줄 4칸) + 속도(오른쪽 세그먼트) */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.controlRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.controlLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .eyebrow {
