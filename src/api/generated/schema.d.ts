@@ -506,7 +506,7 @@ export interface paths {
         };
         /**
          * 회차 상세
-         * @description 학생 × 트랙 표(목소리별) — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 학생 × 지문 트랙 표(트랙은 지문 → 목소리 순, 학생은 그 반 현재 소속 이름 순 — 매트릭스와 같은 학생). byTrack은 들은 트랙만. 수업 전 회차도 조회된다. 그 반 권의 회차가 아니거나 없으면 404. 요청한 교사가 비활성화됐으면 401
          */
         get: operations["lesson"];
         put?: never;
@@ -606,7 +606,7 @@ export interface paths {
         };
         /**
          * 학생 상세
-         * @description 그 반에서 열린 회차(seq 순)별 트랙 청취·단어 학습 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 그 반에서 열린 회차(seq 순)별 지문 트랙(지문 → 목소리 순, 안 들은 트랙 포함)·회차 진도·단어 학습. 회차 진도가 없으면 not_started·0/지문 수(매트릭스와 같음). 학생은 그 반 현재 소속만 — 그 밖(다른 반·퇴원·다른 학원)은 404. 요청한 교사가 비활성화됐으면 401
          */
         get: operations["student"];
         put?: never;
@@ -1378,11 +1378,18 @@ export interface components {
              * @description 반복 포함 총 재생 ms
              */
             totalPlayMs: number;
-            /** @enum {string} */
-            variant: "0.8" | "1.0" | "1.2";
+            /**
+             * @description 목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남
+             * @example us_w
+             * @enum {string}
+             */
+            variant: "us_w" | "us_m" | "uk_w" | "uk_m";
         };
         StudentDetailWords: {
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description 카드 본 수(누적 최고). 기록 없으면 0
+             */
             cardsViewed: number;
             /** Format: int32 */
             memKnown: number;
@@ -1390,6 +1397,11 @@ export interface components {
             recallBest: number;
             /** Format: int32 */
             spellBest: number;
+            /**
+             * Format: int32
+             * @description 회차 단어 수(어휘책 + 추가 어휘). 없으면 0
+             */
+            total: number;
         };
         StudentHomeLessonRef: {
             code: string;
@@ -1705,8 +1717,12 @@ export interface components {
             required: boolean;
             /** Format: int64 */
             trackId: number;
-            /** @enum {string} */
-            variant: "0.8" | "1.0" | "1.2";
+            /**
+             * @description 목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남
+             * @example us_w
+             * @enum {string}
+             */
+            variant: "us_w" | "us_m" | "uk_w" | "uk_m";
         };
         TeacherLessonTrackResult: {
             completed: boolean;
