@@ -50,7 +50,8 @@ const BOOK_LABEL: Record<string, string> = {
 const SESSIONS_PER_BOOK = 24
 const GROUP = 8
 const PASSAGES = 6
-const VARIANTS = ['0.8', '1.0', '1.2'] as const
+/** 지문 트랙 목소리(BE #40 — 모두 필수, 아무 목소리 하나를 끝까지 들으면 지문 완료) */
+const VARIANTS = ['us_w', 'us_m', 'uk_w', 'uk_m'] as const
 
 type MockClass = ReturnType<typeof mockActiveClasses>[number]
 
@@ -197,20 +198,26 @@ function cellsOf(classId: number, sessions: Session[]) {
   return cells
 }
 
-/** 지문 트랙 하나의 청취 결과. 필수(1.0)는 requiredDone개까지 완료, 그다음 하나는 40% */
+/**
+ * 지문 트랙 하나의 청취 결과. requiredDone개까지는 미국 여로 완료, 그다음 지문은 미국 여 40%.
+ * 지문 2는 미국 남으로 완료하고 미국 여는 50%(완료가 더 많이 들은 목소리보다 먼저인지 보려고),
+ * 다 들은 회차는 지문 1을 영국 남으로 35% 더 들었다
+ */
 function trackResult(p: Progress | undefined, passageNo: number, variant: string) {
   const durationMs = 60000 + passageNo * 3000
   let coverage = 0
+  let completed = false
   // 미시작은 아무것도 듣지 않은 상태
   if (p !== undefined && p.status !== 'not_started') {
-    if (variant === '1.0') {
-      if (passageNo <= p.requiredDone) coverage = 0.9 + passageNo / 100
-      else if (passageNo === p.requiredDone + 1) coverage = 0.4
-    } else if (variant === '0.8' && passageNo === 1 && p.status === 'completed') {
-      coverage = 0.35
-    }
+    const done = passageNo <= p.requiredDone
+    const finisher = passageNo === 2 ? 'us_m' : 'us_w'
+    if (done && variant === finisher) {
+      coverage = 0.9 + passageNo / 100
+      completed = true
+    } else if (done && passageNo === 2 && variant === 'us_w') coverage = 0.5
+    else if (passageNo === p.requiredDone + 1 && variant === 'us_w') coverage = 0.4
+    else if (passageNo === 1 && variant === 'uk_m' && p.status === 'completed') coverage = 0.35
   }
-  const completed = variant === '1.0' && p !== undefined && passageNo <= p.requiredDone
   return {
     coverage,
     completed,
@@ -367,17 +374,17 @@ export function teacherHandlers({ problem, readJson, currentUser }: Helpers): An
                     kind: 'passage' as const,
                     passageNo,
                     variant,
-                    required: variant === '1.0',
+                    required: true,
                     ...r,
                     lastPlayedAt: r.coverage === 0 ? null : `${s.scheduledDate}T12:10:00Z`,
                   }
                 }),
               ),
               words: done
-                ? { cardsViewed: 57, memKnown: 40, recallBest: 51, spellBest: 33 }
+                ? { total: 57, cardsViewed: 57, memKnown: 40, recallBest: 51, spellBest: 33 }
                 : p === undefined || p.status === 'not_started'
-                  ? { cardsViewed: 0, memKnown: 0, recallBest: 0, spellBest: 0 }
-                  : { cardsViewed: 20, memKnown: 9, recallBest: 0, spellBest: 0 },
+                  ? { total: 57, cardsViewed: 0, memKnown: 0, recallBest: 0, spellBest: 0 }
+                  : { total: 57, cardsViewed: 20, memKnown: 9, recallBest: 0, spellBest: 0 },
             }
           })
         return HttpResponse.json<Schemas['StudentDetailResponse']>({
@@ -393,7 +400,7 @@ export function teacherHandlers({ problem, readJson, currentUser }: Helpers): An
       },
     ),
 
-    // 4.4 회차 상세 — 선택 속도 트랙까지 모두 보낸다(화면이 필수만 고르는지 보려고)
+    // 4.4 회차 상세 — 지문 × 목소리 트랙 모두, byTrack은 들은 트랙만(BE #40)
     http.get('*/api/v1/teacher/classes/:classId/lessons/:code', async ({ request, params }) => {
       await delay()
       const c = classFor(request, params.classId)
@@ -407,7 +414,7 @@ export function teacherHandlers({ problem, readJson, currentUser }: Helpers): An
           kind: 'passage' as const,
           passageNo,
           variant,
-          required: variant === '1.0',
+          required: true,
         })),
       )
       const rows = mockActiveStudents(c.id).map((student, i): Schemas['TeacherLessonRow'] => {

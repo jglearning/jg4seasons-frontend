@@ -7,7 +7,7 @@ import { Button } from '../../shared/ui/Button'
 import { Card } from '../../shared/ui/Card'
 import { StatusPill } from '../../shared/ui/StatusPill'
 import { Table, type Column } from '../../shared/ui/Table'
-import { koreaTime, lessonLook, percent, playTime, trackName } from './format'
+import { groupByPassage, koreaTime, lessonLook, percent, playTime, trackName } from './format'
 import {
   regeneratePersonalCode,
   studentDetailQuery,
@@ -20,7 +20,8 @@ import { useSubmit } from './useSubmit'
 import styles from './Teacher.module.css'
 
 // T-04 학생 상세(03 §4.3). 열린 회차마다 지문 트랙별 청취(들은 구간·완료·재생 시간/길이·재생 횟수·마지막 청취)와
-// 단어 학습 요약. 재생 시간/길이·재생 횟수는 제대로 들었는지 보는 보조 지표(TRK-05) — 서버 값 그대로 나란히 보이고
+// 단어 학습 요약. 트랙은 지문 × 목소리 4개(모두 필수, BE #40)라 들은 목소리만 줄로, 안 들은 지문은 한 줄.
+// 재생 시간/길이·재생 횟수는 제대로 들었는지 보는 보조 지표(TRK-05) — 서버 값 그대로 나란히 보이고
 // 비율은 계산하지 않는다. 개인 코드 재발급(4.8)은 이 화면 지역 state에만 한 번 보인다
 export function StudentPage() {
   const params = useParams()
@@ -68,20 +69,35 @@ export function StudentPage() {
   )
 }
 
+/** 표 한 줄: 들은 목소리 트랙, 또는 하나도 안 들은 지문 */
+type TrackRow = StudentTrack | { passageNo: number; unheard: true }
+
 function LessonCard({ lesson }: { lesson: StudentLesson }) {
   const look = lessonLook(lesson.status, lesson.requiredDone, lesson.requiredTotal)
-  // 필수 트랙은 늘, 선택 속도(0.8·1.2)는 들은 것만 — 회차마다 18줄이 되지 않게
-  const tracks = lesson.tracks.filter((t) => t.required || t.sessionCount > 0 || t.coverage > 0)
-  const columns: Column<StudentTrack>[] = [
-    { key: 'track', header: '지문', cell: (t) => trackName(t.passageNo, t.variant) },
-    { key: 'required', header: '필수', cell: (t) => (t.required ? '필수' : '선택') },
-    { key: 'coverage', header: '들은 구간', numeric: true, cell: (t) => percent(t.coverage) },
+  // 목소리 4개를 다 보이면 지문마다 4줄 — 들은 목소리만, 하나도 안 들은 지문은 "안 들음" 한 줄
+  const rows = groupByPassage(lesson.tracks).flatMap(({ passageNo, tracks }): TrackRow[] => {
+    const heard = tracks.filter((t) => t.sessionCount > 0 || t.coverage > 0)
+    return heard.length > 0 ? heard : [{ passageNo, unheard: true }]
+  })
+  const columns: Column<TrackRow>[] = [
+    {
+      key: 'track',
+      header: '지문',
+      cell: (t) =>
+        'unheard' in t ? `지문 ${t.passageNo} · 안 들음` : trackName(t.passageNo, t.variant),
+    },
+    {
+      key: 'coverage',
+      header: '들은 구간',
+      numeric: true,
+      cell: (t) => ('unheard' in t ? '—' : percent(t.coverage)),
+    },
     {
       key: 'completed',
       header: '완료',
       center: true,
       cell: (t) =>
-        t.completed ? (
+        !('unheard' in t) && t.completed ? (
           <span className={styles.checkIcon}>
             <Check size={16} strokeWidth={3} aria-hidden />
             <span className={styles.srOnly}>완료</span>
@@ -94,13 +110,19 @@ function LessonCard({ lesson }: { lesson: StudentLesson }) {
       key: 'play',
       header: '재생 / 길이',
       numeric: true,
-      cell: (t) => `${playTime(t.totalPlayMs)} / ${playTime(t.durationMs)}`,
+      cell: (t) =>
+        'unheard' in t ? '—' : `${playTime(t.totalPlayMs)} / ${playTime(t.durationMs)}`,
     },
-    { key: 'count', header: '재생 횟수', numeric: true, cell: (t) => `${t.sessionCount}회` },
+    {
+      key: 'count',
+      header: '재생 횟수',
+      numeric: true,
+      cell: (t) => ('unheard' in t ? '—' : `${t.sessionCount}회`),
+    },
     {
       key: 'last',
       header: '마지막 청취',
-      cell: (t) => (t.lastPlayedAt ? koreaTime(t.lastPlayedAt) : '—'),
+      cell: (t) => ('unheard' in t || !t.lastPlayedAt ? '—' : koreaTime(t.lastPlayedAt)),
     },
   ]
   const words = lesson.words
@@ -113,12 +135,12 @@ function LessonCard({ lesson }: { lesson: StudentLesson }) {
       <Table
         caption={`${lesson.title} 지문 청취`}
         columns={columns}
-        rows={tracks}
-        rowKey={(t) => `${t.passageNo}-${t.variant}`}
+        rows={rows}
+        rowKey={(t) => `${t.passageNo}-${'unheard' in t ? 'none' : t.variant}`}
       />
       <p className={styles.words}>
-        단어 카드 {words.cardsViewed} · 알아요 {words.memKnown} · 리콜 최고 {words.recallBest} ·
-        스펠 최고 {words.spellBest}
+        단어 카드 {words.cardsViewed} / {words.total} · 알아요 {words.memKnown} · 리콜 최고{' '}
+        {words.recallBest} · 스펠 최고 {words.spellBest}
       </p>
     </Card>
   )

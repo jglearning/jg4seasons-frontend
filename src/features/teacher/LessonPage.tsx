@@ -4,7 +4,8 @@ import { Link, useParams } from 'react-router'
 import { levelProps } from '../../shared/level'
 import { StatusPill, type Status } from '../../shared/ui/StatusPill'
 import { Table, type Column } from '../../shared/ui/Table'
-import { percent, shortDate } from './format'
+import { groupByPassage, passageCell, percent, shortDate } from './format'
+import { voiceLabel } from '../../shared/lessonLabel'
 import {
   lessonDetailQuery,
   teacherClassesQuery,
@@ -14,8 +15,9 @@ import {
 import { TeacherLoadState } from './TeacherLoadState'
 import styles from './Teacher.module.css'
 
-// T-05 회차 상세(03 §4.4) — 수업 전에 빠르게 보는 학생 × 필수 지문 표.
-// 선택 속도(0.8·1.2)는 열이 18개가 되지 않게 빼고 학생 상세(T-04)에서 본다. 칸은 서버 completed·coverage 그대로
+// T-05 회차 상세(03 §4.4) — 수업 전에 빠르게 보는 학생 × 지문 표.
+// 트랙은 지문 × 목소리 4개(BE #40)라 지문당 열 하나로 모은다: 완료한 목소리 ✓, 없으면 가장 많이 들은 목소리 %.
+// 목소리별 자세한 값은 학생 상세(T-04). 칸은 서버 completed·coverage 그대로
 export function LessonPage() {
   const params = useParams()
   const classId = Number(params.id)
@@ -60,7 +62,7 @@ const STATUS = {
 } as const satisfies Record<LessonDetailRow['status'], { status: Status; text: string }>
 
 function LessonTable({ classId, data }: { classId: number; data: LessonDetail }) {
-  const required = data.tracks.filter((t) => t.required)
+  const passages = groupByPassage(data.tracks.filter((t) => t.required))
   const columns: Column<LessonDetailRow>[] = [
     {
       key: 'student',
@@ -77,29 +79,35 @@ function LessonTable({ classId, data }: { classId: number; data: LessonDetail })
         <StatusPill status={STATUS[r.status].status}>{STATUS[r.status].text}</StatusPill>
       ),
     },
-    ...required.map((t): Column<LessonDetailRow> => ({
-      key: `track-${t.trackId}`,
-      header: `지문 ${t.passageNo}`,
+    ...passages.map(({ passageNo, tracks }): Column<LessonDetailRow> => ({
+      key: `passage-${passageNo}`,
+      header: `지문 ${passageNo}`,
       center: true,
       cell: (r) => {
-        const result = r.byTrack[String(t.trackId)]
-        const label = `${r.student.name} 지문 ${t.passageNo}`
+        const result = passageCell(
+          tracks.flatMap((track) => {
+            const heard = r.byTrack[String(track.trackId)]
+            return heard === undefined ? [] : [{ track, ...heard }]
+          }),
+        )
+        const label = `${r.student.name} 지문 ${passageNo}`
+        const voice = result === undefined ? '' : (voiceLabel(result.track.variant) ?? '')
         if (result?.completed === true)
           return (
             <StatusPill
               status="completed"
               shape="cell"
-              srLabel={`${label} 완료 ${percent(result.coverage)}`}
+              srLabel={`${label} 완료 · ${voice} ${percent(result.coverage)}`}
             >
               <Check size={14} strokeWidth={3} />
             </StatusPill>
           )
-        if (result !== undefined && result.coverage > 0)
+        if (result !== undefined)
           return (
             <StatusPill
               status="in_progress"
               shape="cell"
-              srLabel={`${label} 들은 구간 ${percent(result.coverage)}`}
+              srLabel={`${label} 들은 구간 · ${voice} ${percent(result.coverage)}`}
             >
               {percent(result.coverage)}
             </StatusPill>
