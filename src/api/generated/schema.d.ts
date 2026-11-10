@@ -16,7 +16,7 @@ export interface paths {
         put?: never;
         /**
          * 반 생성
-         * @description 진도표 24회(개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요
+         * @description 진도표(권의 회차 수만큼 — 블랙 28, 그 밖 24회, 개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요
          */
         post: operations["create_1"];
         delete?: never;
@@ -78,13 +78,13 @@ export interface paths {
         };
         /**
          * 반 학생 목록
-         * @description 현재 소속 학생(이름 순). 개인 코드 평문 없음 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 현재 소속 학생(이름 순, 같으면 id 순). 개인 코드 평문 없음. 다른 학원 반은 404
          */
         get: operations["list_2"];
         put?: never;
         /**
          * 학생 등록
-         * @description 1~50명. 학생마다 개인 코드를 발급해 평문을 이 응답에서만 준다(카드 인쇄용, 다시 볼 수 없음). X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 1~50명, 응답은 요청 순서. 학생마다 개인 코드(숫자 4자리, 학원 안 고유)를 발급해 평문을 이 응답에서만 준다(카드 인쇄용, 다시 볼 수 없음). 이름·학교·학년은 앞뒤 공백을 지운다(학교·학년이 비면 null), 같은 이름 허용. 다른 학원 반은 404, 진행 중(active)이 아닌 반은 409 CLASS_NOT_ACTIVE — 둘 다 아무도 만들지 않는다. X-CSRF 필요
          */
         post: operations["create_2"];
         delete?: never;
@@ -104,7 +104,7 @@ export interface paths {
         put?: never;
         /**
          * 개인 코드 여러 명 재발급
-         * @description 그 반 학생만. 옛 코드는 바로 못 쓰고 그 학생들의 로그인이 끊긴다. 감사 로그. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 그 반 현재 소속 학생만 — 하나라도 아니면 404이고 아무도 바꾸지 않는다. 같은 id는 한 번(첫 순서), 응답은 요청 순서. 옛 코드는 바로 못 쓰고 그 학생들의 로그인 유지(refresh)가 모두 끊긴다. 학생마다 감사 로그. X-CSRF 필요
          */
         post: operations["regeneratePersonalCodes"];
         delete?: never;
@@ -122,7 +122,7 @@ export interface paths {
         };
         /**
          * 학원 현황
-         * @description 진행 중인 반별 오늘 회차·완료 비율, 오늘 들은 학생 수 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 진행 중(active) 반 전부(id 순)의 오늘 회차와 그 회차를 완료한 학생 비율(현재 소속 학생 중, 반올림 없음), 오늘 한 번이라도 들은 학생 수. 오늘 = 학원 타임존 날짜(자정 기준), 오늘 들은 학생은 반 소속과 무관하게 그 학원 학생 전부(퇴원 포함)에서 센다
          */
         get: operations["dashboard"];
         put?: never;
@@ -144,7 +144,7 @@ export interface paths {
         put?: never;
         /**
          * 학생 이름으로 찾기
-         * @description 학원 전체(퇴원 포함). 이름은 본문으로만. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 학원 전체(퇴원 포함), 이름 부분 일치(앞뒤 공백 무시, %·_는 글자 그대로), 이름 순, 최대 50명. class는 지금 반(여럿이면 id가 가장 작은 반), 없으면 null. 이름은 본문으로만. X-CSRF 필요
          */
         post: operations["search"];
         delete?: never;
@@ -168,7 +168,7 @@ export interface paths {
         head?: never;
         /**
          * 학생 변경
-         * @description 빠진 칸은 그대로, 학교·학년은 빈 문자열이면 지움. 바꿀 값이 없으면 400. status inactive = 퇴원(기록 보존, 감사 로그). X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 빠진 칸은 그대로, 이름은 앞뒤 공백을 지움, 학교·학년은 빈 문자열이면 지움. 바꿀 값이 없으면 400. status inactive = 퇴원: 로그인 불가·로그인 유지(refresh) 끊김·반 소속 모두 끝남(기록 보존, 코드는 그대로), 감사 로그. 이미 퇴원이면 아무것도 늘지 않음. active = 되살리기(상태만 — 반은 이동으로). 다른 학원 학생은 404. X-CSRF 필요
          */
         patch: operations["update_1"];
         trace?: never;
@@ -184,7 +184,7 @@ export interface paths {
         put?: never;
         /**
          * 학생 반 이동
-         * @description 지금 반에서 나가고 새 반에 들어간다. 기록은 남는다. 감사 로그. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 지금 반(여럿이면 모두)에서 나가고 새 반 하나에 들어간다. 기록은 남는다. 감사 로그. 다른 학원 학생·반은 404. 퇴원생 409 STUDENT_INACTIVE, 진행 중이 아닌 반 409 CLASS_NOT_ACTIVE, 이미 그 반에만 있으면 409 ALREADY_IN_CLASS. X-CSRF 필요
          */
         post: operations["move"];
         delete?: never;
@@ -268,7 +268,7 @@ export interface paths {
         put?: never;
         /**
          * 로그아웃
-         * @description refresh를 폐기하고 쿠키 3개를 만료시킨다. 헤더 X-CSRF 필요
+         * @description refresh를 폐기하고 쿠키 3개(운영은 음원 쿠키 3개도)를 만료시킨다. 헤더 X-CSRF 필요
          */
         post: operations["logout"];
         delete?: never;
@@ -288,7 +288,7 @@ export interface paths {
         put?: never;
         /**
          * 세션 갱신
-         * @description 요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음. 회전된 지 10초 안의 옛 refresh는 200(쿠키 그대로 — 다른 탭이 받은 쿠키를 같이 씀), 그 뒤에 오면 그 사용자 refresh를 모두 끊고 401
+         * @description 요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf(운영은 음원용 CloudFront-* 3개도, 기한 2시간 새로)를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음. 회전된 지 10초 안의 옛 refresh는 200(쿠키 그대로 — 다른 탭이 받은 쿠키를 같이 씀), 그 뒤에 오면 그 사용자 refresh를 모두 끊고 401
          */
         post: operations["refresh"];
         delete?: never;
@@ -308,7 +308,7 @@ export interface paths {
         put?: never;
         /**
          * 교사·관리자 로그인
-         * @description 성공하면 Set-Cookie access·refresh(14일)·csrf. 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 시도는 IP당 1분 10회(429, 성공·실패 모두). 아이디는 대소문자 구분 없음. CSRF 검사 없음
+         * @description 성공하면 Set-Cookie access·refresh(14일)·csrf(운영은 음원용 CloudFront-* 3개도). 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 시도는 IP당 1분 10회(429, 성공·실패 모두). 아이디는 대소문자 구분 없음. CSRF 검사 없음
          */
         post: operations["staffLogin"];
         delete?: never;
@@ -328,7 +328,7 @@ export interface paths {
         put?: never;
         /**
          * 가입 코드 + 개인 코드로 학생 입장
-         * @description 성공하면 Set-Cookie access·refresh·csrf. 틀리면 401 INVALID_CREDENTIALS(어느 쪽이 틀렸는지 구분하지 않음), (반, IP) 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). CSRF 검사 없음
+         * @description 성공하면 Set-Cookie access·refresh·csrf(운영은 음원용 CloudFront-Policy·Signature·Key-Pair-Id도 — Path=/audio/, 2시간). 틀리면 401 INVALID_CREDENTIALS(어느 쪽이 틀렸는지 구분하지 않음), (반, IP) 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). CSRF 검사 없음
          */
         post: operations["studentLogin"];
         delete?: never;
@@ -426,7 +426,7 @@ export interface paths {
         };
         /**
          * 회차 상세
-         * @description 지문·문장·속도별 음원·문장 시각·들은 구간·완료 상태. 소속 반이 둘이면 어느 반에서든 열렸으면 연다. 어느 소속 반 진도표에도 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED
+         * @description 지문·문장·목소리별 음원·문장 시각·들은 구간·완료 상태. 소속 반이 둘이면 어느 반에서든 열렸으면 연다. 어느 소속 반 진도표에도 없는 회차(다른 권 포함)는 404, 수업일 전(학원 타임존)·휴강만 있는 회차는 423 LESSON_LOCKED
          */
         get: operations["detail"];
         put?: never;
@@ -486,7 +486,7 @@ export interface paths {
         };
         /**
          * 담당 반 목록
-         * @description 진행 중인 반. 오늘 회차·완료 현황·밀린 학생 수·로그인 경고 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 진행 중(active) 반, id 순 — 교사는 담당 반, 관리자는 학원 전체. 오늘 회차(학원 날짜, 학생 화면과 같은 규칙)와 그 회차의 완료·진행 중·시작 전 학생 수(현재 소속), 밀린 수업이 있는 학생 수, 다음 수업, 로그인 경고(최근 1시간 반 전체 개인 코드 실패 20회 이상 — since는 그중 가장 오래된 실패 시각)
          */
         get: operations["classes"];
         put?: never;
@@ -506,7 +506,7 @@ export interface paths {
         };
         /**
          * 회차 상세
-         * @description 학생 × 트랙 표(선택 속도 포함) — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 학생 × 트랙 표(목소리별) — 구현 전: 501 NOT_IMPLEMENTED
          */
         get: operations["lesson"];
         put?: never;
@@ -526,7 +526,7 @@ export interface paths {
         };
         /**
          * 청취 현황 매트릭스
-         * @description 학생 × 회차. fromSeq·toSeq는 둘 다 보내거나 둘 다 뺀다(빼면 오늘 회차가 든 8개 묶음). 휴강 행은 열로 오지 않는다 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 학생(현재 소속, 이름 순) × 회차(seq 순). fromSeq·toSeq는 둘 다 보내거나 둘 다 뺀다(빼면 오늘 회차가 든 8개 묶음 1~8·9~16…, 개강 전이면 1~8). 휴강 행은 열로 오지 않는다. 칸은 열린 회차만 학생마다 항상(진도 없으면 not_started, requiredTotal = 지문 수). 교사는 담당 반, 관리자는 학원 반 전부(끝난 반 포함) — 그 밖은 404
          */
         get: operations["matrix"];
         put?: never;
@@ -588,7 +588,7 @@ export interface paths {
         put?: never;
         /**
          * 휴강
-         * @description 그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(24회 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 그 행은 cancelled로 남고, shiftFollowing이면 그 회차부터 다음 수업일로 밀린다(행 수 유지). 바뀐 뒤 진도표 전체. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
          */
         post: operations["cancelSession"];
         delete?: never;
@@ -628,7 +628,7 @@ export interface paths {
         put?: never;
         /**
          * 개인 코드 재발급
-         * @description 담당 반 학생만. 새 코드 평문은 이 응답에서만, 그 학생의 로그인은 모두 끊긴다. 감사 로그. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 교사는 담당 반에 지금 소속인 학생만, 관리자는 학원 안 어느 반이든 지금 소속인 학생 — 그 밖(다른 학원·담당 아님·퇴원·반 없음)은 404. 새 코드(숫자 4자리, 0으로 시작 가능) 평문은 이 응답에서만(다시 볼 수 없음). 옛 코드는 바로 무효, 그 학생의 refresh는 모두 끊긴다(남은 access는 최대 30분). 감사 로그. 요청한 교사가 비활성화됐으면 401. X-CSRF 필요
          */
         post: operations["regeneratePersonalCode"];
         delete?: never;
@@ -659,7 +659,7 @@ export interface components {
             /** @example L2-B1 */
             code: string;
             /** @enum {string} */
-            season: "겨울" | "봄" | "여름" | "가을";
+            season: "겨울" | "봄" | "여름" | "가을" | "새봄";
         };
         ClassCreateRequest: {
             /**
@@ -726,7 +726,7 @@ export interface components {
             state: "completed" | "today" | "overdue" | "open" | "locked";
             title: string;
             /** @enum {string} */
-            type: "regular" | "module_review" | "integrated";
+            type: "regular" | "module_review" | "integrated" | "supplement";
         };
         ClassLessonsRange: {
             /**
@@ -785,7 +785,7 @@ export interface components {
             levelCode: string;
             name: string;
             /** @enum {string} */
-            season: "겨울" | "봄" | "여름" | "가을";
+            season: "겨울" | "봄" | "여름" | "가을" | "새봄";
             /**
              * Format: date
              * @description 개강일(학원 날짜)
@@ -955,7 +955,7 @@ export interface components {
             /** @example Reading Day 5 */
             title: string;
             /** @enum {string} */
-            type: "regular" | "module_review" | "integrated";
+            type: "regular" | "module_review" | "integrated" | "supplement";
         };
         LessonDetailLevel: {
             /** @example L2 */
@@ -969,8 +969,9 @@ export interface components {
             /** Format: int32 */
             no: number;
             sentences: components["schemas"]["LessonDetailSentence"][];
-            speeds: components["schemas"]["LessonDetailSpeed"][];
             title: string;
+            /** @description 목소리별 지문 트랙(ADR-27). 학생이 골라 듣고, 아무 목소리 하나를 끝까지 들으면 그 지문 완료. 재생 속도는 플레이어가 조절 */
+            voices: components["schemas"]["LessonDetailVoice"][];
             /** Format: int32 */
             wordCount: number;
         };
@@ -988,7 +989,7 @@ export interface components {
             speaker: string | null;
             text: string;
         };
-        LessonDetailSpeed: {
+        LessonDetailVoice: {
             /** @description 같은 도메인 상대 경로 */
             audioUrl: string;
             completed: boolean;
@@ -1001,20 +1002,20 @@ export interface components {
             durationMs: number;
             /** @description 병합된 들은 구간 [시작, 끝] ms. 들은 적 없으면 빈 배열 */
             heardRanges: number[][];
-            /** @description 지문 완료에 필요한 속도인가(완료 규칙 결과) */
+            /** @description 이 목소리로 끝까지 들으면 지문 완료로 치는가(완료 규칙 결과) */
             required: boolean;
             /** @description timings[i] = sentences[i]의 [시작, 끝] ms. 문장 시각이 아직 없으면 빈 배열 */
             timings: number[][];
-            /** @description true면 1.0 시각을 길이 비율로 늘이거나 줄인 근사 */
+            /** @description true면 근사 시각. 지금 콘텐츠는 목소리마다 정확한 시각이라 항상 false */
             timingsApproximate: boolean;
             /** Format: int64 */
             trackId: number;
             /**
-             * @description 속도
-             * @example 1.0
+             * @description 목소리: us_w 미국 여 · us_m 미국 남 · uk_w 영국 여 · uk_m 영국 남
+             * @example us_w
              * @enum {string}
              */
-            variant: "0.8" | "1.0" | "1.2";
+            variant: "us_w" | "us_m" | "uk_w" | "uk_m";
         };
         LessonDetailWords: {
             /**
@@ -1102,7 +1103,7 @@ export interface components {
             code: string;
             /**
              * Format: int32
-             * @description 회차 번호 1~24
+             * @description 권 안 진도표 순서(블랙 1~28, 그 밖 1~24). 화면의 회차 번호는 code 끝
              */
             number: number;
             /** @example Reading Day 5 */
@@ -1124,7 +1125,7 @@ export interface components {
         MatrixSession: {
             /** @description 오늘 회차인가 */
             isCurrent: boolean;
-            /** @description 열 머리글은 lesson.number */
+            /** @description 열 머리글은 code 끝(07 → 7회, S1 → 보충 1). number는 정렬용 */
             lesson: components["schemas"]["MatrixLesson"];
             /** @description 회차가 열렸는가(학원 날짜·allowFutureLessons 포함 — 학생 화면과 같은 규칙). false면 '수업 전' */
             opened: boolean;
@@ -1276,7 +1277,7 @@ export interface components {
              */
             label: string;
             /** @enum {string} */
-            season: "겨울" | "봄" | "여름" | "가을";
+            season: "겨울" | "봄" | "여름" | "가을" | "새봄";
         };
         StudentClassInfo: {
             book: components["schemas"]["StudentClassBook"];
@@ -1320,7 +1321,7 @@ export interface components {
             status: "not_started" | "in_progress" | "completed";
             /** @example Reading Day 5 */
             title: string;
-            /** @description 지문 트랙(선택 속도 포함) */
+            /** @description 지문 트랙(목소리별) */
             tracks: components["schemas"]["StudentDetailTrack"][];
             words: components["schemas"]["StudentDetailWords"];
         };
@@ -1469,7 +1470,7 @@ export interface components {
             passages: components["schemas"]["StudentHomePassageTitle"][];
             title: string;
             /** @enum {string} */
-            type: "regular" | "module_review" | "integrated";
+            type: "regular" | "module_review" | "integrated" | "supplement";
         };
         StudentHomeWords: {
             lessonCode: string;
@@ -1576,7 +1577,7 @@ export interface components {
             /** @example Book 1 */
             label: string;
             /** @enum {string} */
-            season: "겨울" | "봄" | "여름" | "가을";
+            season: "겨울" | "봄" | "여름" | "가을" | "새봄";
         };
         TeacherClassCurrent: {
             /**
@@ -1659,7 +1660,7 @@ export interface components {
             lesson: components["schemas"]["TeacherLessonInfo"];
             /** @description 현재 소속 학생(이름 순) */
             rows: components["schemas"]["TeacherLessonRow"][];
-            /** @description 지문 트랙(선택 속도 포함, required로 구분) */
+            /** @description 지문 트랙(목소리별, required로 구분) */
             tracks: components["schemas"]["TeacherLessonTrack"][];
         };
         TeacherLessonInfo: {
