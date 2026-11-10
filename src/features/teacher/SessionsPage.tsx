@@ -16,9 +16,10 @@ import { TeacherLoadState } from './TeacherLoadState'
 import { useSubmit } from './useSubmit'
 import styles from './Teacher.module.css'
 
-// T-06 진도표(03 §4.5~§4.7). 1차는 날짜 바꾸기(이후 수업도 같이 밀기)·휴강·메모만 —
-// 보강(날짜 추가)은 API가 없고, 회차 순서 바꾸기는 백엔드 답 뒤. 날짜 밀기는 서버가 하고 화면은 응답을 그대로 그린다.
-// 바꿀 수 있는지는 서버 status로만 고른다(예정 = 날짜 바꾸기·휴강, 지난 수업 = 메모만, 휴강 = 없음)
+// T-06 진도표(03 §4.5~§4.7, 백엔드 ADR-30). 1차는 날짜 바꾸기(이후 수업도 같이 밀기)·휴강·메모만 —
+// 보강(날짜 추가)·회차 순서 바꾸기는 2차. 날짜 밀기는 서버가 하고 화면은 응답(진도표 전체, seq 다시 매김)을 그대로 그린다.
+// 메모는 모든 행(지난 수업·휴강 행도 서버가 받음). 날짜·휴강은 서버 status가 예정인 행만 —
+// "지난 수업"은 서버가 날짜로 판정해 409 SESSION_PAST로 거절하므로 화면은 날짜로 판단하지 않고 그 문구를 보인다
 const STATUS_LABEL: Record<SessionItem['status'], string> = {
   scheduled: '예정',
   done: '지난 수업',
@@ -94,16 +95,14 @@ export function SessionsPage() {
               </Button>
             </>
           )}
-          {s.status === 'done' && (
-            <Button
-              variant="secondary"
-              size="teacher"
-              aria-label={`${s.seq}회 메모`}
-              onClick={() => open({ kind: 'note', session: s })}
-            >
-              메모
-            </Button>
-          )}
+          <Button
+            variant="secondary"
+            size="teacher"
+            aria-label={`${s.seq}회 메모`}
+            onClick={() => open({ kind: 'note', session: s })}
+          >
+            메모
+          </Button>
         </div>
       ),
     },
@@ -170,16 +169,16 @@ function ActionPanel({
   const title = `${session.seq}회 ${ACTION_TITLE[kind]}`
 
   async function save() {
-    // 메모 칸은 지금 메모로 채워 둔다. 보낼 때 빈 글자 = 지움(BE #28)이라
-    // 날짜 바꾸기는 메모를 바꿨을 때만 같이 보내고, 휴강은 비었으면 뺀다
+    // 메모 칸은 지금 메모로 채워 둔다. 4.6·4.7 모두 note를 안 보내면 원래 메모, 빈 글자 = 지움(BE #42)이라
+    // 날짜 바꾸기·휴강은 메모를 바꿨을 때만 같이 보낸다
     const trimmed = note.trim()
+    const noteChanged = trimmed !== (session.note ?? '')
     if (kind === 'cancel') {
-      const cancelNote = trimmed === '' ? undefined : trimmed
+      const cancelNote = noteChanged ? trimmed : undefined
       const result = await submit.run(() => cancelSession(classId, session.seq, cancelNote))
       if (result) onApplied(result.items, `${session.seq}회(${session.lesson.title}) 휴강함`)
       return
     }
-    const noteChanged = trimmed !== (session.note ?? '')
     const body =
       kind === 'date'
         ? { scheduledDate: date, shiftFollowing: shift, ...(noteChanged ? { note: trimmed } : {}) }

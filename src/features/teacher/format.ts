@@ -7,6 +7,18 @@ import { voiceLabel } from '../../shared/lessonLabel'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
+/** T-03 매트릭스 묶음 하나 = 진도표 seq 8개 */
+export const GROUP_SIZE = 8
+
+/**
+ * T-03 묶음 번호 1..n — n = 진도표(4.5) 마지막 seq를 8로 나눠 올림, 최소 3(겨울 1·2·3).
+ * 휴강 행도 seq를 차지해(BE #42) 행이 24를 넘을 수 있고 블랙은 28회. 진도표가 오기 전·못 받으면 3
+ */
+export function matrixGroups(lastSeq: number | undefined): number[] {
+  const count = Math.max(3, Math.ceil((lastSeq ?? 0) / GROUP_SIZE))
+  return Array.from({ length: count }, (_, i) => i + 1)
+}
+
 /** "2026-12-19" → "12/19 (토)". 읽을 수 없으면 받은 글자 그대로 */
 export function shortDate(date: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
