@@ -706,10 +706,28 @@ describe('서버 응답·속도', () => {
     expect(onResult).toHaveBeenCalledWith(RESULT)
   })
 
-  it('ratechange로 배속이 바뀌면 1.0으로 되돌린다(배속 금지)', () => {
+  it('ratechange: 0.8·1.0·1.2는 허용, 그 밖이면 마지막 허용 속도로 되돌린다(ADR-27)', () => {
     track()
     media.playbackRate = 2
     media.dispatchEvent(new Event('ratechange'))
     expect(media.playbackRate).toBe(1)
+
+    media.playbackRate = 0.8
+    media.dispatchEvent(new Event('ratechange'))
+    expect(media.playbackRate).toBe(0.8)
+    media.playbackRate = 1.5
+    media.dispatchEvent(new Event('ratechange'))
+    expect(media.playbackRate).toBe(0.8)
+    media.playbackRate = 1.2
+    media.dispatchEvent(new Event('ratechange'))
+    expect(media.playbackRate).toBe(1.2)
+  })
+
+  it('붙을 때의 속도가 허용 속도면 그것을 기준으로 삼는다(트랙을 바꿔도 고른 속도 유지)', () => {
+    media.playbackRate = 1.2
+    track()
+    media.playbackRate = 3
+    media.dispatchEvent(new Event('ratechange'))
+    expect(media.playbackRate).toBe(1.2)
   })
 })

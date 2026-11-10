@@ -1,4 +1,4 @@
-/* 속도 세그먼트 0.8 | 1.0● | 1.2 — aria-pressed, 누르는 높이 40 */
+/* 선택 줄(가이드 §5 세그먼트) — aria-pressed. 기본 누르는 높이 40, block은 한 줄 채움 + 48 */
 .segment {
   display: inline-flex;
   flex: none;
@@ -8,10 +8,16 @@
   overflow: hidden;
 }
 
+.block {
+  display: flex;
+  width: 100%;
+}
+
 .option {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  justify-content: center;
+  gap: 2px;
   height: 40px;
   min-width: 44px;
   padding: 0 var(--space-2);
@@ -21,8 +27,16 @@
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color var(--motion);
+}
+
+.block .option {
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--touch-student);
+  font-size: 14px;
 }
 
 .option + .option {
@@ -32,10 +46,6 @@
 .option[aria-pressed='true'] {
   background: var(--ink);
   color: var(--white);
-}
-
-.required {
-  font-size: 12px;
 }
 
 .option:disabled {

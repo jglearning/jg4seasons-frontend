@@ -9,14 +9,23 @@ import { PassageTabs } from '../../shared/ui/PassageTabs'
 import { Player } from '../../shared/ui/Player'
 import { ReviewLock } from '../../shared/ui/ReviewLock'
 import { SentenceRow } from '../../shared/ui/SentenceRow'
-import { SpeedSegment } from '../../shared/ui/SpeedSegment'
+import { SegmentGroup } from '../../shared/ui/SegmentGroup'
 import { StepTabs } from '../../shared/ui/StepTabs'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { TestCard } from '../../shared/ui/TestCard'
 import type { FlushResult } from './flushApi'
-import { lessonQuery, type LessonDetail, type Passage, type Speed } from './lessonApi'
+import { lessonQuery, type LessonDetail, type Passage, type Voice } from './lessonApi'
 import { mergeRanges } from './listeningTracker'
-import { usePlayer, type PlayerValue, type Source, type Variant } from './player'
+import {
+  PLAYBACK_RATES,
+  rateLabel,
+  usePlayer,
+  VOICE_LABEL,
+  type PlaybackRate,
+  type PlayerValue,
+  type Source,
+  type Variant,
+} from './player'
 import { PlayerProvider } from './PlayerProvider'
 import { heardSentences } from './sentenceSync'
 import { useSentenceSync } from './useSentenceSync'
@@ -25,6 +34,8 @@ import styles from './LessonPage.module.css'
 // S-05 회차 듣기(STU-04·05·06·11, 와이어프레임 S05_Player 11/6, ADR-26 따라 읽기).
 // 단계 탭: 테스트(기본 — 본문 없이 책을 펴고 듣기) | 복습(본문 따라 읽기, 지문을 다 들어야 열림 — 서버 completion 값).
 // 지문 음원 하나를 들으며 지금 문장을 강조하고, 문장을 누르면 그 위치로 옮긴다.
+// 목소리 4개(us_w·us_m·uk_w·uk_m)는 파일 선택, 속도 0.8·1.0·1.2는 재생 속도(ADR-27). 아무 목소리 하나를 다 들으면 지문 완료.
+// 고른 목소리·속도는 이 화면 안에서만 유지한다(저장하지 않는다).
 // 완료·청취율·문장 시각은 모두 서버 값 — 화면은 보여 주기만 한다("들음" 점은 표시용 80% 규칙, 03 §2.3)
 
 export function LessonPage() {
@@ -59,7 +70,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   const player = usePlayer()
   const [selectedNo, setSelectedNo] = useState(() => firstUnfinished(data))
   const passage = data.passages.find((p) => p.no === selectedNo) ?? data.passages[0]
-  const [variant, setVariant] = useState<Variant>(() => requiredVariant(passage))
+  const [variant, setVariant] = useState<Variant>(() => preferredVoice(passage).variant)
   const [nudge, setNudge] = useState<Nudge | null>(null)
   const [step, setStep] = useState<Step>('test')
   // 복습은 회차의 지문을 다 들었을 때만(서버 값 — 클라이언트가 세지 않는다)
@@ -68,7 +79,8 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     data.completion.passagesDone === data.completion.passagesTotal
   const listRef = useRef<HTMLOListElement>(null)
 
-  const speed = passage.speeds.find((s) => s.variant === variant) ?? passage.speeds[0]
+  const speed: Voice | undefined =
+    passage.voices.find((v) => v.variant === variant) ?? passage.voices[0]
   const timings = speed?.timings ?? []
   const onThisTrack = speed !== undefined && player.source?.trackId === speed.trackId
   const positionMs = onThisTrack ? player.positionMs : 0
@@ -86,14 +98,14 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   const hasTimings = timings.length > 0
   const atSentence = started && hasTimings
 
-  // 지문을 고르면 그 지문 음원(지금 속도)을 올려 둔다(바로 재생하지는 않는다)
+  // 지문을 고르면 그 지문 음원(지금 목소리)을 올려 둔다(바로 재생하지는 않는다)
   const { load } = player
   useEffect(() => {
     const target = data.passages.find((p) => p.no === selectedNo)
-    const next = target?.speeds.find((s) => s.variant === variant) ?? target?.speeds[0]
+    const next = target?.voices.find((v) => v.variant === variant) ?? target?.voices[0]
     if (target === undefined || next === undefined) return
     load(passageSource(target, next))
-    // 지문을 바꿀 때만 다시 올린다(데이터 갱신 때마다 올리지 않게. 속도는 selectVariant가 올린다)
+    // 지문을 바꿀 때만 다시 올린다(데이터 갱신 때마다 올리지 않게. 목소리는 selectVariant가 올린다)
   }, [selectedNo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function selectPassage(no: number) {
@@ -101,9 +113,9 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     setSelectedNo(no)
   }
 
-  /** 속도는 파일 선택 — 같은 문장의 새 속도 시작 시각으로 옮겨 이어 듣는다 */
+  /** 목소리는 파일 선택 — 목소리마다 길이가 달라 같은 문장의 새 목소리 시작 시각으로 옮겨 이어 듣는다 */
   function selectVariant(next: Variant, options: { from?: number; play?: boolean } = {}) {
-    const target = passage.speeds.find((s) => s.variant === next)
+    const target = passage.voices.find((v) => v.variant === next)
     if (target === undefined) return
     const index = options.from ?? (started ? at : 0)
     setVariant(target.variant)
@@ -182,14 +194,39 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
               {passage.title}
             </h2>
           </div>
-          <SpeedSegment
-            options={passage.speeds.map((s) => ({ variant: s.variant, required: s.required }))}
-            selected={variant}
-            onSelect={(v) => {
-              if (v !== variant) selectVariant(v)
-            }}
-            disabled={player.source === null}
-          />
+        </div>
+
+        <div className={styles.controls}>
+          <div className={styles.control}>
+            <span className={styles.controlLabel} aria-hidden>
+              목소리
+            </span>
+            <SegmentGroup
+              label="목소리"
+              block
+              options={passage.voices.map((v) => ({
+                value: v.variant,
+                label: VOICE_LABEL(v.variant),
+                done: v.completed,
+              }))}
+              selected={variant}
+              onSelect={(v) => {
+                if (v !== variant) selectVariant(v)
+              }}
+              disabled={player.source === null}
+            />
+          </div>
+          <div className={styles.controlRow}>
+            <span className={styles.controlLabel} aria-hidden>
+              속도
+            </span>
+            <SegmentGroup
+              label="재생 속도"
+              options={PLAYBACK_RATES.map((r) => ({ value: rateValue(r), label: r.toFixed(1) }))}
+              selected={rateValue(player.rate)}
+              onSelect={(value) => player.setRate(Number(value) as PlaybackRate)}
+            />
+          </div>
         </div>
 
         <Button className={styles.fromStart} onClick={() => playFrom(0)} disabled={!speed}>
@@ -258,8 +295,8 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
       <Player
         title={
           atSentence
-            ? `지문 ${passage.no} · 문장 ${at + 1} / ${sentenceCount} · ${variant}×`
-            : `지문 ${passage.no} 전체 · ${clock(durationMs)} · ${variant}×`
+            ? `지문 ${passage.no} · 문장 ${at + 1} / ${sentenceCount} · ${trackLabel(variant, player.rate)}`
+            : `지문 ${passage.no} 전체 · ${clock(durationMs)} · ${trackLabel(variant, player.rate)}`
         }
         aside={speed ? `들은 구간 ${percent(speed.coverage)}` : undefined}
         playing={player.playing}
@@ -296,7 +333,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
           ) : nudge === 'words' && unfinished.length > 0 ? (
             <NudgeCard
               title="아직 완료 안 된 지문이 있어요"
-              body={`완료 안 된 지문: ${unfinished.map((p) => p.no).join(', ')} · ${requiredLabel(unfinished)}로 끝까지 들으면 완료돼요`}
+              body={`완료 안 된 지문: ${unfinished.map((p) => p.no).join(', ')} · 아무 목소리로 끝까지 들으면 완료돼요`}
               primary={{ label: '마저 듣기', onClick: () => selectPassage(unfinished[0].no) }}
               secondary={{ label: '그래도 단어로', to: wordsTo }}
             />
@@ -307,7 +344,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   )
 }
 
-/** 완료 안 된 지문에서 "다음 지문"을 누르면: 필수 속도 트랙의 들은 구간과 안 들은 문장 */
+/** 완료 안 된 지문에서 "다음 지문"을 누르면: 가장 많이 들은 목소리의 들은 구간과 안 들은 문장 */
 function NextNudge({
   passage,
   player,
@@ -316,14 +353,11 @@ function NextNudge({
 }: {
   passage: Passage
   player: PlayerValue
-  onStay: (speed: Speed, sentenceIndex: number) => void
+  onStay: (voice: Voice, sentenceIndex: number) => void
   onGo: () => void
 }) {
-  // 필수 속도는 서버 required에서(숫자 고정 금지). 둘 이상이면(민트 0.8·1.0) 많이 들은 쪽
-  const required = passage.speeds
-    .filter((s) => s.required)
-    .sort((a, b) => b.coverage - a.coverage)[0]
-  const target = required ?? passage.speeds[0]
+  // 완료로 치는 목소리(서버 required) 중 가장 많이 들은 것 — 아무 목소리 하나를 다 들으면 완료(ADR-27)
+  const target = preferredVoice(passage)
   const heard = target ? heardSentences(target.timings, heardRanges(target, player)) : []
   const missing = passage.sentences.filter((_, i) => !heard[i]).map((s) => s.no)
   const firstMissing = Math.max(
@@ -338,8 +372,8 @@ function NextNudge({
           ? ''
           : target.timings.length === 0
             ? // 문장 시각이 없으면 안 들은 문장을 셀 수 없다
-              `${target.variant}× 들은 구간 ${percent(target.coverage)}`
-            : `${target.variant}× 들은 구간 ${percent(target.coverage)} · 안 들은 문장 ${
+              `${VOICE_LABEL(target.variant)} 들은 구간 ${percent(target.coverage)}`
+            : `${VOICE_LABEL(target.variant)} 들은 구간 ${percent(target.coverage)} · 안 들은 문장 ${
                 missing.length > 0 ? missing.join(', ') : '없음(조금씩 빈 곳)'
               }`
       }
@@ -397,26 +431,32 @@ const PLAYER_ERROR: Record<NonNullable<PlayerValue['error']>, string> = {
 }
 
 function passageDone(passage: Passage): boolean {
-  return passage.speeds.some((s) => s.required && s.completed)
+  return passage.voices.some((v) => v.required && v.completed)
 }
 
 function firstUnfinished(data: LessonDetail): number {
   return data.passages.find((p) => !passageDone(p))?.no ?? data.passages[0]?.no ?? 1
 }
 
-function requiredVariant(passage: Passage | undefined): Variant {
-  return passage?.speeds.find((s) => s.required)?.variant ?? '1.0'
+/** 처음 고를 목소리·안내 기준: 완료로 치는 목소리(required) 중 가장 많이 들은 것, 같으면 서버 순서(us_w 먼저) */
+function preferredVoice(passage: Passage): Voice {
+  const candidates = passage.voices.filter((v) => v.required)
+  const pool = candidates.length > 0 ? candidates : passage.voices
+  return pool.reduce((best, v) => (v.coverage > best.coverage ? v : best), pool[0])
 }
 
-/** 완료 안 된 지문들의 필수 속도: "1.0×" / "0.8× 또는 1.0×" */
-function requiredLabel(passages: Passage[]): string {
-  const variants = new Set(passages.flatMap((p) => p.speeds.filter((s) => s.required)))
-  const labels = [...new Set([...variants].map((s) => s.variant))].sort()
-  return labels.length > 0 ? labels.map((v) => `${v}×`).join(' 또는 ') : '필수 속도'
+/** 플레이어 제목 끝: "미국 여 · 1.0×" */
+function trackLabel(variant: Variant, rate: PlaybackRate): string {
+  return `${VOICE_LABEL(variant)} · ${rateLabel(rate)}`
+}
+
+/** 속도 선택 줄의 값(문자열): 1 → "1.0" */
+function rateValue(rate: PlaybackRate): string {
+  return rate.toFixed(1)
 }
 
 /** 서버가 준 들은 구간 + 이 화면에서 들은 구간(서버 값은 다시 받기 전까지 그대로라서) */
-function heardRanges(speed: Speed, player: PlayerValue): Array<[number, number]> {
+function heardRanges(speed: Voice, player: PlayerValue): Array<[number, number]> {
   return mergeRanges([
     ...speed.heardRanges.map(([a, b]): [number, number] => [a, b]),
     ...player.listenedOf(speed.trackId),
@@ -439,7 +479,7 @@ function clock(ms: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-function passageSource(passage: Passage, speed: Speed): Source {
+function passageSource(passage: Passage, speed: Voice): Source {
   return {
     passageNo: passage.no,
     variant: speed.variant,
@@ -471,10 +511,10 @@ function applyFlushResult(queryClient: QueryClient, code: string, result: FlushR
       },
       passages: before.passages.map((p) => ({
         ...p,
-        speeds: p.speeds.map((s) =>
-          s.trackId === result.track.trackId
-            ? { ...s, coverage: result.track.coverage, completed: result.track.completed }
-            : s,
+        voices: p.voices.map((v) =>
+          v.trackId === result.track.trackId
+            ? { ...v, coverage: result.track.coverage, completed: result.track.completed }
+            : v,
         ),
       })),
     }

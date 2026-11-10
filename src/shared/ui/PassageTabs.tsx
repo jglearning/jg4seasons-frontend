@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react'
 import styles from './PassageTabs.module.css'
 
-// S-05 위 지문 탭 1~6(STU-04). 들은 지문(서버 완료 값)은 채움 + ✓ — 색만으로 구분하지 않는다
+// S-05 위 지문 탭(STU-04). 지문 수는 레벨마다 1~12(ADR-27) — 6칸 격자라 7개부터 다음 줄. 들은 지문(서버 완료 값)은 채움 + ✓ — 색만으로 구분하지 않는다
 export type PassageTab = { no: number; done: boolean }
 
 type PassageTabsProps = {

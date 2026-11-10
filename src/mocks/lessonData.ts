@@ -3,18 +3,21 @@ import type { components } from '../api/generated/schema'
 // S-05 목: 회차 상세(03 §2.3 v0.4)·청취 flush(3.1)의 서버 상태를 메모리에 흉내 낸다.
 // 지문 제목·문장은 개발용으로 지어낸 글(교재 원문을 공개 저장소에 넣지 않는다). 지문별 문장 수와 문장 길이(ms)만
 // 개발용 데이터(L2-B1-05)의 값을 따른다. 음원은 브라우저 안에서 만든 무음 WAV.
-// 지문 음원 = 문장 파일을 500ms 간격으로 이어 붙인 것(ADR-26). 0.8·1.2는 1.0 시각을 길이 비율로 늘이고 줄인 근사.
+// 지문 음원 = 문장 파일을 500ms 간격으로 이어 붙인 것(ADR-26). 목소리 4개(ADR-27)는 같은 글을 읽은 다른 파일이라
+// 길이가 조금씩 다르다 — 목에서는 1.0 길이에 비율을 곱해 흉내 낸다. 재생 속도는 플레이어 playbackRate(파일 아님).
 // 완료·청취율 계산은 원래 서버 일이다 — 여기서는 화면 확인용으로만 흉내 낸다
 
 type Schemas = components['schemas']
 type Detail = Schemas['LessonDetailResponse']
 type Passage = Schemas['LessonDetailPassage']
-type Variant = Schemas['LessonDetailSpeed']['variant']
+type Variant = Schemas['LessonDetailVoice']['variant']
 
-const VARIANTS: Array<{ variant: Variant; scale: number; required: boolean }> = [
-  { variant: '0.8', scale: 1.25, required: false },
-  { variant: '1.0', scale: 1, required: true },
-  { variant: '1.2', scale: 1 / 1.2, required: false },
+/** 서버 순서 그대로(us_w·us_m·uk_w·uk_m). 모두 required — 아무 목소리 하나를 다 들으면 지문 완료 */
+const VARIANTS: Array<{ variant: Variant; scale: number }> = [
+  { variant: 'us_w', scale: 1 },
+  { variant: 'us_m', scale: 1.05 },
+  { variant: 'uk_w', scale: 0.96 },
+  { variant: 'uk_m', scale: 1.1 },
 ]
 const GAP_MS = 500
 const THRESHOLD = 0.9
@@ -113,7 +116,7 @@ const PASSAGES: Array<{ title: string; sentences: Array<[string, number]> }> = [
 /** 홈 목(S-03)의 오늘 회차 지문 제목도 이것을 쓴다 */
 export const PASSAGE_TITLES = PASSAGES.map((p) => p.title)
 
-/** 문장 길이를 간격을 두고 이어 붙인 문장 시각 [startMs, endMs] — 속도별로 비율만큼 늘이고 줄인다 */
+/** 문장 길이를 간격을 두고 이어 붙인 문장 시각 [startMs, endMs] — 목소리별로 비율만큼 늘이고 줄인다 */
 function timingsOf(no: number, scale: number): number[][] {
   let at = 0
   return PASSAGES[no - 1].sentences.map(([, ms]) => {
@@ -137,12 +140,12 @@ export function resetLessonMock() {
     const no = p + 1
     VARIANTS.forEach(({ scale }, index) => {
       const durationMs = durationOf(no, scale)
-      const required = index === 1
-      // 지문 1~4는 필수(1.0) 트랙을 이미 다 들었다(홈 목의 "지문 듣기 4 / 6"과 맞춤),
-      // 지문 5는 1.0에서 문장 1~3만 들었다(완료 전 안내 카드 확인용)
+      const first = index === 0
+      // 지문 1~4는 us_w로 이미 다 들었다(홈 목의 "지문 듣기 4 / 6"과 맞춤),
+      // 지문 5는 us_w로 문장 1~3만 들었다(완료 전 안내 카드 확인용)
       let ranges: Array<[number, number]> = []
-      if (required && no <= 4) ranges = [[0, durationMs]]
-      if (required && no === 5) ranges = [[0, timingsOf(5, 1)[2][1]]]
+      if (first && no <= 4) ranges = [[0, durationMs]]
+      if (first && no === 5) ranges = [[0, timingsOf(5, 1)[2][1]]]
       tracks.set(passageTrackId(no, index), { durationMs, ranges })
     })
   })
@@ -231,7 +234,7 @@ export function buildLessonDetail(code: string): Detail {
       title: passage.title,
       wordCount: passage.sentences.reduce((sum, [text]) => sum + text.split(/\s+/).length, 0),
       sentences: passage.sentences.map(([text], s) => ({ no: s + 1, text, speaker: null })),
-      speeds: VARIANTS.map(({ variant, scale, required }, index) => {
+      voices: VARIANTS.map(({ variant, scale }, index) => {
         const info = tracks.get(passageTrackId(no, index)) as TrackInfo
         const value = coverage(info)
         return {
@@ -239,18 +242,18 @@ export function buildLessonDetail(code: string): Detail {
           variant,
           audioUrl: mockAudioUrl(info.durationMs),
           durationMs: info.durationMs,
-          required,
+          required: true,
           coverage: Math.round(value * 100) / 100,
           completed: value >= THRESHOLD,
           timings: timingsOf(no, scale),
-          timingsApproximate: scale !== 1,
+          timingsApproximate: false,
           heardRanges: info.ranges.map(([a, b]) => [a, b]),
         }
       }),
     }
   })
   const passagesDone = passages.filter((p) =>
-    p.speeds.some((s) => s.required && s.completed),
+    p.voices.some((v) => v.required && v.completed),
   ).length
   return {
     lesson: { code, number, title: `Reading Day ${number}`, type: 'regular' },
