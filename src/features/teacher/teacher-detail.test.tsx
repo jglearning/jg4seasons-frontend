@@ -74,7 +74,7 @@ describe('T-04 학생 상세', () => {
     )
   })
 
-  it('회차마다 지문 표: 서버 값 그대로(들은 구간·재생/길이·재생 횟수·마지막 청취), 선택 속도는 들은 것만', async () => {
+  it('회차마다 지문 표: 서버 값 그대로(들은 구간·재생/길이·재생 횟수·마지막 청취), 목소리는 들은 것만', async () => {
     renderAt('/teacher/classes/12/students/301')
     const headings = await screen.findAllByRole('heading', { level: 2 })
     // 서버가 준 순서(최근 먼저)
@@ -88,34 +88,49 @@ describe('T-04 학생 상세', () => {
 
     const table = screen.getByRole('table', { name: 'Reading Day 5 지문 청취' })
     const rows = within(table).getAllByRole('row').slice(1)
-    // 필수 6 + 들은 선택 속도 1(지문 1 · 0.8×)
-    expect(rows).toHaveLength(7)
-    const first = within(table).getByRole('row', { name: /지문 1 · 1\.0×/ })
-    expect(first).toHaveTextContent('필수')
+    // 목소리 4개 × 지문 6 = 24 트랙 중 들은 것만: 지문 1(미국 여·영국 남), 지문 2(미국 남·미국 여), 지문 3~6(미국 여)
+    expect(rows).toHaveLength(8)
+    expect(rows.map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual([
+      '지문 1 · 미국 여',
+      '지문 1 · 영국 남',
+      '지문 2 · 미국 여',
+      '지문 2 · 미국 남',
+      '지문 3 · 미국 여',
+      '지문 4 · 미국 여',
+      '지문 5 · 미국 여',
+      '지문 6 · 미국 여',
+    ])
+    // 모두 필수라 필수 칸은 없다
+    expect(within(table).queryByRole('columnheader', { name: '필수' })).not.toBeInTheDocument()
+    const first = rows[0]
     expect(first).toHaveTextContent('91%')
     expect(first).toHaveTextContent('완료')
     expect(first).toHaveTextContent('1:06 / 1:03')
     expect(first).toHaveTextContent('1회')
     expect(first).toHaveTextContent('12/19 21:10')
-    expect(within(table).getByRole('row', { name: /지문 1 · 0\.8×/ })).toHaveTextContent('선택')
-    expect(within(table).queryByRole('row', { name: /지문 2 · 0\.8×/ })).not.toBeInTheDocument()
+    expect(rows[1]).toHaveTextContent('35%')
+    expect(rows[1]).not.toHaveTextContent('완료')
 
     expect(
-      screen.getAllByText('단어 카드 57 · 알아요 40 · 리콜 최고 51 · 스펠 최고 33')[0],
+      screen.getAllByText('단어 카드 57 / 57 · 알아요 40 · 리콜 최고 51 · 스펠 최고 33')[0],
     ).toBeInTheDocument()
   })
 
-  it('진행 중 회차: 상태 알약 n / m, 안 들은 지문은 0%·—', async () => {
+  it('진행 중 회차: 상태 알약 n / m, 하나도 안 들은 지문은 "안 들음" 한 줄', async () => {
     renderAt('/teacher/classes/12/students/303')
     const table = await screen.findByRole('table', { name: 'Reading Day 5 지문 청취' })
     const card = table.closest('section') as HTMLElement
     expect(within(card).getByText('진행 중 3 / 6')).toHaveAttribute('data-status', 'in_progress')
-    const fourth = within(table).getByRole('row', { name: /지문 4 · 1\.0×/ })
+    const fourth = within(table).getByRole('row', { name: /지문 4 · 미국 여/ })
     expect(fourth).toHaveTextContent('40%')
     expect(fourth).not.toHaveTextContent('완료')
-    const fifth = within(table).getByRole('row', { name: /지문 5 · 1\.0×/ })
-    expect(fifth).toHaveTextContent('0%')
-    expect(fifth).toHaveTextContent('0회')
+    const fifth = within(table).getByRole('row', { name: /지문 5 · 안 들음/ })
+    expect(fifth).not.toHaveTextContent('0%')
+    expect(within(table).queryByRole('row', { name: /지문 5 · 미국/ })).not.toBeInTheDocument()
+    // 지문 2는 미국 남으로 완료, 미국 여는 절반
+    expect(within(table).getByRole('row', { name: /지문 2 · 미국 남/ })).toHaveTextContent('완료')
+    expect(within(table).getByRole('row', { name: /지문 2 · 미국 여/ })).toHaveTextContent('50%')
+    expect(screen.getAllByText(/^단어 카드 20 \/ 57 · /)[0]).toBeInTheDocument()
   })
 
   it('개인 코드 재발급: 확인 → 요청 → 새 코드는 화면에만(쿼리 캐시에 없음)', async () => {
@@ -169,7 +184,7 @@ describe('T-04 학생 상세', () => {
 })
 
 describe('T-05 회차 상세', () => {
-  it('학생 × 필수 지문 열만, 칸은 완료 ✓ · 들은 구간 % · 안 들음 —', async () => {
+  it('학생 × 지문 열(목소리 4개를 한 칸에), 칸은 완료 ✓ · 들은 구간 % · 안 들음 —', async () => {
     renderAt('/teacher/classes/12/lessons/L2-B1-05')
     expect(
       await screen.findByRole('heading', { name: 'Reading Day 5', level: 1 }),
@@ -192,9 +207,11 @@ describe('T-05 회차 상세', () => {
     ])
 
     const pill = (label: string) => within(table).getByText(label).parentElement as HTMLElement
-    expect(pill('김민준 지문 1 완료 91%')).toHaveAttribute('data-status', 'completed')
-    expect(pill('박지호 지문 3 완료 93%')).toHaveAttribute('data-status', 'completed')
-    const partial = pill('박지호 지문 4 들은 구간 40%')
+    expect(pill('김민준 지문 1 완료 · 미국 여 91%')).toHaveAttribute('data-status', 'completed')
+    // 어느 목소리로든 완료면 ✓ — 더 많이 들은 다른 목소리가 있어도 완료한 목소리를 보인다
+    expect(pill('박지호 지문 2 완료 · 미국 남 92%')).toHaveAttribute('data-status', 'completed')
+    expect(pill('박지호 지문 3 완료 · 미국 여 93%')).toHaveAttribute('data-status', 'completed')
+    const partial = pill('박지호 지문 4 들은 구간 · 미국 여 40%')
     expect(partial).toHaveAttribute('data-status', 'in_progress')
     expect(partial).toHaveTextContent('40%')
     expect(pill('박지호 지문 5 안 들음')).toHaveAttribute('data-status', 'open')
