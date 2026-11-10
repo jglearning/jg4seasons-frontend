@@ -8,9 +8,10 @@ import { LevelChip } from '../../shared/ui/LevelChip'
 import { ModeTabs } from '../../shared/ui/ModeTabs'
 import { StatusPill } from '../../shared/ui/StatusPill'
 import { Table, type Column } from '../../shared/ui/Table'
-import { cellLook, monthDay, shortDate } from './format'
+import { cellLook, GROUP_SIZE, matrixGroups, monthDay, shortDate } from './format'
 import {
   matrixQuery,
+  sessionsQuery,
   teacherClassesQuery,
   type Matrix,
   type MatrixSession,
@@ -23,10 +24,8 @@ import { lessonDayLabel } from '../../shared/lessonLabel'
 
 // T-03 반 청취 현황(03 §4.2). 학생 × 회차 표, 8회차 묶음(겨울 1·2·3)씩.
 // 칸 상태(완료·진행·미시작·밀림·수업 전)는 서버 값을 모양으로만 바꾼다(format.ts cellLook).
-// 머리글 요약(반 이름·레벨·계절·지금 회차 수)은 반 목록(4.1) 응답을 쓴다 — 4.2의 class에는 계절·인원 수가 없다
-const GROUPS = [1, 2, 3] as const
-const GROUP_SIZE = 8
-
+// 머리글 요약(반 이름·레벨·계절·지금 회차 수)은 반 목록(4.1) 응답을 쓴다 — 4.2의 class에는 계절·인원 수가 없다.
+// 묶음 = 진도표 seq 8개. 묶음 수는 진도표(4.5)의 마지막 seq로 정한다(format.ts matrixGroups)
 function groupRange(group: number): SeqRange {
   return { fromSeq: (group - 1) * GROUP_SIZE + 1, toSeq: group * GROUP_SIZE }
 }
@@ -37,7 +36,9 @@ export function MatrixPage() {
   const [group, setGroup] = useState<number | undefined>(undefined)
   const classes = useQuery(teacherClassesQuery)
   const matrix = useQuery(matrixQuery(classId, group === undefined ? undefined : groupRange(group)))
+  const sessions = useQuery(sessionsQuery(classId))
   const klass = classes.data?.items.find((c) => c.id === classId)
+  const groups = matrixGroups(sessions.data?.items.at(-1)?.seq)
 
   // 지금 보이는 묶음 = 응답의 첫 회차가 든 묶음(서버 기본 범위를 그대로 표시)
   const firstSeq = matrix.data?.sessions[0]?.seq
@@ -91,7 +92,7 @@ export function MatrixPage() {
         <div className={styles.groups}>
           <ModeTabs
             label="회차 묶음"
-            options={GROUPS.map((g) => ({
+            options={groups.map((g) => ({
               id: g,
               label: `${klass.book.season} ${g}`,
               sub: `${(g - 1) * GROUP_SIZE + 1}~${g * GROUP_SIZE}회`,

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { groupByPassage, passageCell, trackName } from './format'
+import { groupByPassage, matrixGroups, passageCell, trackName } from './format'
+
+describe('matrixGroups', () => {
+  it('진도표 마지막 seq를 8로 나눠 올림, 최소 3', () => {
+    expect(matrixGroups(undefined)).toEqual([1, 2, 3])
+    expect(matrixGroups(24)).toEqual([1, 2, 3])
+    expect(matrixGroups(25)).toEqual([1, 2, 3, 4]) // 휴강 행 하나
+    expect(matrixGroups(28)).toEqual([1, 2, 3, 4]) // 블랙
+    expect(matrixGroups(33)).toEqual([1, 2, 3, 4, 5])
+  })
+})
 
 describe('groupByPassage', () => {
   it('서버 순서(지문 → 목소리) 그대로 지문별로 모은다', () => {

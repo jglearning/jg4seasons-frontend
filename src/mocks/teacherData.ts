@@ -90,6 +90,33 @@ function nextDay(iso: string) {
   return isoOf(day)
 }
 
+/** after 다음 날부터 수업 요일이면서 휴강 날짜가 아닌 가장 이른 날(백엔드 ScheduleEdit.nextClassDay) */
+function nextClassDay(c: MockClass, after: string, skipped: Set<string>) {
+  let day = nextDay(after)
+  while (!isClassDay(c, toDate(day)) || skipped.has(day)) day = nextDay(day)
+  return day
+}
+
+const cancelledDates = (rows: Row[]) => new Set(rows.filter((r) => r.cancelled).map((r) => r.date))
+
+/** k 뒤 수업 행(휴강 아님)의 위치 */
+const heldAfter = (rows: Row[], k: number) =>
+  rows.flatMap((r, i) => (i > k && !r.cancelled ? [i] : []))
+
+/** 빈 메모는 null(4.6·4.7 모두 "" = 지움·없음) */
+const emptyToNull = (note: string) => (note === '' ? null : note)
+
+/** 날짜 순, 같은 날은 휴강 행 먼저, 그다음 지금 순서 → seq를 1부터 다시 매겨 저장 */
+function renumber(c: MockClass, rows: Row[]) {
+  const sorted = [...rows].sort(
+    (a, b) => a.date.localeCompare(b.date) || Number(!a.cancelled) - Number(!b.cancelled),
+  )
+  schedules.set(
+    c.id,
+    sorted.map((r, i) => ({ ...r, seq: i + 1 })),
+  )
+}
+
 /** 반의 진도표 행(처음에는 개강일부터 수업 요일 24개) */
 function rowsOf(c: MockClass): Row[] {
   let rows = schedules.get(c.id)
@@ -450,77 +477,86 @@ export function teacherHandlers({ problem, readJson, currentUser }: Helpers): An
       return sessionList(c)
     }),
 
-    // 4.6 날짜·메모 바꾸기. 이후 수업 밀기면 같은 날 수만큼 옮기고 수업 요일로 맞춘다(오류 코드 이름은 계약 전 임시)
+    // 4.6 날짜·메모 바꾸기 — 백엔드 ScheduleEdit.reschedule(ADR-30)와 같은 규칙.
+    // 날짜가 없거나 지금과 같으면 메모만(지난 행·휴강 행도). 실패하면 아무것도 바꾸지 않는다
     http.patch('*/api/v1/teacher/classes/:classId/sessions/:seq', async ({ request, params }) => {
       await delay()
       const c = classFor(request, params.classId)
       if (c instanceof Response) return c
-      const rows = rowsOf(c)
-      const k = rows.findIndex((r) => r.seq === Number(params.seq))
-      if (k < 0) return problem(request, 404, 'NOT_FOUND', '수업을 찾을 수 없습니다')
-      const row = rows[k]
+      const k = Number(params.seq) - 1
+      const target = rowsOf(c)[k]
+      if (target === undefined)
+        return problem(request, 404, 'NOT_FOUND', '진도표 행을 찾을 수 없어요')
       const body = await readJson(request)
-      if ('note' in body) {
-        const note = typeof body.note === 'string' ? body.note.trim() : ''
-        row.note = note === '' ? null : note
+      const out = rowsOf(c).map((r) => ({ ...r }))
+      if (typeof body.note === 'string') out[k].note = emptyToNull(body.note)
+      const date = typeof body.scheduledDate === 'string' ? body.scheduledDate : undefined
+      if (date === undefined || date === target.date) {
+        renumber(c, out)
+        return sessionList(c)
       }
-      if (typeof body.scheduledDate === 'string' && body.scheduledDate !== row.date) {
-        const date = body.scheduledDate
-        if (row.cancelled)
-          return problem(request, 409, 'SESSION_CANCELLED', '휴강한 수업은 날짜를 바꿀 수 없습니다')
-        if (row.date < TEACHER_MOCK.today)
-          return problem(request, 409, 'SESSION_PAST', '지난 수업은 날짜를 바꿀 수 없습니다')
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < TEACHER_MOCK.today)
-          return problem(request, 400, 'VALIDATION', '입력값을 확인해 주세요', {
-            errors: [{ field: 'scheduledDate', message: '오늘이나 그 뒤 날짜를 골라 주세요' }],
-          })
-        const prev = rows.slice(0, k).at(-1)
-        if (prev !== undefined && date <= prev.date)
-          return problem(request, 409, 'SESSION_ORDER', '앞 수업보다 늦은 날짜를 골라 주세요')
-        const following = rows.slice(k + 1).filter((r) => !r.cancelled)
-        if (body.shiftFollowing === true) {
-          const delta = (toDate(date).getTime() - toDate(row.date).getTime()) / 86400000
-          let last = date
-          for (const r of following) {
-            const moved = toDate(r.date)
-            moved.setUTCDate(moved.getUTCDate() + delta)
-            const from = isoOf(moved) > last ? isoOf(moved) : nextDay(last)
-            r.date = classDays(c, from, 1)[0]
-            last = r.date
-          }
-        } else if (following[0] !== undefined && date >= following[0].date) {
-          return problem(request, 409, 'SESSION_ORDER', '다음 수업보다 이른 날짜를 골라 주세요')
+      const invalid = (message: string) =>
+        problem(request, 400, 'VALIDATION', '입력값을 확인해 주세요', {
+          errors: [{ field: 'scheduledDate', message }],
+        })
+      if (target.cancelled) return invalid('휴강한 수업은 날짜를 바꿀 수 없어요')
+      if (target.date < TEACHER_MOCK.today)
+        return problem(request, 409, 'SESSION_PAST', '지난 수업은 바꿀 수 없어요')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < TEACHER_MOCK.today)
+        return invalid('오늘이나 그 뒤 날짜로 골라 주세요')
+      const previous = out
+        .slice(0, k)
+        .filter((r) => !r.cancelled)
+        .at(-1)
+      if (previous !== undefined && date <= previous.date)
+        return invalid('앞 수업보다 뒤 날짜로 골라 주세요')
+      const followers = heldAfter(out, k)
+      if (body.shiftFollowing !== true && followers.length > 0 && date >= out[followers[0]].date)
+        return invalid('뒤 수업보다 앞 날짜로 골라 주세요(뒤 수업도 옮기려면 뒤로 밀기)')
+      out[k].date = date
+      if (body.shiftFollowing === true) {
+        // 뒤 수업들을 새 날짜의 다음 수업일부터 차례로(휴강 날짜는 건너뜀)
+        const skipped = cancelledDates(out)
+        let last = date
+        for (const i of followers) {
+          last = nextClassDay(c, last, skipped)
+          out[i].date = last
         }
-        row.date = date
       }
+      renumber(c, out)
       return sessionList(c)
     }),
 
-    // 4.7 휴강 — 그 행은 휴강으로 남기고 그 회차부터 다음 수업일로 하나씩 민다(24회차 유지, 끝이 늘어남)
+    // 4.7 휴강 — 백엔드 ScheduleEdit.cancel과 같은 규칙. 그 행은 날짜 그대로 휴강으로 남고,
+    // 밀기면 같은 회차가 새 행으로 들어가 뒤 수업들이 한 칸씩 다음 수업일로(행 +1). 이미 휴강한 행이면 그대로 200
     http.post(
       '*/api/v1/teacher/classes/:classId/sessions/:seq/cancel',
       async ({ request, params }) => {
         await delay()
         const c = classFor(request, params.classId)
         if (c instanceof Response) return c
-        const rows = rowsOf(c)
-        const k = rows.findIndex((r) => r.seq === Number(params.seq))
-        if (k < 0) return problem(request, 404, 'NOT_FOUND', '수업을 찾을 수 없습니다')
-        const row = rows[k]
-        if (row.cancelled)
-          return problem(request, 409, 'SESSION_CANCELLED', '이미 휴강한 수업입니다')
-        if (row.date < TEACHER_MOCK.today)
-          return problem(request, 409, 'SESSION_PAST', '지난 수업은 휴강할 수 없습니다')
+        const k = Number(params.seq) - 1
+        const target = rowsOf(c)[k]
+        if (target === undefined)
+          return problem(request, 404, 'NOT_FOUND', '진도표 행을 찾을 수 없어요')
+        if (target.cancelled) return sessionList(c)
+        if (target.date < TEACHER_MOCK.today)
+          return problem(request, 409, 'SESSION_PAST', '지난 수업은 바꿀 수 없어요')
         const body = await readJson(request)
-        const note =
-          typeof body.note === 'string' && body.note.trim() !== '' ? body.note.trim() : null
-        const moved = rows.slice(k).filter((r) => !r.cancelled)
-        const dates = classDays(c, nextDay(row.date), moved.length)
-        const cancelledRow: Row = { ...row, cancelled: true, note }
-        const replacement = moved.map((r, i) => ({ ...r, date: dates[i] }))
-        const next = [...rows.slice(0, k), cancelledRow, ...replacement]
-        next.forEach((r, i) => (r.seq = i + 1))
-        schedules.set(c.id, next)
+        const out = rowsOf(c).map((r) => ({ ...r }))
+        out[k] = {
+          ...target,
+          cancelled: true,
+          note: typeof body.note === 'string' ? emptyToNull(body.note) : target.note,
+        }
+        if (body.shiftFollowing === true) {
+          const followers = heldAfter(out, k)
+          const dates = followers.map((i) => out[i].date)
+          dates.push(nextClassDay(c, dates.at(-1) ?? target.date, cancelledDates(out)))
+          followers.forEach((i, j) => (out[i].date = dates[j + 1]))
+          out.push({ seq: 0, number: target.number, date: dates[0], cancelled: false, note: null })
+        }
+        renumber(c, out)
         return sessionList(c)
       },
     ),

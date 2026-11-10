@@ -245,7 +245,7 @@ describe('T-05 회차 상세', () => {
 describe('T-06 진도표', () => {
   const table = () => screen.findByRole('table', { name: '진도표' })
 
-  it('24회 목록, 예정만 날짜·휴강, 지난 수업은 메모만', async () => {
+  it('24회 목록, 예정만 날짜·휴강, 메모는 모든 행', async () => {
     renderAt('/teacher/classes/12/sessions')
     const t = await table()
     expect(within(t).getAllByRole('row')).toHaveLength(1 + 24)
@@ -263,6 +263,33 @@ describe('T-06 진도표', () => {
     expect(fifth).toHaveTextContent('예정')
     expect(within(fifth).getByRole('button', { name: '5회 날짜 바꾸기' })).toBeInTheDocument()
     expect(within(fifth).getByRole('button', { name: '5회 휴강' })).toBeInTheDocument()
+    expect(within(fifth).getByRole('button', { name: '5회 메모' })).toBeInTheDocument()
+  })
+
+  it('지난 수업이 예정(scheduled)으로 와도 버튼은 status대로, 서버 거절(409 SESSION_PAST) 문구를 보인다', async () => {
+    // 실제 서버는 지난 행을 날짜로 판정한다(ADR-30) — 화면은 날짜로 버튼을 숨기지 않는다
+    server.use(
+      http.get('*/api/v1/teacher/classes/12/sessions', () =>
+        HttpResponse.json({
+          items: [
+            {
+              seq: 1,
+              lesson: { code: 'L2-B1-01', title: 'Reading Day 1' },
+              scheduledDate: '2026-12-10',
+              status: 'scheduled',
+              note: null,
+            },
+          ],
+        }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderAt('/teacher/classes/12/sessions')
+    await user.click(within(await table()).getByRole('button', { name: '1회 휴강' }))
+    const panel = screen.getByRole('region', { name: '1회 휴강' })
+    await user.click(within(panel).getByRole('button', { name: '휴강하기' }))
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('지난 수업은 바꿀 수 없어요')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('휴강: 확인 칸 → 요청(shiftFollowing true) → 응답 진도표 그대로(휴강 행 + 뒤로 밀림)', async () => {
@@ -290,7 +317,12 @@ describe('T-06 진도표', () => {
     const cancelled = within(t).getByRole('row', { name: /^5회/ })
     expect(cancelled).toHaveTextContent('휴강')
     expect(cancelled).toHaveTextContent('내신')
-    expect(within(cancelled).queryByRole('button')).not.toBeInTheDocument()
+    // 휴강 행은 메모만(서버가 휴강 행 메모도 받음)
+    expect(
+      within(cancelled)
+        .getAllByRole('button')
+        .map((b) => b.getAttribute('aria-label')),
+    ).toEqual(['5회 메모'])
     // 휴강 행은 회색 배경(흐린 행)이고 줄 긋기 없음 — 회차는 다음 행으로 옮겨 갔을 뿐
     expect(cancelled.className).toMatch(/muted/)
     expect(cancelled.querySelector('s, del')).toBeNull()
@@ -313,6 +345,49 @@ describe('T-06 진도표', () => {
       'Day 4 12/17 지금 회차',
       'Day 5 12/22',
     ])
+    // 휴강 행이 seq를 하나 차지해 25행 — 마지막 회차(25)가 든 4번째 묶음 탭이 생긴다
+    expect(screen.getByRole('button', { name: /겨울 4/ })).toHaveTextContent('25~32회')
+  })
+
+  it('휴강에서 있던 메모를 비우면 빈 글자(메모 없음)로, 그대로면 note를 빼고 보낸다', async () => {
+    const user = userEvent.setup()
+    renderAt('/teacher/classes/12/sessions')
+    await user.click(within(await table()).getByRole('button', { name: '6회 메모' }))
+    await user.type(screen.getByLabelText('메모'), '시험 주간')
+    await user.click(screen.getByRole('button', { name: '저장' }))
+    await screen.findByRole('status')
+
+    await user.click(within(await table()).getByRole('button', { name: '6회 휴강' }))
+    const input = screen.getByLabelText('메모(휴강 이유)')
+    expect(input).toHaveValue('시험 주간')
+    await user.clear(input)
+    await user.click(screen.getByRole('button', { name: '휴강하기' }))
+    await vi.waitFor(() => expect(sent).toHaveLength(2))
+    expect(sent[1]?.body).toEqual({ note: '', shiftFollowing: true })
+    await vi.waitFor(() =>
+      expect(screen.getByRole('row', { name: /^6회/ })).not.toHaveTextContent('시험 주간'),
+    )
+  })
+
+  it('휴강 행 메모는 note만 보낸다', async () => {
+    const user = userEvent.setup()
+    renderAt('/teacher/classes/12/sessions')
+    await user.click(within(await table()).getByRole('button', { name: '5회 휴강' }))
+    await user.click(screen.getByRole('button', { name: '휴강하기' }))
+    await screen.findByRole('status')
+
+    await user.click(within(await table()).getByRole('button', { name: '5회 메모' }))
+    await user.type(screen.getByLabelText('메모'), '학교 행사')
+    await user.click(screen.getByRole('button', { name: '저장' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('5회 메모 저장함')
+    expect(sent[1]).toEqual({
+      method: 'PATCH',
+      path: '/api/v1/teacher/classes/12/sessions/5',
+      body: { note: '학교 행사' },
+    })
+    const row = within(await table()).getByRole('row', { name: /^5회/ })
+    expect(row).toHaveTextContent('휴강')
+    expect(row).toHaveTextContent('학교 행사')
   })
 
   it('날짜 바꾸기: 이후 수업 밀기 기본 켬, 응답대로 다시 그림', async () => {
@@ -336,7 +411,8 @@ describe('T-06 진도표', () => {
     ])
     const t = await table()
     expect(within(t).getByRole('row', { name: /^6회/ })).toHaveTextContent('12/23 (수)')
-    expect(within(t).getByRole('row', { name: /^7회/ })).toHaveTextContent('12/26 (토)')
+    // 뒤 수업은 새 날짜의 다음 수업일(목)부터 차례로 — 서버 규칙(BE #42), 목도 같게
+    expect(within(t).getByRole('row', { name: /^7회/ })).toHaveTextContent('12/24 (목)')
   })
 
   it('밀기를 끄면 shiftFollowing false로 보낸다', async () => {
@@ -351,7 +427,7 @@ describe('T-06 진도표', () => {
     expect(sent[0]?.body).toEqual({ scheduledDate: '2026-12-23', shiftFollowing: false })
   })
 
-  it('서버 칸 오류는 날짜 칸 옆, 그 밖의 오류(409)는 폼 아래 — 패널은 열린 채', async () => {
+  it('날짜 오류(400 scheduledDate)는 날짜 칸 옆에 하나만 — 패널은 열린 채', async () => {
     const user = userEvent.setup()
     renderAt('/teacher/classes/12/sessions')
     await user.click(within(await table()).getByRole('button', { name: '6회 날짜 바꾸기' }))
@@ -360,18 +436,16 @@ describe('T-06 진도표', () => {
 
     fireEvent.change(input, { target: { value: '2026-12-01' } })
     await user.click(within(panel).getByRole('button', { name: '저장' }))
-    expect(await within(panel).findByText('오늘이나 그 뒤 날짜를 골라 주세요')).toBeInTheDocument()
+    expect(await within(panel).findByText('오늘이나 그 뒤 날짜로 골라 주세요')).toBeInTheDocument()
     expect(input).toHaveAttribute('aria-invalid', 'true')
     // 칸 옆 문구 하나만(폼 아래에 같은 오류를 또 보이지 않음)
     expect(within(panel).getAllByRole('alert')).toHaveLength(1)
 
+    // 앞 수업(5회 12/19)과 같은 날 — 서버는 순서 위반도 scheduledDate 칸 오류로 준다
     fireEvent.change(input, { target: { value: '2026-12-19' } })
     await user.click(within(panel).getByRole('button', { name: '저장' }))
-    expect(await within(panel).findByText('앞 수업보다 늦은 날짜를 골라 주세요')).toHaveAttribute(
-      'role',
-      'alert',
-    )
-    expect(input).not.toHaveAttribute('aria-invalid')
+    expect(await within(panel).findByText('앞 수업보다 뒤 날짜로 골라 주세요')).toBeInTheDocument()
+    expect(within(panel).getAllByRole('alert')).toHaveLength(1)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
