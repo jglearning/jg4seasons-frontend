@@ -9,7 +9,15 @@ export const POS_LABEL = {
   adv: '부사',
   prep: '전치사',
   conj: '접속사',
+  pron: '대명사',
+  interj: '감탄사',
   phr: '구',
+} as const
+
+/** 단어 출처(BE ADR-29): 어휘책 그 강의 단어·숙어 / 어휘책에 없는 회차 어휘. 음원 유무와는 따로다 */
+export const SOURCE_LABEL = {
+  book: '어휘책',
+  extra: '추가 단어',
 } as const
 
 /**

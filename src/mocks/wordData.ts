@@ -3,6 +3,7 @@ import type { components } from '../api/generated/schema'
 // S-06·S-06b 목: 단어(03 §2.4)와 카드·학습 결과 저장(2.5).
 // 단어·뜻·예문·해석은 lessonData.ts의 지어낸 지문에 맞춰 지어낸 것(교재 단어장을 공개 저장소에 넣지 않는다).
 // 지문별 단어 수(10·9·10·9·9·10)만 개발용 데이터(L2-B1-05)를 따른다. 음원은 브라우저 안에서 만든 짧은 무음 WAV
+// 출처(BE ADR-29): 지문 1~4 단어를 어휘책, 5~6을 추가 단어로 흉내. NO_AUDIO 순서는 어휘책에만 있는 단어처럼 음원·해석 없음
 
 type Schemas = components['schemas']
 type Pos = Schemas['WordItem']['pos']
@@ -206,6 +207,9 @@ function mockAudioUrl(durationMs: number): string {
   return url
 }
 
+/** 음원·예문 해석이 없는 단어(order) — 어휘책에만 있는 단어 흉내 */
+export const NO_AUDIO_ORDERS = [4, 12]
+
 export const WORD_MOCK = {
   total: WORDS.length,
   english: (order: number) => WORDS[order - 1][1],
@@ -220,18 +224,23 @@ export function resetWordMock() {
 
 export function buildWords(): Schemas['LessonWordsResponse'] {
   return {
-    items: WORDS.map(([passageNo, english, korean, pos, example, exampleKo], i) => ({
-      id: 501 + i,
-      order: i + 1,
-      passageNo,
-      english,
-      korean,
-      pos,
-      example,
-      exampleKo,
-      audio: { trackId: 9201 + i, audioUrl: mockAudioUrl(900), durationMs: 900 },
-      exampleAudio: { trackId: 9301 + i, audioUrl: mockAudioUrl(2400), durationMs: 2400 },
-    })),
+    items: WORDS.map(([passageNo, english, korean, pos, example, exampleKo], i) => {
+      const bare = NO_AUDIO_ORDERS.includes(i + 1)
+      return {
+        id: 501 + i,
+        order: i + 1,
+        source: passageNo <= 4 ? ('book' as const) : ('extra' as const),
+        english,
+        korean,
+        pos,
+        example,
+        exampleKo: bare ? null : exampleKo,
+        audio: bare ? null : { trackId: 9201 + i, audioUrl: mockAudioUrl(900), durationMs: 900 },
+        exampleAudio: bare
+          ? null
+          : { trackId: 9301 + i, audioUrl: mockAudioUrl(2400), durationMs: 2400 },
+      }
+    }),
     total: WORDS.length,
   }
 }

@@ -1,10 +1,11 @@
 import { act, cleanup, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
-import { resetWordMock, WORD_MOCK } from '../../mocks/wordData'
+import { buildWords, resetWordMock, WORD_MOCK } from '../../mocks/wordData'
 import { renderRoutes } from '../../test/render'
 
 let play: ReturnType<typeof vi.spyOn>
@@ -39,15 +40,47 @@ function renderWords(code = 'L2-B1-05') {
 /** 재생한 소리 주소들(오디오 요소의 src) */
 const playedUrls = () =>
   play.mock.contexts.map((element: unknown) => (element as HTMLAudioElement).getAttribute('src'))
-const card = () => screen.getByRole('button', { name: /^지문 \d/ })
+const card = () => screen.getByRole('button', { name: /^(어휘책|추가 단어)/ })
 const counter = (text: string) => screen.findByText(text)
 
+/** 첫 단어를 음원·예문 해석이 없는 대명사(어휘책에만 있는 단어)로 바꾼 응답 — 출처로 음원을 짐작하지 않는지도 본다 */
+function bareFirstWord() {
+  server.use(
+    http.get('*/api/v1/student/lessons/:code/words', () => {
+      const words = buildWords()
+      const [first, ...rest] = words.items
+      return HttpResponse.json({
+        ...words,
+        items: [
+          { ...first, pos: 'pron', exampleKo: null, audio: null, exampleAudio: null },
+          ...rest,
+        ],
+      })
+    }),
+  )
+}
+
 describe('S-06 단어 카드', () => {
-  it('첫 카드: 지문·품사·단어, 발음 1회 자동 재생, 진행 1 / 57', async () => {
+  it('음원·해석 없는 단어(BE #38): 자동 재생 표시·재생 없이, 뒷면은 영어 예문만, 새 품사 표기', async () => {
+    bareFirstWord()
+    const user = userEvent.setup()
     renderWords()
     await counter(`1 / ${WORD_MOCK.total}`)
 
-    expect(card()).toHaveTextContent('지문 1')
+    expect(card()).toHaveTextContent('대명사')
+    expect(card()).not.toHaveTextContent('발음 자동 재생')
+    expect(play).not.toHaveBeenCalled()
+
+    await user.click(card())
+    expect(card()).toHaveTextContent('We ____빈칸 after lunch every day.')
+    expect(card()).not.toHaveTextContent('우리는 매일 점심 뒤에 수다를 떤다.')
+  })
+
+  it('첫 카드: 출처·품사·단어, 발음 1회 자동 재생, 진행 1 / 57', async () => {
+    renderWords()
+    await counter(`1 / ${WORD_MOCK.total}`)
+
+    expect(card()).toHaveTextContent('어휘책')
     expect(card()).toHaveTextContent('동사')
     expect(card()).toHaveTextContent(WORD_MOCK.english(1))
     expect(card()).toHaveTextContent('발음 자동 재생')

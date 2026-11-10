@@ -1,7 +1,7 @@
 import styles from './ModeTabs.module.css'
 
 // 디자인 가이드 §5 WordCard(카드 학습) — 위 모드 탭(암기·리콜·스펠·목록, 2줄 라벨). 고른 것은 ink 채움 + aria-pressed.
-// 같은 모양으로 목록 모드의 지문 필터(전체·1~6)에도 쓴다(한 줄 라벨)
+// 같은 모양으로 목록 모드의 출처 필터(전체·어휘책·추가 단어)에도 쓴다(한 줄 라벨)
 export type ModeOption<T extends string | number> = { id: T; label: string; sub?: string }
 
 type ModeTabsProps<T extends string | number> = {

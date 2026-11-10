@@ -48,7 +48,24 @@ function renderCards() {
 }
 
 const ready = () => screen.findByRole('heading', { name: '카드 학습' })
-const card = () => screen.getByRole('button', { name: /^지문 \d/ })
+const card = () => screen.getByRole('button', { name: /^(어휘책|추가 단어)/ })
+
+/** 첫 단어를 음원·예문 해석이 없는 대명사(어휘책에만 있는 단어)로 바꾼 응답 — 출처로 음원을 짐작하지 않는지도 본다 */
+function bareFirstWord() {
+  server.use(
+    http.get('*/api/v1/student/lessons/:code/words', () => {
+      const words = buildWords()
+      const [first, ...rest] = words.items
+      return HttpResponse.json({
+        ...words,
+        items: [
+          { ...first, pos: 'pron', exampleKo: null, audio: null, exampleAudio: null },
+          ...rest,
+        ],
+      })
+    }),
+  )
+}
 const mode = (name: string) =>
   within(screen.getByRole('group', { name: '학습 모드' })).getByRole('button', {
     name: new RegExp(`^${name}`),
@@ -92,6 +109,23 @@ describe('S-06b 암기', () => {
     expect(card()).toHaveTextContent(`We ${WORD_MOCK.english(1)} after lunch every day.`)
     await user.click(screen.getByRole('button', { name: '단어 듣기' }))
     expect(play).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('S-06b 음원·해석 없는 단어(BE #38)', () => {
+  it('암기 뒷면은 영어 예문만, 단어·예문 듣기는 꺼짐, 새 품사 표기', async () => {
+    bareFirstWord()
+    const user = userEvent.setup()
+    renderCards()
+    await ready()
+    expect(card()).toHaveTextContent('대명사')
+    expect(play).not.toHaveBeenCalled()
+
+    await user.click(card())
+    expect(card()).toHaveTextContent(`We ${WORD_MOCK.english(1)} after lunch every day.`)
+    expect(card()).not.toHaveTextContent('우리는 매일 점심 뒤에 수다를 떤다.')
+    expect(screen.getByRole('button', { name: '단어 듣기' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '예문 듣기' })).toBeDisabled()
   })
 })
 
@@ -192,20 +226,28 @@ describe('S-06b 스펠(화면 채점)', () => {
 })
 
 describe('S-06b 목록·모드 전환·처음부터', () => {
-  it('목록은 지문별로 거른다', async () => {
+  it('목록은 출처(전체 / 어휘책 / 추가 단어)로 거르고, 순서는 서버 그대로', async () => {
     const user = userEvent.setup()
     renderCards()
     await ready()
     await user.click(mode('목록'))
+    const filter = (name: string) =>
+      within(screen.getByRole('group', { name: '출처' })).getByRole('button', { name })
     expect(screen.getAllByRole('listitem')).toHaveLength(WORD_MOCK.total)
+    expect(filter('전체')).toHaveAttribute('aria-pressed', 'true')
 
-    await user.click(
-      within(screen.getByRole('group', { name: '지문' })).getByRole('button', { name: '2' }),
-    )
+    // 목: 지문 1~4 단어 38개 = 어휘책, 5~6 19개 = 추가 단어
+    await user.click(filter('추가 단어'))
+    const extra = screen.getAllByRole('listitem')
+    expect(extra).toHaveLength(19)
+    expect(extra[0]).toHaveTextContent(WORD_MOCK.english(39))
+    expect(extra[0]).toHaveTextContent('추가 단어 ·')
+    expect(status()).toHaveTextContent('추가 단어')
+    expect(status()).toHaveTextContent('19개')
 
-    expect(screen.getAllByRole('listitem')).toHaveLength(9)
-    expect(status()).toHaveTextContent('지문 2')
-    expect(status()).toHaveTextContent('9개')
+    await user.click(filter('어휘책'))
+    expect(screen.getAllByRole('listitem')).toHaveLength(38)
+    expect(screen.getAllByRole('listitem')[0]).toHaveTextContent('어휘책 · 동사')
   })
 
   it('모드를 바꿔도 진행은 남고, "처음부터"는 모두 새로', async () => {
