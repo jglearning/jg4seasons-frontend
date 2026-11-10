@@ -62,7 +62,7 @@ describe('S-04 회차 목록', () => {
     renderLessons()
     await group('겨울 1')
 
-    expect(screen.getByText('Reading Day 1~30 · 완료 7 · 밀림 1')).toBeInTheDocument()
+    expect(screen.getByText('전체 30회 · 완료 7 · 밀림 1')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '회차, 밀린 수업 1개' })).toBeInTheDocument()
   })
 
@@ -98,6 +98,22 @@ describe('S-04 회차 목록', () => {
     expect(within(first).getByRole('link', { name: 'Reading Day 5 · 오늘' })).toBeInTheDocument()
     expect(within(first).queryByRole('link', { name: /Reading Day 6/ })).not.toBeInTheDocument()
     expect(within(first).getByRole('group', { name: 'Reading Day 6 · 잠김' })).toBeInTheDocument()
+  })
+
+  it('타일 번호는 code 끝(블랙 K-B1-07 → 07, 보충 K-B1-S1 → S1) — number(진도표 순서)가 아니다', async () => {
+    useLessons((l) => {
+      const [a, b] = l.groups[0].lessons
+      Object.assign(a, { code: 'K-B1-07', number: 8, title: 'Reading Day 7' })
+      Object.assign(b, { code: 'K-B1-S1', number: 7, title: '보충 1', type: 'supplement' })
+    })
+    renderLessons()
+    const first = await group('겨울 1')
+
+    const day7 = within(first).getByRole('link', { name: 'Reading Day 7 · 완료' })
+    expect(within(day7).getByText('07')).toBeInTheDocument()
+    expect(day7).toHaveAttribute('href', '/lessons/K-B1-07')
+    const supplement = within(first).getByRole('link', { name: /^보충 1 · / })
+    expect(within(supplement).getByText('S1')).toBeInTheDocument()
   })
 
   it('열림(open) 회차: 범례에 "열림", 타일은 "—"와 링크', async () => {

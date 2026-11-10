@@ -15,6 +15,7 @@ import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, type StudentHome } from './studentApi'
 import styles from './Student.module.css'
+import { lessonNoLabel } from '../../shared/lessonLabel'
 
 // S-03 홈(STU-01, 와이어프레임 Main). 진도·밀림·상태는 서버 값을 보여 주기만 한다
 
@@ -126,7 +127,7 @@ function TodayCard({ today }: { today: StudentHome['today'] }) {
       <p className={styles.eyebrow}>오늘 수업 · {longDate(today.scheduledDate)}</p>
       <div className={styles.metaRow}>
         <span className={styles.meta}>
-          {today.groupLabel} · {today.lesson.number}회 ·{' '}
+          {today.groupLabel} · {lessonNoLabel(today.lesson.code)} ·{' '}
           <span className={styles.code}>{today.lesson.code}</span>
         </span>
         {look !== undefined && <StatusPill status={look.status}>{look.label}</StatusPill>}

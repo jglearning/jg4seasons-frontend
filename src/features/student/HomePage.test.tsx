@@ -80,6 +80,18 @@ describe('S-03 홈', () => {
     expect(screen.getByRole('link', { name: '회차' })).toBeInTheDocument()
   })
 
+  it('블랙 오늘 회차: 번호는 code 끝(보충 K-B1-S1 → 보충 1, number 7이 아니다), 묶음은 서버 그대로', async () => {
+    useHome((home) => {
+      if (home.today === null) return
+      home.today.groupLabel = '새봄 1'
+      Object.assign(home.today.lesson, { code: 'K-B1-S1', number: 7, type: 'supplement' })
+    })
+    renderHome()
+    const card = await todayCard()
+
+    expect(card).toHaveTextContent('새봄 1 · 보충 1 · K-B1-S1')
+  })
+
   it('오늘 수업: 날짜·묶음·회차·상태·지문 6개·이어서 듣기', async () => {
     renderHome()
     const card = await todayCard()
