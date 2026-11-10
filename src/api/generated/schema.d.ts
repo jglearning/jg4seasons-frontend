@@ -447,7 +447,7 @@ export interface paths {
         get?: never;
         /**
          * 카드·학습 결과 저장
-         * @description 보낼 칸만, 하나도 없으면 400. 저장된 값보다 작은 값은 무시(단조 증가). 화면을 떠날 때·모드 한 바퀴 끝에 1회. X-CSRF 필요 — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 보낼 칸만, 하나도 없으면 400. 저장된 값보다 작은 값은 무시(단조 증가). 값 범위 0 ~ 회차 단어 수(넘으면 400 VALIDATION, errors[].field = 칸 이름). allViewed는 서버 판정: cardsViewed가 회차 단어 수에 처음 닿은 저장부터 true. 화면을 떠날 때·모드 한 바퀴 끝에 1회. 열림 규칙은 2.4와 같다(404·423). X-CSRF 필요
          */
         put: operations["saveStudy"];
         post?: never;
@@ -466,7 +466,7 @@ export interface paths {
         };
         /**
          * 회차 단어
-         * @description 지문 순서 → 단어 순서. 열리지 않은 회차는 2.3과 같은 규칙(404·423) — 구현 전: 501 NOT_IMPLEMENTED
+         * @description 교재 순서: 어휘책 그 강의 단어 → 숙어 → 어휘책에 없는 회차 어휘. source로 출처(book·extra)를 구분한다. 예문 해석·음원이 없는 단어가 있다(null). 단어가 없으면 빈 목록. 열림 규칙은 2.3과 같다: 어느 소속 반 진도표에도 없는 회차 404, 수업일 전·휴강만 있는 회차 423 LESSON_LOCKED
          */
         get: operations["words"];
         put?: never;
@@ -1045,7 +1045,10 @@ export interface components {
         };
         LessonWordsResponse: {
             items: components["schemas"]["WordItem"][];
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description 회차 단어 수(실제 35~106, 없으면 0)
+             */
             total: number;
         };
         LevelInfo: {
@@ -1772,30 +1775,31 @@ export interface components {
             audio: components["schemas"]["WordAudio"] | null;
             /** @example sudden */
             english: string;
-            /** @description 지문 문장이 아닌 새 예문(ADR-25) */
+            /** @description 예문(지문 문장이 아님, ADR-25) */
             example: string;
             /** @description 예문 음원. 없으면 null */
             exampleAudio: components["schemas"]["WordAudio"] | null;
-            exampleKo: string;
+            /** @description 예문 해석. 없으면 null(지금 자료에서는 어휘책에만 있는 단어 — source와 따로 판단) */
+            exampleKo: string | null;
             /** Format: int64 */
             id: number;
             /** @example 갑작스러운 */
             korean: string;
             /**
              * Format: int32
-             * @description 회차 안 순서(1부터)
+             * @description 회차 안 교재 순서(1부터)
              */
             order: number;
             /**
-             * Format: int32
-             * @description 지문 번호 1~6
-             */
-            passageNo: number;
-            /**
-             * @description 품사. 화면 표기(명사·동사…)는 프론트
+             * @description 품사. 화면 표기(명사·동사·대명사·감탄사…)는 프론트
              * @enum {string}
              */
-            pos: "n" | "v" | "adj" | "adv" | "prep" | "conj" | "phr";
+            pos: "n" | "v" | "adj" | "adv" | "prep" | "conj" | "pron" | "interj" | "phr";
+            /**
+             * @description 출처(ADR 0029): book 어휘책 그 강의 단어·숙어, extra 어휘책에 없는 회차 어휘. 목록 탭 필터용. 음원 유무와는 따로(어휘책 음원이 들어오면 book도 음원이 있다)
+             * @enum {string}
+             */
+            source: "book" | "extra";
         };
         WordStudyRequest: {
             /**

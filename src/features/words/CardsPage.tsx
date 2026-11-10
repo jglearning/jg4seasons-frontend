@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type SubmitEvent } from 'react'
 import { useParams } from 'react-router'
 import { Button } from '../../shared/ui/Button'
 import { ChoiceButton } from '../../shared/ui/ChoiceButton'
-import { ModeTabs } from '../../shared/ui/ModeTabs'
+import { ModeTabs, type ModeOption } from '../../shared/ui/ModeTabs'
 import { ProgressBar } from '../../shared/ui/ProgressBar'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { WordCard } from '../../shared/ui/WordCard'
@@ -16,6 +16,7 @@ import {
   memStart,
   pickChoices,
   POS_LABEL,
+  SOURCE_LABEL,
   splitExample,
   type MemState,
 } from './study'
@@ -26,7 +27,7 @@ import { wordsQuery, type Word } from './wordsApi'
 import styles from './Words.module.css'
 
 // S-06b 카드 학습(STU-12, 와이어프레임 S06b_ClassCard, ADR-25). 4모드:
-// 암기(알아요/몰라요 — 몰라요는 뒤로 다시) · 리콜(단어 보고 뜻 4지선다, 발음 자동 재생) · 스펠(뜻·품사 보고 철자) · 목록(지문별).
+// 암기(알아요/몰라요 — 몰라요는 뒤로 다시) · 리콜(단어 보고 뜻 4지선다, 발음 자동 재생) · 스펠(뜻·품사 보고 철자) · 목록(출처별).
 // 리콜·스펠 채점은 화면에서(11/6 승인). 모드별 결과는 한 바퀴 끝날 때·떠날 때 저장(03 §2.5)
 
 type Mode = 'mem' | 'recall' | 'spell' | 'list'
@@ -35,7 +36,7 @@ const MODES = [
   { id: 'mem' as const, label: '암기', sub: '알아요 · 몰라요' },
   { id: 'recall' as const, label: '리콜', sub: '뜻 고르기' },
   { id: 'spell' as const, label: '스펠', sub: '듣고 쓰기' },
-  { id: 'list' as const, label: '목록', sub: '지문별 보기' },
+  { id: 'list' as const, label: '목록', sub: '한눈에 보기' },
 ]
 
 export function CardsPage() {
@@ -73,7 +74,7 @@ function CardsBody({ code, items }: { code: string; items: Word[] }) {
           <div className={styles.headText}>
             <h1 className={styles.title}>카드 학습</h1>
             <p className={styles.sub}>
-              {code} · 지문 1~6 단어 {items.length}개
+              {code} · 단어 {items.length}개
             </p>
           </div>
           <Button
@@ -206,7 +207,7 @@ function MemMode({
         <>
           <WordCard
             side={side}
-            passageNo={word.passageNo}
+            sourceLabel={SOURCE_LABEL[word.source]}
             english={word.english}
             posLabel={POS_LABEL[word.pos]}
             korean={word.korean}
@@ -304,7 +305,7 @@ function RecallMode({
         max={items.length}
       />
       <div className={styles.quizCard}>
-        <span className={styles.chip}>지문 {word.passageNo}</span>
+        <span className={styles.chip}>{SOURCE_LABEL[word.source]}</span>
         <span className={styles.quizHint}>알맞은 뜻을 고르세요</span>
         <span className={styles.quizWord} lang="en">
           {word.english}
@@ -417,7 +418,7 @@ function SpellMode({ items, audio, saver }: { items: Word[]; audio: Audio; saver
         max={items.length}
       />
       <div className={styles.quizCard}>
-        <span className={styles.chip}>지문 {word.passageNo}</span>
+        <span className={styles.chip}>{SOURCE_LABEL[word.source]}</span>
         <span className={styles.quizHint}>듣고 철자를 써 보세요</span>
         <span className={styles.quizMeaning}>{word.korean}</span>
         <span className={styles.pos}>{POS_LABEL[word.pos]}</span>
@@ -467,27 +468,26 @@ function SpellMode({ items, audio, saver }: { items: Word[]; audio: Audio; saver
 
 // ── 목록 ──
 
+// 자료에 지문 정보가 없어 출처로 거른다(BE ADR-29). 순서는 서버(교재 순서) 그대로
+const LIST_FILTERS: ModeOption<ListFilter>[] = [
+  { id: 'all', label: '전체' },
+  { id: 'book', label: SOURCE_LABEL.book },
+  { id: 'extra', label: SOURCE_LABEL.extra },
+]
+type ListFilter = 'all' | Word['source']
+
 function ListMode({ items }: { items: Word[] }) {
-  const [filter, setFilter] = useState(0)
-  const passages = [...new Set(items.map((w) => w.passageNo))].sort((a, b) => a - b)
-  const shown = items.filter((w) => filter === 0 || w.passageNo === filter)
+  const [filter, setFilter] = useState<ListFilter>('all')
+  const shown = items.filter((w) => filter === 'all' || w.source === filter)
   return (
     <>
       <Status
-        left={filter === 0 ? `지문 ${passages[0]}~${passages.at(-1)} 전체` : `지문 ${filter}`}
+        left={filter === 'all' ? '전체' : SOURCE_LABEL[filter]}
         right={`${shown.length}개`}
         value={shown.length}
         max={items.length}
       />
-      <ModeTabs
-        label="지문"
-        options={[
-          { id: 0, label: '전체' },
-          ...passages.map((no) => ({ id: no, label: String(no) })),
-        ]}
-        selected={filter}
-        onSelect={setFilter}
-      />
+      <ModeTabs label="출처" options={LIST_FILTERS} selected={filter} onSelect={setFilter} />
       <ul className={styles.list}>
         {shown.map((w) => (
           <li key={w.id} className={styles.listItem}>
@@ -496,7 +496,7 @@ function ListMode({ items }: { items: Word[] }) {
             </span>
             <span className={styles.listMeaning}>{w.korean}</span>
             <span className={styles.listMeta}>
-              지문 {w.passageNo} · {POS_LABEL[w.pos]}
+              {SOURCE_LABEL[w.source]} · {POS_LABEL[w.pos]}
             </span>
           </li>
         ))}

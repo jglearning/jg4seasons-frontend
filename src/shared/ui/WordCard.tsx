@@ -5,13 +5,15 @@ import styles from './WordCard.module.css'
 // 3D 플립 없음: 면이 바뀌면 150ms 페이드로 내용만 바꾼다. 앞면 흰 / 뒷면 surface
 type WordCardProps = {
   side: 'front' | 'back'
-  passageNo: number
+  /** 왼쪽 위 작은 칩(단어 출처 "어휘책"·"추가 단어") */
+  sourceLabel: string
   english: string
   posLabel: string
   korean: string
   /** 예문을 그 단어 앞·단어·뒤로 나눈 것(단어는 레벨 색 굵게) */
   example: { before: string; match: string; after: string }
-  exampleKo: string
+  /** 예문 해석. 없으면(null) 영어 예문만 */
+  exampleKo: string | null
   onTap: () => void
   /** 앞면에 "발음 자동 재생" 표시 */
   autoplay?: boolean
@@ -25,7 +27,7 @@ type WordCardProps = {
 
 export function WordCard({
   side,
-  passageNo,
+  sourceLabel,
   english,
   posLabel,
   korean,
@@ -45,7 +47,7 @@ export function WordCard({
       className={[styles.card, back && styles.back].filter(Boolean).join(' ')}
       onClick={onTap}
     >
-      <span className={styles.passage}>지문 {passageNo}</span>
+      <span className={styles.source}>{sourceLabel}</span>
       {corner && <span className={styles.corner}>{corner}</span>}
       {back ? (
         <span key="back" className={styles.face}>
@@ -75,7 +77,7 @@ export function WordCard({
               ))}
             {example.after}
           </span>
-          <span className={styles.exampleKo}>{exampleKo}</span>
+          {exampleKo !== null && <span className={styles.exampleKo}>{exampleKo}</span>}
           {backHint && <span className={styles.hint}>{backHint}</span>}
         </span>
       ) : (

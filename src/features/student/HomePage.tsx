@@ -61,7 +61,7 @@ export function HomePage() {
         <OverdueAlert items={data.overdue.map(overdueItem)} />
         <TodayCard today={data.today} />
         <div className={styles.pair}>
-          {data.words !== null && <WordsCard words={data.words} today={data.today} />}
+          {data.words !== null && <WordsCard words={data.words} />}
           {data.next !== null && <NextCard next={data.next} />}
         </div>
         <div className={styles.allLessons}>
@@ -154,22 +154,13 @@ function TodayCard({ today }: { today: StudentHome['today'] }) {
   )
 }
 
-function WordsCard({
-  words,
-  today,
-}: {
-  words: NonNullable<StudentHome['words']>
-  today: StudentHome['today']
-}) {
-  const passages = today?.lesson.code === words.lessonCode ? today.lesson.passages : []
-  const range =
-    passages.length > 0 ? `지문 ${passages[0].no}~${passages[passages.length - 1].no} · ` : ''
+function WordsCard({ words }: { words: NonNullable<StudentHome['words']> }) {
   return (
     <Link to={`/lessons/${words.lessonCode}/words`} className={styles.smallCard}>
       <span className={styles.smallLabel}>오늘 단어</span>
       <span className={styles.smallValue}>{words.total}개</span>
       <span className={styles.smallSub}>
-        {range}암기 {words.memKnown} / {words.total}
+        암기 {words.memKnown} / {words.total}
       </span>
     </Link>
   )

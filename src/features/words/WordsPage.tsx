@@ -5,7 +5,7 @@ import { Button, ButtonLink } from '../../shared/ui/Button'
 import { ProgressBar } from '../../shared/ui/ProgressBar'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { WordCard } from '../../shared/ui/WordCard'
-import { POS_LABEL, splitExample } from './study'
+import { POS_LABEL, SOURCE_LABEL, splitExample } from './study'
 import { useStudySaver } from './useStudySaver'
 import { SoundButtons } from './SoundButtons'
 import { useWordAudio } from './useWordAudio'
@@ -76,7 +76,7 @@ function WordsBody({ code, items }: { code: string; items: Word[] }) {
           <div className={styles.headText}>
             <h1 className={styles.title}>단어 카드</h1>
             <p className={styles.sub}>
-              {code} · 지문 1~6 · {total}개
+              {code} · 단어 {total}개
             </p>
           </div>
           <span className={styles.counter}>
@@ -87,7 +87,7 @@ function WordsBody({ code, items }: { code: string; items: Word[] }) {
 
         <WordCard
           side={side}
-          passageNo={word.passageNo}
+          sourceLabel={SOURCE_LABEL[word.source]}
           english={word.english}
           posLabel={POS_LABEL[word.pos]}
           korean={word.korean}
