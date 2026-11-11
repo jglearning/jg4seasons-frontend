@@ -151,7 +151,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     else setNudge('next')
   }
 
-  const wordsTo = `/lessons/${code}/cards`
+  const wordsTo = `/lessons/${code}/words`
   const durationMs = onThisTrack ? player.durationMs : (speed?.durationMs ?? 0)
 
   return (

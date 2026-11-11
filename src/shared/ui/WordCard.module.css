@@ -1,50 +1,33 @@
-/* 디자인 가이드 §5 WordCard — 남는 높이를 채움(최소 360), 반경 20, 앞면 흰 / 뒷면 surface, 3D 플립 없음 */
+/* 디자인 가이드 §5 WordCard 11/11 판 — 세로로 긴 카드(남는 높이, 최소 420), 반경 20, 흰 배경.
+   위 절반 단어 · 아래 절반 뜻. 카드 절반 크기의 종이 한 장이 모서리부터 말리며 위·아래로 넘어간다(pageCurl.ts) */
 .card {
+  /* 종이 앞면·뒷면 색 — 뒷면은 접힌 선 쪽이 어둡다(이 종이에만 쓰는 명암, 가이드 11/11 예외 검토) */
+  --paper: var(--surface-2);
+  --paper-back-dark: color-mix(in srgb, var(--ink) 18%, var(--surface-2));
+  --paper-back-light: color-mix(in srgb, var(--ink) 4%, var(--surface-2));
+
   position: relative;
-  display: flex;
+  display: grid;
   flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  grid-template-rows: 1fr 1fr;
   box-sizing: border-box;
   width: 100%;
-  min-height: 360px;
-  padding: var(--space-8) var(--space-5) var(--space-5);
+  min-height: 420px;
+  overflow: hidden;
   border: var(--border-control) solid var(--line-strong);
   border-radius: var(--radius-word-card);
   background: var(--white);
   color: var(--ink);
-  font: inherit;
-  cursor: pointer;
-  transition: background-color var(--motion);
 }
 
-.back {
-  background: var(--surface);
-}
-
-.face {
+.top {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
-  width: 100%;
-  animation: fade var(--motion);
-}
-
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .face {
-    animation: none;
-  }
+  padding: var(--space-8) var(--space-5) var(--space-5);
 }
 
 .source {
@@ -54,14 +37,6 @@
   padding: 1px 6px;
   border: var(--border-card) solid var(--line);
   border-radius: 4px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.corner {
-  position: absolute;
-  top: 16px;
-  right: 18px;
   font-size: 12px;
   color: var(--muted);
 }
@@ -92,23 +67,15 @@
   color: var(--ink);
 }
 
-.hint {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.headRow {
-  display: inline-flex;
+.bottom {
+  display: flex;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.smallWord {
-  font-size: 18px;
-  font-weight: 500;
+  justify-content: center;
+  padding: var(--space-5);
 }
 
 .meaning {
+  margin: 0;
   font-size: 30px;
   font-weight: 700;
   line-height: 1.25;
@@ -116,39 +83,100 @@
   word-break: keep-all;
 }
 
-.rule {
-  align-self: stretch;
-  height: 1px;
-  background: var(--line);
-}
-
-.label {
-  align-self: flex-start;
-  font-size: 12px;
-  font-weight: 700;
+/* 움직이지 않을 때의 종이 — 아래 자리(뜻을 가림) 또는 위 자리(단어를 가림) */
+.paper {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 50%;
+  background: var(--paper);
   color: var(--muted);
-}
-
-.example {
-  align-self: stretch;
-  font-size: 15px;
-  line-height: 1.55;
-  text-align: left;
-}
-
-/* 예문 속 그 단어 — 레벨 색 700 */
-.match {
-  color: var(--level);
-  font-weight: 700;
-}
-
-.exampleKo {
-  align-self: stretch;
   font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-  text-align: left;
-  word-break: keep-all;
+  pointer-events: none;
+}
+
+.paperDown {
+  top: 50%;
+  border-top: var(--border-card) solid var(--line-strong);
+}
+
+.paperUp {
+  top: 0;
+  border-bottom: var(--border-card) solid var(--line-strong);
+}
+
+/* 손잡이 — 잡는 쪽(종이의 떨어진 끝): 아래 자리면 카드 아래 끝, 위 자리면 카드 위 끝 */
+.handle {
+  position: absolute;
+  left: 50%;
+  width: 40px;
+  height: 4px;
+  margin-left: -20px;
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+}
+
+.paperDown .handle {
+  bottom: 10px;
+}
+
+.paperUp .handle {
+  top: 10px;
+}
+
+/* 넘기는 중 — 카드 전체 좌표의 다각형들(clip-path) */
+.coverLayer,
+.flapShadow,
+.flap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.coverLayer {
+  background: var(--paper);
+}
+
+/* 뒷면이 살짝 떠 있는 그림자 — clip-path가 자기 그림자를 자르므로 감싼 요소에 건다 */
+.flapShadow {
+  filter: drop-shadow(-3px -3px 6px color-mix(in srgb, var(--ink) 22%, transparent));
+}
+
+/* 접힌 선 띠 — 뒷면 쪽은 휘어 어둡고, 드러난 쪽은 종이가 드리운 그림자가 옅어진다 */
+.crease {
+  position: absolute;
+  height: 44px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--ink) 10%, transparent) 46%,
+    color-mix(in srgb, var(--ink) 22%, transparent) 50%,
+    color-mix(in srgb, var(--ink) 12%, transparent) 54%,
+    transparent 100%
+  );
+}
+
+/* 카드 전체를 덮는 투명 버튼 — 끌기·누르기를 받는다 */
+.grab {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dragging {
+  cursor: grabbing;
 }
 
 .srOnly {

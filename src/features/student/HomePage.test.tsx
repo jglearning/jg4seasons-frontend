@@ -201,7 +201,7 @@ describe('S-03 홈', () => {
 
     const words = screen.getByRole('link', { name: /오늘 단어/ })
     expect(words).toHaveTextContent('57개')
-    expect(words).toHaveTextContent('암기 0 / 57')
+    expect(words).not.toHaveTextContent('암기')
     expect(words).not.toHaveTextContent('지문')
     expect(words).toHaveAttribute('href', '/lessons/L2-B1-05/words')
     const next = screen.getByText('다음 수업').parentElement as HTMLElement

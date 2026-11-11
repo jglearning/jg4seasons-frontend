@@ -111,9 +111,9 @@ describe('T-04 학생 상세', () => {
     expect(rows[1]).toHaveTextContent('35%')
     expect(rows[1]).not.toHaveTextContent('완료')
 
-    expect(
-      screen.getAllByText('단어 카드 57 / 57 · 알아요 40 · 리콜 최고 51 · 스펠 최고 33')[0],
-    ).toBeInTheDocument()
+    const wordLine = screen.getAllByText('단어 카드 57 / 57')[0]
+    expect(wordLine).toBeInTheDocument()
+    expect(wordLine).not.toHaveTextContent('알아요')
   })
 
   it('진행 중 회차: 상태 알약 n / m, 하나도 안 들은 지문은 "안 들음" 한 줄', async () => {
@@ -130,7 +130,7 @@ describe('T-04 학생 상세', () => {
     // 지문 2는 미국 남으로 완료, 미국 여는 절반
     expect(within(table).getByRole('row', { name: /지문 2 · 미국 남/ })).toHaveTextContent('완료')
     expect(within(table).getByRole('row', { name: /지문 2 · 미국 여/ })).toHaveTextContent('50%')
-    expect(screen.getAllByText(/^단어 카드 20 \/ 57 · /)[0]).toBeInTheDocument()
+    expect(screen.getAllByText('단어 카드 20 / 57')[0]).toBeInTheDocument()
   })
 
   it('개인 코드 재발급: 확인 → 요청 → 새 코드는 화면에만(쿼리 캐시에 없음)', async () => {

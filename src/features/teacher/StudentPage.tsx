@@ -139,8 +139,8 @@ function LessonCard({ lesson }: { lesson: StudentLesson }) {
         rowKey={(t) => `${t.passageNo}-${'unheard' in t ? 'none' : t.variant}`}
       />
       <p className={styles.words}>
-        단어 카드 {words.cardsViewed} / {words.total} · 알아요 {words.memKnown} · 리콜 최고{' '}
-        {words.recallBest} · 스펠 최고 {words.spellBest}
+        {/* 카드 학습(암기·리콜·스펠) 삭제(#64) — 본 카드 수만 */}
+        단어 카드 {words.cardsViewed} / {words.total}
       </p>
     </Card>
   )
