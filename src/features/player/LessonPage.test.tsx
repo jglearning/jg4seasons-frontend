@@ -654,7 +654,7 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     )
     expect(
       within(nudge() as HTMLElement).getByRole('link', { name: '그래도 단어로' }),
-    ).toHaveAttribute('href', '/lessons/L2-B1-05/cards')
+    ).toHaveAttribute('href', '/lessons/L2-B1-05/words')
 
     await user.click(within(nudge() as HTMLElement).getByRole('button', { name: '마저 듣기' }))
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(5) })).toBeInTheDocument()
@@ -732,7 +732,7 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     await user.click(screen.getByRole('link', { name: '오늘의 단어 학습하기 →' }))
 
     expect(nudge()).not.toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/lessons/L2-B1-05/cards')
+    expect(router.state.location.pathname).toBe('/lessons/L2-B1-05/words')
   })
 })
 

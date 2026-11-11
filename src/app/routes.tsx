@@ -18,8 +18,7 @@ import { LessonPage } from '../features/player/LessonPage'
 import { HomePage } from '../features/student/HomePage'
 import { LessonsPage } from '../features/student/LessonsPage'
 import { SettingsPage } from '../features/student/SettingsPage'
-import { CardsPage } from '../features/words/CardsPage'
-import { WordsPage } from '../features/words/WordsPage'
+import { CardsRedirect, WordsPage } from '../features/words/WordsPage'
 import { ClassesPage as TeacherClassesPage } from '../features/teacher/ClassesPage'
 import { LessonPage as TeacherLessonPage } from '../features/teacher/LessonPage'
 import { MatrixPage } from '../features/teacher/MatrixPage'
@@ -46,7 +45,7 @@ export const routes: RouteObject[] = [
           { path: '/settings', element: <SettingsPage /> },
           { path: '/lessons/:code', element: <LessonPage /> },
           { path: '/lessons/:code/words', element: <WordsPage /> },
-          { path: '/lessons/:code/cards', element: <CardsPage /> },
+          { path: '/lessons/:code/cards', element: <CardsRedirect /> },
         ],
       },
       {

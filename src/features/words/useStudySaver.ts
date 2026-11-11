@@ -3,11 +3,11 @@ import { useCallback, useEffect, useRef } from 'react'
 import { ApiError } from '../../api/errors'
 import { saveWordStudy, type WordStudy } from './wordsApi'
 
-// 카드·학습 결과 저장(03 §2.5, 11/6 동섭 승인): 이 화면에서 낸 모드별 최고 결과를 모아 두었다가
-// 한 바퀴가 끝날 때와 화면을 떠날 때(숨김·pagehide·떠남) keepalive fetch PUT으로 한 번씩 보낸다.
+// 단어 카드 결과 저장(03 §2.5): 본 카드 수(가장 멀리 간 번호)를 모아 두었다가 화면을 떠날 때
+// (숨김·pagehide·떠남) keepalive fetch PUT으로 보낸다. 암기·리콜·스펠 칸은 카드 학습 삭제(#64)로 보내지 않는다.
 // 서버는 작은 값을 무시하므로(단조 증가) 보낸 것보다 커진 칸만 보낸다. 학습 기록은 localStorage에 두지 않는다(1차)
 type Field = keyof WordStudy
-const FIELDS: Field[] = ['cardsViewed', 'memKnown', 'recallCorrect', 'spellCorrect']
+const FIELDS: Field[] = ['cardsViewed']
 
 export function useStudySaver(code: string) {
   const queryClient = useQueryClient()
