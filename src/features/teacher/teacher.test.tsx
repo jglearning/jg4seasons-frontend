@@ -304,6 +304,70 @@ describe('T-03 청취 현황 매트릭스', () => {
     expect(pill('김민준 Reading Day 2 수업 전')).toHaveAttribute('data-status', 'locked')
   })
 
+  it('오늘 수업이 없는 날: 지금 회차가 지난 수업(done)이어도 지금 회차 강조·칸은 서버 값 그대로', async () => {
+    // BE #46 — 오늘 수업이 없으면 가장 최근 지난 수업이 isCurrent이고 status는 done
+    server.use(
+      http.get('*/api/v1/teacher/classes/:classId/matrix', () =>
+        HttpResponse.json({
+          class: {
+            id: 12,
+            name: '겨울 그린 A반',
+            level: { code: 'L2', nameKo: '그린', colorHex: '#1F7A4F' },
+          },
+          sessions: [
+            {
+              seq: 1,
+              lesson: { code: 'L2-B1-01', number: 1, title: 'Reading Day 1' },
+              scheduledDate: '2026-12-10',
+              status: 'done',
+              isCurrent: false,
+              opened: true,
+            },
+            {
+              seq: 2,
+              lesson: { code: 'L2-B1-02', number: 2, title: 'Reading Day 2' },
+              scheduledDate: '2026-12-12',
+              status: 'done',
+              isCurrent: true,
+              opened: true,
+            },
+          ],
+          students: [{ id: 301, name: '김민준', school: null, grade: null }],
+          cells: {
+            '301': {
+              'L2-B1-01': {
+                status: 'completed',
+                requiredDone: 6,
+                requiredTotal: 6,
+                completedAt: '2026-12-10T09:00:00Z',
+                overdue: false,
+              },
+              'L2-B1-02': {
+                status: 'in_progress',
+                requiredDone: 2,
+                requiredTotal: 6,
+                completedAt: null,
+                overdue: false,
+              },
+            },
+          },
+        }),
+      ),
+    )
+    renderAt('/teacher/classes/12')
+    const table = await matrixTable()
+
+    const heads = within(table).getAllByRole('columnheader')
+    expect(heads.map((h) => h.textContent)).toEqual([
+      '학생',
+      'Day 1 12/10',
+      'Day 2 12/12 지금 회차',
+    ])
+    expect(heads.filter((h) => /current/.test(h.className))).toEqual([heads[2]])
+    expect(pill('김민준 Reading Day 1 완료')).toHaveAttribute('data-status', 'completed')
+    expect(pill('김민준 Reading Day 2 진행 중 2 / 6')).toHaveAttribute('data-status', 'in_progress')
+  })
+
   it('학생이 없으면 안내', async () => {
     renderAt(`/teacher/classes/${TEACHER_MOCK.alertClassId}`)
     const table = await matrixTable()

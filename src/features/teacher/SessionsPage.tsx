@@ -19,7 +19,8 @@ import styles from './Teacher.module.css'
 // T-06 진도표(03 §4.5~§4.7, 백엔드 ADR-30). 1차는 날짜 바꾸기(이후 수업도 같이 밀기)·휴강·메모만 —
 // 보강(날짜 추가)·회차 순서 바꾸기는 2차. 날짜 밀기는 서버가 하고 화면은 응답(진도표 전체, seq 다시 매김)을 그대로 그린다.
 // 메모는 모든 행(지난 수업·휴강 행도 서버가 받음). 날짜·휴강은 서버 status가 예정인 행만 —
-// "지난 수업"은 서버가 날짜로 판정해 409 SESSION_PAST로 거절하므로 화면은 날짜로 판단하지 않고 그 문구를 보인다
+// 지난 수업은 서버가 학원 날짜로 done을 준다(BE #46, 오늘 수업은 scheduled). 화면은 날짜로 판단하지 않고,
+// 그래도 거절되면(409 SESSION_PAST — 학원 자정을 넘긴 화면 등) 서버 문구를 보인다
 const STATUS_LABEL: Record<SessionItem['status'], string> = {
   scheduled: '예정',
   done: '지난 수업',
