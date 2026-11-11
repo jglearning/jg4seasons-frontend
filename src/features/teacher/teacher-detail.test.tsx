@@ -390,6 +390,25 @@ describe('T-06 진도표', () => {
     expect(row).toHaveTextContent('학교 행사')
   })
 
+  it('교재 사용 기간이 아니면 메모만 바꿔도 서버 거절(403 LICENSE_INACTIVE) 문구를 보인다', async () => {
+    server.use(
+      http.patch('*/api/v1/teacher/classes/12/sessions/:seq', () =>
+        HttpResponse.json(
+          { code: 'LICENSE_INACTIVE', title: '사용 기간이 아니에요', status: 403 },
+          { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    )
+    const user = userEvent.setup()
+    renderAt('/teacher/classes/12/sessions')
+    await user.click(within(await table()).getByRole('button', { name: '6회 메모' }))
+    await user.type(screen.getByLabelText('메모'), '시험 주간')
+    await user.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('사용 기간이 아니에요')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('날짜 바꾸기: 이후 수업 밀기 기본 켬, 응답대로 다시 그림', async () => {
     const user = userEvent.setup()
     renderAt('/teacher/classes/12/sessions')

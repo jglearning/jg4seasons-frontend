@@ -154,6 +154,28 @@ describe('S-04 회차 목록', () => {
     expect(log).toHaveBeenCalledWith('[student] unknown lesson state', 'L2-B1-02', 'archived')
   })
 
+  it('교재 사용 중(active)이면 사용 기간 안내가 없다', async () => {
+    renderLessons()
+    await group('겨울 1')
+
+    expect(screen.queryByRole('region', { name: '사용 기간이 아니에요' })).not.toBeInTheDocument()
+  })
+
+  it.each(['before_start', 'expired'] as const)(
+    '회차 목록 응답의 교재 사용 상태가 %s면 목록 위에 사용 기간 안내',
+    async (licenseStatus) => {
+      useLessons((lessons) => {
+        lessons.class.licenseStatus = licenseStatus
+      })
+      renderLessons()
+      const notice = await screen.findByRole('region', { name: '사용 기간이 아니에요' })
+
+      expect(notice).toHaveTextContent('지금은 회차를 열 수 없어요. 선생님께 물어봐 주세요')
+      const first = await group('겨울 1')
+      expect(notice.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    },
+  )
+
   it('회차 목록을 못 받으면(5xx) 머리글은 두고 다시 시도', async () => {
     let fail = true
     server.use(

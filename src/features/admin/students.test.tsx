@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import QRCode from 'qrcode'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
@@ -290,6 +291,31 @@ describe('A-02 학생 추가', () => {
     expect(within(table).getByRole('row', { name: /새학생/ })).toBeInTheDocument()
     expect(screen.getByText('재원 20명')).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent(code)
+  })
+
+  it('교재 사용 학생 수를 넘으면(409 LICENSE_SEATS_FULL) 서버 문구, 결과 표 없음', async () => {
+    server.use(
+      http.post('*/api/v1/admin/classes/:id/students', () =>
+        HttpResponse.json(
+          {
+            code: 'LICENSE_SEATS_FULL',
+            title: '사용할 수 있는 학생 수를 넘었어요',
+            status: 409,
+          },
+          { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    )
+    const user = userEvent.setup()
+    renderAt('/admin/classes/12/students/new')
+    await screen.findByRole('heading', { name: '겨울 그린 A반 학생 추가' })
+
+    const row1 = screen.getByRole('group', { name: '1번 학생' })
+    await user.type(within(row1).getByRole('textbox', { name: '이름' }), '새학생')
+    await user.click(screen.getByRole('button', { name: '1명 등록' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('사용할 수 있는 학생 수를 넘었어요')
+    expect(screen.queryByRole('table', { name: '개인 코드' })).not.toBeInTheDocument()
   })
 
   it('모두 비어 있으면 보내지 않고 안내', async () => {
