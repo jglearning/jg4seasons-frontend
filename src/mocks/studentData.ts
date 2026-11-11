@@ -85,6 +85,8 @@ function classInfo(): Home['class'] {
     name: STUDENT_MOCK.className,
     level: { ...STUDENT_MOCK.level },
     book: { ...STUDENT_MOCK.book },
+    // 직영 학원은 늘 active(BE ADR 0031)
+    licenseStatus: 'active',
   }
 }
 

@@ -11,6 +11,7 @@ import { StatusPill, type Status } from '../../shared/ui/StatusPill'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { longDate, shortDate } from './dates'
 import { HomeScreenHint } from './HomeScreenHint'
+import { LicenseNotice } from './LicenseNotice'
 import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, type StudentHome } from './studentApi'
@@ -57,6 +58,7 @@ export function HomePage() {
       </header>
 
       <div className={styles.sections}>
+        <LicenseNotice status={data.class.licenseStatus} />
         <HomeScreenHint />
         <OverdueAlert items={data.overdue.map(overdueItem)} />
         <TodayCard today={data.today} />

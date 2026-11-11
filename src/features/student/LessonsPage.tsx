@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { StatusPill, type Status } from '../../shared/ui/StatusPill'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { dateRange } from './dates'
+import { LicenseNotice } from './LicenseNotice'
 import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, lessonsQuery, type LessonState, type StudentLessons } from './studentApi'
@@ -86,6 +87,8 @@ export function LessonsPage() {
         <LoadState query={lessons} homeLink />
       ) : (
         <div className={styles.sections}>
+          {/* 이 목록 응답의 사용 상태로(홈 응답보다 새 값) */}
+          <LicenseNotice status={lessons.data.class.licenseStatus} />
           {lessons.data.groups.map((group) => (
             <LessonGroup key={group.module} group={group} />
           ))}

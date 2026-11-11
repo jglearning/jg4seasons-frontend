@@ -68,6 +68,30 @@ describe('S-03 홈', () => {
     )
   })
 
+  it('교재 사용 중(active)이면 사용 기간 안내가 없다', async () => {
+    renderHome()
+    await todayCard()
+
+    expect(screen.queryByRole('region', { name: '사용 기간이 아니에요' })).not.toBeInTheDocument()
+  })
+
+  it.each(['before_start', 'expired'] as const)(
+    '교재 사용 상태가 %s면 맨 위에 사용 기간 안내(회차는 서버 값 그대로)',
+    async (licenseStatus) => {
+      useHome((home) => {
+        home.class.licenseStatus = licenseStatus
+      })
+      renderHome()
+      const notice = await screen.findByRole('region', { name: '사용 기간이 아니에요' })
+
+      expect(notice).toHaveTextContent('지금은 회차를 열 수 없어요. 선생님께 물어봐 주세요')
+      // 밀린 수업 경고보다 위
+      const alert = screen.getByRole('alert', { name: '밀린 수업 2개' })
+      expect(notice.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(await todayCard()).toBeInTheDocument()
+    },
+  )
+
   it('밀린 수업이 없으면 경고 칸을 숨긴다', async () => {
     useHome((h) => {
       h.overdue = []

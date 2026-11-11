@@ -179,6 +179,22 @@ describe('S-06 단어 카드', () => {
     expect(saved).toEqual([{ cardsViewed: WORD_MOCK.total }])
   })
 
+  it('교재 사용 기간이 아니면(403 LICENSE_INACTIVE) 서버 문구와 회차 목록으로', async () => {
+    server.use(
+      http.get('*/api/v1/student/lessons/:code/words', () =>
+        HttpResponse.json(
+          { code: 'LICENSE_INACTIVE', title: '사용 기간이 아니에요', status: 403 },
+          { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    )
+    renderWords()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('사용 기간이 아니에요')
+    expect(screen.getByRole('link', { name: '회차 목록으로' })).toHaveAttribute('href', '/lessons')
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+  })
+
   it('잠긴 회차(423)는 서버 문구와 회차 목록으로', async () => {
     renderWords('L2-B1-08')
 

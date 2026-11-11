@@ -231,6 +231,22 @@ describe('S-05 화면', () => {
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
   })
 
+  it('교재 사용 기간이 아니면(403 LICENSE_INACTIVE) 서버 문구와 회차 목록으로 — 다시 시도 없음', async () => {
+    server.use(
+      http.get('*/api/v1/student/lessons/:code', () =>
+        HttpResponse.json(
+          { code: 'LICENSE_INACTIVE', title: '사용 기간이 아니에요', status: 403 },
+          { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    )
+    renderLesson()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('사용 기간이 아니에요')
+    expect(screen.getByRole('link', { name: '회차 목록으로' })).toHaveAttribute('href', '/lessons')
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+  })
+
   it('못 받으면(5xx) 다시 시도 → 받으면 화면', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     let fail = true
