@@ -160,10 +160,8 @@ function WordsCard({ words }: { words: NonNullable<StudentHome['words']> }) {
   return (
     <Link to={`/lessons/${words.lessonCode}/words`} className={styles.smallCard}>
       <span className={styles.smallLabel}>오늘 단어</span>
+      {/* 암기 줄은 카드 학습 삭제와 함께 뺐다(#64) — 2.1에 본 카드 수가 오면 다시 */}
       <span className={styles.smallValue}>{words.total}개</span>
-      <span className={styles.smallSub}>
-        암기 {words.memKnown} / {words.total}
-      </span>
     </Link>
   )
 }
