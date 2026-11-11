@@ -1139,7 +1139,10 @@ export interface components {
              * @description 진도표 행 번호(휴강 행도 번호를 차지한다)
              */
             seq: number;
-            /** @enum {string} */
+            /**
+             * @description done = 이 회차 수업 날짜가 오늘(학원 날짜) 이전(응답 때 계산, 진도표 4.5와 같은 기준). 휴강 행만 남은 회차는 열이 없다
+             * @enum {string}
+             */
             status: "scheduled" | "done";
         };
         MatrixStudent: {
@@ -1232,7 +1235,10 @@ export interface components {
              * @description 진도표 행 번호(휴강 행도 하나 차지 — 24를 넘을 수 있음)
              */
             seq: number;
-            /** @enum {string} */
+            /**
+             * @description done = 수업 날짜가 오늘(학원 날짜) 이전이고 휴강이 아님(응답 때 계산, 오늘 수업은 scheduled). cancelled = 휴강
+             * @enum {string}
+             */
             status: "scheduled" | "done" | "cancelled";
         };
         SessionListResponse: {
