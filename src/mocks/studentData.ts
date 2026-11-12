@@ -90,7 +90,41 @@ function classInfo(): Home['class'] {
   }
 }
 
+/**
+ * 블랙(K) 28회차 — 진도표 순서 1~6 → 보충1 → 7~12 → 보충2 …(BE V5), 8개씩 묶음 4개(마지막 4개).
+ * dev:mock `?level=black`일 때만 쓴다. 상태·날짜는 진도표 순서(seq)로 정규 목과 같게
+ */
+function blackLessonItem(seq: number): LessonItem {
+  const supplement = seq % 7 === 0
+  const n = supplement ? seq / 7 : seq - Math.floor(seq / 7)
+  return {
+    ...lessonItem(seq),
+    number: seq,
+    code: supplement ? `K-B1-S${n}` : `K-B1-${String(n).padStart(2, '0')}`,
+    title: supplement ? `보충 ${n}` : `Reading Day ${n}`,
+    type: supplement ? 'supplement' : 'regular',
+  }
+}
+
+function buildBlackLessons(): Lessons {
+  return {
+    class: classInfo(),
+    groups: [1, 2, 3, 4].map((module) => {
+      const from = (module - 1) * 8 + 1
+      const to = Math.min(from + 7, 28)
+      return {
+        module,
+        label: `${STUDENT_MOCK.book.season} ${module}`,
+        range: { from: scheduledDate(from), to: scheduledDate(to) },
+        lessons: Array.from({ length: to - from + 1 }, (_, i) => blackLessonItem(from + i)),
+      }
+    }),
+  }
+}
+
 export function buildLessons(): Lessons {
+  // level.code는 dev:mock ?level= 스위치(mockLevel.ts)가 바꾼다 — as const 리터럴 타입이라 string으로 넓혀 비교
+  if ((STUDENT_MOCK.level.code as string) === 'K') return buildBlackLessons()
   return {
     class: classInfo(),
     groups: [1, 2, 3].map((module) => {
