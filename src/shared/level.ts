@@ -27,3 +27,25 @@ const NAMES: Record<string, LevelName> = {
 export function levelName(code: string | undefined): LevelName | undefined {
   return code === undefined ? undefined : NAMES[code]
 }
+
+/** 표지 헤더의 영어 레벨 이름("Green") — 화면에는 서버 nameKo와 같이 "Green 그린" */
+export function levelEnglish(code: string | undefined): string | undefined {
+  const name = levelName(code)
+  return name === undefined ? undefined : name[0].toUpperCase() + name.slice(1)
+}
+
+// 표지 캐릭터 그림 자리: /art/{레벨}/{계절}/cover.webp. 계절은 서버 book.season(새봄은 봄 그림)
+const SEASON_DIR: Record<string, string> = {
+  겨울: 'winter',
+  봄: 'spring',
+  새봄: 'spring',
+  여름: 'summer',
+  가을: 'fall',
+}
+
+/** 레벨·계절을 모르면 undefined — 그림 없이 색만 있는 표지 */
+export function coverArt(code: string | undefined, season: string): string | undefined {
+  const name = levelName(code)
+  const dir = SEASON_DIR[season]
+  return name === undefined || dir === undefined ? undefined : `/art/${name}/${dir}/cover.webp`
+}

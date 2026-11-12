@@ -10,9 +10,9 @@ import { HeardBar } from './HeardBar'
 import { NumberCircle } from './NumberCircle'
 import { PassageTabs } from './PassageTabs'
 import { SentenceDots } from './SentenceDots'
-import { OverdueAlert } from './OverdueAlert'
+import { ActionRow } from './ActionRow'
 import { ProgressBar } from './ProgressBar'
-import { levelName, levelProps } from '../level'
+import { coverArt, levelEnglish, levelName, levelProps } from '../level'
 import { StatusPill } from './StatusPill'
 import { StudentLayout } from './StudentLayout'
 import { Table } from './Table'
@@ -140,6 +140,23 @@ describe('levelName', () => {
   })
 })
 
+describe('levelEnglish · coverArt', () => {
+  it('영어 레벨 이름, 계절 그림 자리(새봄은 봄 그림), 모르면 undefined', () => {
+    expect(['L1', 'L2', 'L3', 'L4', 'K'].map(levelEnglish)).toEqual([
+      'Mint',
+      'Green',
+      'Blue',
+      'Navy',
+      'Black',
+    ])
+    expect(coverArt('L2', '겨울')).toBe('/art/green/winter/cover.webp')
+    expect(coverArt('K', '새봄')).toBe('/art/black/spring/cover.webp')
+    expect(coverArt('L3', '가을')).toBe('/art/blue/fall/cover.webp')
+    expect(coverArt('L9', '겨울')).toBeUndefined()
+    expect(coverArt('L2', '장마')).toBeUndefined()
+  })
+})
+
 describe('NumberCircle', () => {
   it('상태를 data-state로, 장식이라 읽지 않는다', () => {
     render(
@@ -222,32 +239,19 @@ describe('StatusPill', () => {
   })
 })
 
-describe('OverdueAlert', () => {
-  it('개수·항목·이동 링크를 보인다', () => {
+describe('ActionRow', () => {
+  it('카드 전체가 링크 — 이름은 굵은 글 + 보조 글, 아이콘·〉은 읽지 않는다', () => {
     inRouter(
-      <OverdueAlert
-        items={[
-          {
-            key: 'a',
-            title: 'Reading Day 3',
-            detail: '12/15 (화) 수업 · 지문 듣기 2 / 6에서 멈춤',
-            action: { label: '이어서', to: '/lessons/L2-B1-03' },
-          },
-        ]}
+      <ActionRow
+        to="/lessons"
+        icon={<span>!</span>}
+        title="밀린 수업 2개"
+        detail="Reading Day 3 · 4 — 다음 수업 전에 끝내요"
       />,
     )
-    const alert = screen.getByRole('alert', { name: '밀린 수업 1개' })
-    expect(alert).toHaveTextContent('다음 수업 전에 끝내요')
-    expect(alert).toHaveTextContent('12/15 (화) 수업 · 지문 듣기 2 / 6에서 멈춤')
-    expect(screen.getByRole('link', { name: 'Reading Day 3 이어서' })).toHaveAttribute(
-      'href',
-      '/lessons/L2-B1-03',
-    )
-  })
-
-  it('항목이 없으면 그리지 않는다', () => {
-    inRouter(<OverdueAlert items={[]} />)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    const link = screen.getByRole('link')
+    expect(link).toHaveAttribute('href', '/lessons')
+    expect(link).toHaveAccessibleName('밀린 수업 2개 Reading Day 3 · 4 — 다음 수업 전에 끝내요')
   })
 })
 

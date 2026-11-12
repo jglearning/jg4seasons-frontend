@@ -1,0 +1,52 @@
+/* 표지 헤더 — 학생 화면 틀(StudentLayout)의 좌우 여백을 넘어 화면 폭 전체 */
+.cover {
+  --fade: var(--L-tint);
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  margin: 0 calc(var(--gutter-student) * -1);
+  background: var(--L);
+  color: var(--L-on);
+}
+
+.toWhite {
+  --fade: var(--white);
+}
+
+/* 캐릭터: 오른쪽에 붙임 262 × 헤더 높이, 왼쪽 30%는 헤더 색에 녹인다(마스크는 알파만 쓴다) */
+.art {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 262px;
+  height: 100%;
+  object-fit: cover;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 30%);
+  mask-image: linear-gradient(to right, transparent 0%, black 30%);
+}
+
+.content {
+  position: relative;
+  padding: var(--space-5) var(--gutter-student) 0;
+}
+
+.action {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+/* 표지 색 면이 아래 바탕으로 넘어가는 경계 40px(DESIGN.md 1.6 — 그라데이션은 여기만) */
+.fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--fade) 0%, transparent) 0%,
+    var(--fade) 100%
+  );
+}
