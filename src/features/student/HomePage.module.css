@@ -49,11 +49,22 @@
   font-weight: 800;
 }
 
+/* 설정: 누르는 자리 44×44, 안에 지름 40 받침(표지 색 면) + 톱니(표지 글자색). 그림자 없음 */
 .settings {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 50%;
   color: var(--L-on);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settingsBack {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--L);
   display: inline-flex;
   align-items: center;
   justify-content: center;

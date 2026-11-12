@@ -1,25 +1,25 @@
-/* 표지 헤더 — 학생 화면 틀(StudentLayout)의 좌우 여백을 넘어 화면 폭 전체 */
+/* 표지 헤더 — 학생 화면 틀(StudentLayout)의 좌우 여백을 넘어 화면 폭 전체, 아래 두 모서리 반경 28 */
 .cover {
-  --fade: var(--L-tint);
   position: relative;
   flex: none;
   overflow: hidden;
+  /* svh를 모르는 브라우저는 344 고정 */
+  height: 344px;
+  height: clamp(260px, 41svh, 344px);
   margin: 0 calc(var(--gutter-student) * -1);
+  border-radius: 0 0 28px 28px;
   background: var(--L);
   color: var(--L-on);
 }
 
-.toWhite {
-  --fade: var(--white);
-}
-
-/* 캐릭터: 오른쪽에 붙임 262 × 헤더 높이, 왼쪽 30%는 헤더 색에 녹인다(마스크는 알파만 쓴다) */
+/* 캐릭터: 오른쪽에 붙임, 높이 = 헤더, 폭 = 높이 × 262/344(≈ 0.76). 왼쪽 30%는 헤더 색에 녹인다(마스크는 알파만) */
 .art {
   position: absolute;
   top: 0;
   right: 0;
-  width: 262px;
   height: 100%;
+  width: auto;
+  aspect-ratio: 262 / 344;
   object-fit: cover;
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 30%);
   mask-image: linear-gradient(to right, transparent 0%, black 30%);
@@ -34,19 +34,4 @@
   position: absolute;
   top: 12px;
   right: 12px;
-}
-
-/* 표지 색 면이 아래 바탕으로 넘어가는 경계 40px(DESIGN.md 1.6 — 그라데이션은 여기만) */
-.fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 40px;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--fade) 0%, transparent) 0%,
-    var(--fade) 100%
-  );
 }

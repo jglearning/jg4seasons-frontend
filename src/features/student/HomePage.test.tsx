@@ -90,16 +90,31 @@ describe('S-03 홈', () => {
     )
   })
 
-  it('밀린 수업: 한 줄 요약(회차 이름 + 번호, 다음 수업 전에), 누르면 회차 목록 — 회차별 버튼은 없다', async () => {
+  it('밀린 수업: 한 줄 요약(회차 이름 + 번호만), 누르면 회차 목록 — 회차별 버튼은 없다', async () => {
     renderHome()
     await heading()
 
     const row = overdueLink()!
-    expect(row).toHaveTextContent('밀린 수업 2개')
-    expect(row).toHaveTextContent('Reading Day 3 · 4 — 다음 수업 전에 끝내요')
+    expect(row).toHaveAccessibleName('밀린 수업 2개 Reading Day 3 · 4')
+    expect(row).not.toHaveTextContent('다음 수업 전에')
     expect(row).toHaveAttribute('href', '/lessons')
     expect(screen.queryByRole('link', { name: /이어서$/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /시작$/ })).not.toBeInTheDocument()
+  })
+
+  it('밀린 수업이 4개 이상이면 앞의 3개 + "외 n개"', async () => {
+    useHome((h) => {
+      const [a] = h.overdue
+      h.overdue = [3, 4, 6, 7, 9].map((n, i) => ({
+        ...a,
+        seq: 100 + i,
+        lesson: { ...a.lesson, code: `L2-B1-0${n}`, title: `Reading Day ${n}` },
+      }))
+    })
+    renderHome()
+    await heading()
+
+    expect(overdueLink()).toHaveAccessibleName('밀린 수업 5개 Reading Day 3 · 4 · 6 외 2개')
   })
 
   it('교재 사용 중(active)이면 사용 기간 안내가 없다', async () => {
@@ -407,14 +422,18 @@ describe('S-03 홈', () => {
 describe('S-03 홈 화면에 추가 안내', () => {
   const hint = () => screen.queryByRole('region', { name: '홈 화면에 추가' })
 
-  it('헤더 바로 아래 맨 위에 보이고, 닫으면 기기에 닫은 표시만 남기고 다시 열어도 안 보인다', async () => {
+  it('내용 맨 아래(오늘 단어·다음 수업 뒤)에 보이고, 닫으면 기기에 닫은 표시만 남기고 다시 열어도 안 보인다', async () => {
     const { container, unmount } = renderHome()
     await heading()
 
     const card = hint()!
     expect(card).toHaveTextContent('홈 화면에 추가하면 다음부터 바로 열 수 있어요')
-    // 헤더 아래 칸들 중 첫째
-    expect(card.parentElement!.firstElementChild).toBe(card)
+    // 헤더 아래 칸들 중 마지막, 다음 수업 상자보다 뒤
+    expect(card.parentElement!.lastElementChild).toBe(card)
+    expect(
+      screen.getByText('다음 수업').compareDocumentPosition(card) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(container.contains(card)).toBe(true)
 
     await userEvent.setup().click(within(card).getByRole('button', { name: '닫기' }))

@@ -50,7 +50,10 @@ export function HomePage() {
         art={coverArt(level.code, data.class.book.season)}
         action={
           <Link to="/settings" className={styles.settings} aria-label="설정">
-            <Settings size={24} strokeWidth={2} aria-hidden />
+            {/* 지름 40 받침(표지 색) — 캐릭터 그림 위에서도 톱니가 보이게(지시문 §6.3-6) */}
+            <span className={styles.settingsBack} aria-hidden>
+              <Settings size={24} strokeWidth={2} />
+            </span>
           </Link>
         }
       >
@@ -68,9 +71,8 @@ export function HomePage() {
       </CoverHeader>
 
       <div className={styles.body}>
-        {/* 사용 기간·홈 화면 추가 안내는 지금 구성 그대로 헤더 바로 아래(지시문 §6.3) */}
+        {/* 사용 기간 안내는 지금 구성 그대로 헤더 바로 아래, 홈 화면 추가 안내는 맨 아래(지시문 §6.3, 11/12 밤) */}
         <LicenseNotice status={data.class.licenseStatus} />
-        <HomeScreenHint />
         <div className={styles.who}>
           <p className={styles.whoName}>
             {data.class.name}
@@ -97,6 +99,8 @@ export function HomePage() {
             </div>
           )}
         </div>
+
+        <HomeScreenHint />
       </div>
 
       <StudentTabs home={data} />
@@ -149,15 +153,22 @@ function TodayProgress({ today }: { today: NonNullable<StudentHome['today']> }) 
 /** 밀린 수업 한 줄 요약 — 회차는 S-04에서 고른다. 없으면 그리지 않는다 */
 function OverdueRow({ overdue }: { overdue: StudentHome['overdue'] }) {
   if (overdue.length === 0) return null
-  // "Reading Day 3 · 4" — 첫 회차 이름 + 나머지는 번호만(보충 회차 등 이름이 다르면 이름 그대로)
-  const [first, ...rest] = overdue.map((o) => o.lesson.title)
-  const names = [first, ...rest.map((t) => t.replace(/^Reading Day /, ''))].join(' · ')
   return (
     <ActionRow
       to="/lessons"
       icon={<CircleAlert size={24} strokeWidth={2} className={styles.badIcon} />}
       title={`밀린 수업 ${overdue.length}개`}
-      detail={`${names} — 다음 수업 전에 끝내요`}
+      detail={overdueNames(overdue.map((o) => o.lesson.title))}
     />
   )
+}
+
+/** 보조 글 "Reading Day 3 · 4" — 첫 회차 이름 + 나머지는 번호만(이름 꼴이 다르면 그대로). 4개 이상이면 앞의 3개 + "외 n개" */
+const SHOWN = 3
+function overdueNames(titles: string[]): string {
+  const shown = titles.slice(0, titles.length > SHOWN ? SHOWN : titles.length)
+  const [first, ...rest] = shown
+  const names = [first, ...rest.map((t) => t.replace(/^Reading Day /, ''))].join(' · ')
+  const more = titles.length - shown.length
+  return more > 0 ? `${names} 외 ${more}개` : names
 }
