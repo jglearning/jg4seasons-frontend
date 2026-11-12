@@ -18,16 +18,6 @@
   white-space: nowrap;
 }
 
-.tile {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-height: 72px;
-  padding: var(--space-2) 10px;
-  border-radius: var(--radius-tile);
-  font-size: 13px;
-}
-
 /* 교사 매트릭스 칸: 36×26, 반경 13(가이드 §5 교사 표). 글자가 길면("밀림") 폭만 늘어난다 */
 .cell {
   display: inline-flex;

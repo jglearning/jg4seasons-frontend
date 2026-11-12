@@ -4,20 +4,17 @@ import {
   lessonDayLabel,
   lessonLevelCode,
   lessonNoLabel,
-  lessonTileNo,
   voiceLabel,
 } from './lessonLabel'
 
 describe('회차 번호는 code 끝(백엔드 ADR-27)', () => {
-  it('정규 회차: 5회 · 05 · Day 5', () => {
+  it('정규 회차: 5회 · Day 5', () => {
     expect(lessonNoLabel('L2-B1-05')).toBe('5회')
-    expect(lessonTileNo('L2-B1-05')).toBe('05')
     expect(lessonDayLabel('L2-B1-05')).toBe('Day 5')
   })
 
-  it('블랙: number(진도표 순서)와 다른 교재 번호 — K-B1-07 → 7회, K-B1-24 → 24', () => {
+  it('블랙: number(진도표 순서)와 다른 교재 번호 — K-B1-07 → 7회', () => {
     expect(lessonNoLabel('K-B1-07')).toBe('7회')
-    expect(lessonTileNo('K-B1-24')).toBe('24')
   })
 
   it('번호 동그라미: 5 · S1(앞의 0 없이)', () => {
@@ -26,9 +23,8 @@ describe('회차 번호는 code 끝(백엔드 ADR-27)', () => {
     expect(lessonCircleNo('K-B1-S1')).toBe('S1')
   })
 
-  it('보충: K-B1-S1 → 보충 1 · S1', () => {
+  it('보충: K-B1-S1 → 보충 1', () => {
     expect(lessonNoLabel('K-B1-S1')).toBe('보충 1')
-    expect(lessonTileNo('K-B1-S4')).toBe('S4')
     expect(lessonDayLabel('K-B1-S2')).toBe('보충 2')
   })
 
