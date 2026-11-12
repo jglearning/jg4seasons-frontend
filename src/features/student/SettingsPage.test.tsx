@@ -165,15 +165,12 @@ describe('S-07 설정', () => {
 })
 
 describe('S-03 홈 → S-07', () => {
-  it('머리 줄 오른쪽: 레벨 칩 다음 설정 아이콘', async () => {
+  it('표지 헤더 오른쪽 위 설정 아이콘 → S-07', async () => {
     const user = userEvent.setup()
     const { router } = renderSettings('/')
-    await screen.findByRole('heading', { name: '제이G 4 Seasons' })
+    await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' })
 
-    const settings = screen.getByRole('link', { name: '설정' })
-    const chip = screen.getByText('그린 · 겨울', { exact: false })
-    expect(chip.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-
+    const settings = within(screen.getByRole('banner')).getByRole('link', { name: '설정' })
     await user.click(settings)
     expect(router.state.location.pathname).toBe('/settings')
   })

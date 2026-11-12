@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { Settings } from 'lucide-react'
+import { CircleAlert, Settings } from 'lucide-react'
 import { Link } from 'react-router'
 import { meQuery } from '../../api/session'
+import { coverArt, levelEnglish } from '../../shared/level'
+import { lessonCircleNo } from '../../shared/lessonLabel'
+import { ActionRow } from '../../shared/ui/ActionRow'
 import { ButtonLink } from '../../shared/ui/Button'
-import { Card } from '../../shared/ui/Card'
-import { LevelChip } from '../../shared/ui/LevelChip'
-import { OverdueAlert, type OverdueItem } from '../../shared/ui/OverdueAlert'
+import { CoverHeader } from '../../shared/ui/CoverHeader'
 import { ProgressBar } from '../../shared/ui/ProgressBar'
-import { StatusPill, type Status } from '../../shared/ui/StatusPill'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { longDate, shortDate } from './dates'
 import { HomeScreenHint } from './HomeScreenHint'
@@ -15,10 +15,12 @@ import { LicenseNotice } from './LicenseNotice'
 import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, type StudentHome } from './studentApi'
-import styles from './Student.module.css'
-import { lessonNoLabel } from '../../shared/lessonLabel'
+import styles from './HomePage.module.css'
 
-// S-03 홈(STU-01, 와이어프레임 Main). 진도·밀림·상태는 서버 값을 보여 주기만 한다
+// S-03 홈(STU-01, v0.2 지시문 §6.3 · 와이어프레임 Main·S03_HomeLevels).
+// 표지 헤더(레벨 이름·오늘 회차 번호와 이름·설정·캐릭터) → 반·이름·오늘 수업 → 지문 진행 → 주 버튼
+// → 밀린 수업 한 줄(→ S-04) → 오늘 단어·다음 수업 → 떠 있는 탭 바. 진도·밀림·상태는 서버 값을 보여 주기만 한다.
+// 서버 today는 "수업일이 지난 회차 중 가장 늦은 것"이라 비는 때는 개강 전뿐 — 그때는 다음 수업(첫 수업)을 헤더에 쓴다
 
 export function HomePage() {
   const home = useQuery(homeQuery)
@@ -29,51 +31,71 @@ export function HomePage() {
   if (home.data === undefined) {
     return (
       <StudentLayout tabBar>
-        <LoadState query={home} />
+        <div className={styles.loading}>
+          <LoadState query={home} />
+        </div>
         <StudentTabs home={undefined} />
       </StudentLayout>
     )
   }
 
   const data = home.data
-  return (
-    <StudentLayout levelCode={data.class.level.code} tabBar>
-      <header className={styles.header}>
-        {/* 오른쪽: 레벨 칩 → 설정 아이콘(S07 검토 안 A, 11/9) */}
-        <div className={styles.brandRow}>
-          <h1 className={styles.brand}>제이G 4 Seasons</h1>
-          <div className={styles.headEnd}>
-            <LevelChip>
-              {data.class.level.nameKo} · {data.class.book.season}
-            </LevelChip>
-            <Link to="/settings" className={styles.settingsLink} aria-label="설정">
-              <Settings size={22} strokeWidth={2} aria-hidden />
-            </Link>
-          </div>
-        </div>
-        <p className={styles.who}>
-          {data.class.name}
-          {me.data !== undefined && ` · ${me.data.name}`}
-        </p>
-      </header>
+  const level = data.class.level
+  const headLesson = data.today?.lesson ?? data.next?.lesson
+  const english = levelEnglish(level.code)
 
-      <div className={styles.sections}>
+  return (
+    <StudentLayout levelCode={level.code} tabBar>
+      <CoverHeader
+        art={coverArt(level.code, data.class.book.season)}
+        action={
+          <Link to="/settings" className={styles.settings} aria-label="설정">
+            <Settings size={24} strokeWidth={2} aria-hidden />
+          </Link>
+        }
+      >
+        <div className={styles.cover}>
+          <p className={styles.level}>{english ? `${english} ${level.nameKo}` : level.nameKo}</p>
+          {headLesson && (
+            <div className={styles.lesson}>
+              <span className={styles.lessonNo} aria-hidden>
+                {lessonCircleNo(headLesson.code)}
+              </span>
+              <h1 className={styles.lessonTitle}>{headLesson.title}</h1>
+            </div>
+          )}
+        </div>
+      </CoverHeader>
+
+      <div className={styles.body}>
+        {/* 사용 기간·홈 화면 추가 안내는 지금 구성 그대로 헤더 바로 아래(지시문 §6.3) */}
         <LicenseNotice status={data.class.licenseStatus} />
         <HomeScreenHint />
-        <OverdueAlert items={data.overdue.map(overdueItem)} />
-        <TodayCard today={data.today} />
-        <div className={styles.pair}>
-          {data.words !== null && <WordsCard words={data.words} />}
-          {data.next !== null && <NextCard next={data.next} />}
+        <div className={styles.who}>
+          <p className={styles.whoName}>
+            {data.class.name}
+            {me.data !== undefined && ` · ${me.data.name}`}
+          </p>
+          <p className={styles.whoLesson}>{lessonLine(data)}</p>
         </div>
-        <div className={styles.allLessons}>
-          <Link to="/lessons" className={styles.textLink}>
-            전체 회차 보기
-          </Link>
-          <span className={styles.stats}>
-            완료 {data.stats.completedLessons} · 밀림 {data.stats.overdueLessons} · 전체{' '}
-            {data.stats.totalLessons}
-          </span>
+
+        {data.today && <TodayProgress today={data.today} />}
+
+        <OverdueRow overdue={data.overdue} />
+
+        <div className={styles.pair}>
+          {data.words !== null && (
+            <Link to={`/lessons/${data.words.lessonCode}/words`} className={styles.wordsCard}>
+              <span className={styles.smallLabel}>오늘 단어</span>
+              <span className={styles.smallValue}>{data.words.total}개</span>
+            </Link>
+          )}
+          {data.next !== null && (
+            <div className={styles.nextBox}>
+              <span className={styles.smallLabel}>다음 수업</span>
+              <span className={styles.smallValue}>{shortDate(data.next.scheduledDate)}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -82,96 +104,60 @@ export function HomePage() {
   )
 }
 
-function overdueItem(o: StudentHome['overdue'][number]): OverdueItem {
-  const when = `${shortDate(o.scheduledDate)} 수업`
-  const where =
-    o.kind === 'stopped'
-      ? `지문 듣기 ${o.progress.passagesDone} / ${o.progress.passagesTotal}에서 멈춤`
-      : '아직 시작 안 함'
-  return {
-    key: String(o.seq),
-    title: o.lesson.title,
-    detail: `${when} · ${where}`,
-    action: { label: o.kind === 'stopped' ? '이어서' : '시작', to: `/lessons/${o.lesson.code}` },
+/** 헤더 아래 둘째 줄: "오늘 수업 · 12월 19일 (금) · 겨울 1 · L2-B1-05" / 개강 전 "첫 수업 · 12월 22일 (월)" */
+function lessonLine(data: StudentHome): string {
+  if (data.today) {
+    return `오늘 수업 · ${longDate(data.today.scheduledDate)} · ${data.today.groupLabel} · ${data.today.lesson.code}`
   }
+  if (data.next) return `첫 수업 · ${longDate(data.next.scheduledDate)}`
+  return '오늘은 수업이 없어요'
 }
 
 type Progress = NonNullable<StudentHome['today']>['progress']
 
-type TodayLook = { status: Status; label: string; action: string }
-
-const TODAY_STATUS: Record<Progress['status'], TodayLook> = {
-  not_started: { status: 'open', label: '시작 전', action: '듣기 시작' },
-  in_progress: { status: 'in_progress', label: '진행 중', action: '이어서 듣기' },
-  completed: { status: 'completed', label: '완료', action: '다시 듣기' },
+const ACTION: Record<Progress['status'], string> = {
+  not_started: '듣기 시작',
+  in_progress: '이어서 듣기',
+  completed: '다시 듣기',
 }
 
-// 계약에 없는 상태 값이 오면 화면 전체를 죽이지 않고 상태 표시만 뺀다(코드·값만 기록)
-function todayLook(status: Progress['status']): TodayLook | undefined {
-  const look = (TODAY_STATUS as Partial<Record<string, TodayLook>>)[status]
-  if (look === undefined) console.error('[student] unknown progress status', status)
-  return look
-}
-
-function TodayCard({ today }: { today: StudentHome['today'] }) {
-  if (today === null) {
-    return (
-      <Card aria-label="오늘 수업">
-        <p className={styles.empty}>오늘은 수업이 없어요</p>
-      </Card>
-    )
-  }
-  const look = todayLook(today.progress.status)
+function TodayProgress({ today }: { today: NonNullable<StudentHome['today']> }) {
   const done = today.progress.passagesDone
   const total = today.progress.passagesTotal
+  // 계약에 없는 상태 값이 오면 화면 전체를 죽이지 않고 기본 글로(코드·값만 기록)
+  const action = (ACTION as Partial<Record<string, string>>)[today.progress.status]
+  if (action === undefined)
+    console.error('[student] unknown progress status', today.progress.status)
   return (
-    <Card aria-labelledby="today-title">
-      <p className={styles.eyebrow}>오늘 수업 · {longDate(today.scheduledDate)}</p>
-      <div className={styles.metaRow}>
-        <span className={styles.meta}>
-          {today.groupLabel} · {lessonNoLabel(today.lesson.code)} ·{' '}
-          <span className={styles.code}>{today.lesson.code}</span>
-        </span>
-        {look !== undefined && <StatusPill status={look.status}>{look.label}</StatusPill>}
+    <>
+      <div className={styles.progress}>
+        <div className={styles.progressRow}>
+          <span className={styles.progressLabel}>지문 듣기</span>
+          <span className={styles.progressCount}>
+            {done} / {total}
+          </span>
+        </div>
+        <ProgressBar value={done} max={total} label="지문 듣기" />
       </div>
-      <h2 id="today-title" className={styles.cardTitle}>
-        {today.lesson.title}
-      </h2>
-      <ol className={styles.passages}>
-        {today.lesson.passages.map((p) => (
-          <li key={p.no}>{p.title}</li>
-        ))}
-      </ol>
-      <div className={styles.progressRow}>
-        <span>지문 듣기</span>
-        <span className={styles.count}>
-          {done} / {total}
-        </span>
-      </div>
-      <ProgressBar value={done} max={total} label="지문 듣기" />
-      <ButtonLink to={`/lessons/${today.lesson.code}`} block className={styles.mainAction}>
-        {look?.action ?? '듣기'}
+      <ButtonLink to={`/lessons/${today.lesson.code}`} block>
+        {action ?? '듣기'}
       </ButtonLink>
-    </Card>
+    </>
   )
 }
 
-function WordsCard({ words }: { words: NonNullable<StudentHome['words']> }) {
+/** 밀린 수업 한 줄 요약 — 회차는 S-04에서 고른다. 없으면 그리지 않는다 */
+function OverdueRow({ overdue }: { overdue: StudentHome['overdue'] }) {
+  if (overdue.length === 0) return null
+  // "Reading Day 3 · 4" — 첫 회차 이름 + 나머지는 번호만(보충 회차 등 이름이 다르면 이름 그대로)
+  const [first, ...rest] = overdue.map((o) => o.lesson.title)
+  const names = [first, ...rest.map((t) => t.replace(/^Reading Day /, ''))].join(' · ')
   return (
-    <Link to={`/lessons/${words.lessonCode}/words`} className={styles.smallCard}>
-      <span className={styles.smallLabel}>오늘 단어</span>
-      {/* 암기 줄은 카드 학습 삭제와 함께 뺐다(#64) — 2.1에 본 카드 수가 오면 다시 */}
-      <span className={styles.smallValue}>{words.total}개</span>
-    </Link>
-  )
-}
-
-function NextCard({ next }: { next: NonNullable<StudentHome['next']> }) {
-  return (
-    <div className={styles.smallCard}>
-      <span className={styles.smallLabel}>다음 수업</span>
-      <span className={styles.smallValue}>{shortDate(next.scheduledDate)}</span>
-      <span className={styles.smallSub}>{next.lesson.title}</span>
-    </div>
+    <ActionRow
+      to="/lessons"
+      icon={<CircleAlert size={24} strokeWidth={2} className={styles.badIcon} />}
+      title={`밀린 수업 ${overdue.length}개`}
+      detail={`${names} — 다음 수업 전에 끝내요`}
+    />
   )
 }
