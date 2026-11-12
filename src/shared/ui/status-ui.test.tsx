@@ -1,13 +1,15 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { House, LayoutGrid } from 'lucide-react'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import type { ReactElement } from 'react'
 import { describe, expect, it } from 'vitest'
 import { BottomBar, type BottomTab } from './BottomBar'
+import { Button } from './Button'
+import { NumberCircle } from './NumberCircle'
 import { OverdueAlert } from './OverdueAlert'
 import { ProgressBar } from './ProgressBar'
-import { levelProps } from '../level'
+import { levelName, levelProps } from '../level'
 import { StatusPill } from './StatusPill'
 import { StudentLayout } from './StudentLayout'
 import { Table } from './Table'
@@ -84,15 +86,105 @@ describe('ProgressBar', () => {
 })
 
 describe('StudentLayout', () => {
-  it('#RRGGBB 레벨 색만 --level로 넣는다', () => {
-    const { container, rerender } = render(<StudentLayout levelColorHex="#1F7A4F">x</StudentLayout>)
-    const main = container.querySelector('main') as HTMLElement
-    expect(main.style.getPropertyValue('--level')).toBe('#1F7A4F')
-    expect(main).toHaveAttribute('data-level')
+  const html = document.documentElement
 
-    rerender(<StudentLayout levelColorHex="red; background: url(x)">x</StudentLayout>)
-    expect(main.style.getPropertyValue('--level')).toBe('')
-    expect(main).not.toHaveAttribute('data-level')
+  it('level.code를 <html data-level> 이름으로 붙이고, 모르는 code는 none', () => {
+    const { rerender } = render(<StudentLayout levelCode="L2">x</StudentLayout>)
+    expect(html).toHaveAttribute('data-level', 'green')
+    rerender(<StudentLayout levelCode="K">x</StudentLayout>)
+    expect(html).toHaveAttribute('data-level', 'black')
+    rerender(<StudentLayout levelCode="L9">x</StudentLayout>)
+    expect(html).toHaveAttribute('data-level', 'none')
+    rerender(<StudentLayout>x</StudentLayout>)
+    expect(html).toHaveAttribute('data-level', 'none')
+  })
+
+  it('학생 화면을 떠나 교사 화면으로 가면 <html>에 레벨이 남지 않는다', async () => {
+    const router = createMemoryRouter(
+      [
+        { path: '/', element: <StudentLayout levelCode="L3">학생 홈</StudentLayout> },
+        { path: '/teacher', element: <main>교사 반 목록</main> },
+      ],
+      { initialEntries: ['/'] },
+    )
+    render(<RouterProvider router={router} />)
+    expect(html).toHaveAttribute('data-level', 'blue')
+    await act(() => router.navigate('/teacher'))
+    expect(screen.getByText('교사 반 목록')).toBeInTheDocument()
+    expect(html).not.toHaveAttribute('data-level')
+  })
+
+  it('tabBar면 떠 있는 탭 바 자리만큼 아래 여백 클래스', () => {
+    const { container, rerender } = render(<StudentLayout>x</StudentLayout>)
+    const main = container.querySelector('main') as HTMLElement
+    expect(main.className).not.toMatch(/withTabBar/)
+    rerender(<StudentLayout tabBar>x</StudentLayout>)
+    expect(main.className).toMatch(/withTabBar/)
+  })
+})
+
+describe('levelName', () => {
+  it('L1~L4·K를 DESIGN.md 레벨 이름으로, 그 밖은 undefined', () => {
+    expect(['L1', 'L2', 'L3', 'L4', 'K'].map(levelName)).toEqual([
+      'mint',
+      'green',
+      'blue',
+      'navy',
+      'black',
+    ])
+    expect(levelName(undefined)).toBeUndefined()
+    expect(levelName('l2')).toBeUndefined()
+  })
+})
+
+describe('NumberCircle', () => {
+  it('상태를 data-state로, 장식이라 읽지 않는다', () => {
+    render(
+      <NumberCircle state="overdue" size={56}>
+        3
+      </NumberCircle>,
+    )
+    const circle = screen.getByText('3')
+    expect(circle).toHaveAttribute('data-state', 'overdue')
+    expect(circle).toHaveAttribute('aria-hidden', 'true')
+    expect(circle.style.getPropertyValue('--nc-size')).toBe('56px')
+    expect(circle.style.getPropertyValue('--nc-font')).toBe(`${Math.round(56 * 0.42)}px`)
+  })
+
+  it('pressable은 누를 수 있는 상태에만 — 잠김·레벨 번호는 턱이 없다', () => {
+    const { rerender } = render(
+      <NumberCircle state="open" size={46} fontSize={19} pressable>
+        1
+      </NumberCircle>,
+    )
+    expect(screen.getByText('1').className).toMatch(/pressable/)
+    expect(screen.getByText('1').style.getPropertyValue('--nc-font')).toBe('19px')
+    rerender(
+      <NumberCircle state="locked" size={46} pressable>
+        1
+      </NumberCircle>,
+    )
+    expect(screen.getByText('1').className).not.toMatch(/pressable/)
+    rerender(
+      <NumberCircle state="level" size={44} pressable>
+        1
+      </NumberCircle>,
+    )
+    expect(screen.getByText('1').className).not.toMatch(/pressable/)
+  })
+})
+
+describe('Button', () => {
+  it('학생 크기와 교사 크기는 다른 클래스(학생만 턱 버튼)', () => {
+    render(
+      <>
+        <Button>들어가기</Button>
+        <Button size="teacher">저장</Button>
+      </>,
+    )
+    expect(screen.getByRole('button', { name: '들어가기' }).className).toMatch(/student/)
+    expect(screen.getByRole('button', { name: '저장' }).className).toMatch(/teacher/)
+    expect(screen.getByRole('button', { name: '저장' }).className).not.toMatch(/student/)
   })
 })
 

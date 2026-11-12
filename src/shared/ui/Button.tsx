@@ -2,7 +2,8 @@ import type { ComponentPropsWithRef } from 'react'
 import { Link, type LinkProps } from 'react-router'
 import styles from './Button.module.css'
 
-// 디자인 가이드 §5 Button. 주 버튼은 ink, 레벨 색 버튼은 없다
+// 학생(size student): DESIGN.md 1.2 턱 버튼 — 주 버튼은 레벨 진한 색(--L-deep), 누르면 3px 내려감.
+// 교사(size teacher): 05 디자인가이드 §5 — 주 버튼은 ink, 그림자 없음
 type Look = {
   variant?: 'primary' | 'secondary'
   size?: 'student' | 'teacher'

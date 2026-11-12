@@ -1,33 +1,76 @@
-/* 디자인 토큰 — 색·서체·간격·반경은 이 파일에서만 정의한다 (05 디자인가이드 §2~§4, §8) */
+/* 디자인 토큰 — 색·서체·간격·반경은 이 파일에서만 정의한다
+   학생 화면은 DESIGN.md(v0.2), 교사·관리자 화면은 05 디자인가이드. 중립색·상태색은 둘이 같이 쓴다 */
 
 :root {
   color-scheme: light;
 
-  /* 중립색 §2.2 */
-  --ink: #1f2937;
-  --muted: #6b7280;
-  --faint: #9ca3af; /* 14px 이상에서만 */
-  --line: #e5e7eb;
-  --line-strong: #cbd5e1;
-  --surface: #f9fafb;
-  --surface-2: #f3f4f6;
+  /* 중립색 — DESIGN.md 1.1(v0.2 값, 교사 화면도 같이) */
+  --ink: #1a191c;
+  --muted: #6c6c6e;
+  --faint: #9f9ea0; /* 14px 이상에서만 */
+  --line: #e4e3e4;
+  --line-strong: #cdcccd;
   --white: #ffffff;
+  --cream: #fff1d3;
+  --neutral-bg: #f4f4f5; /* 레벨을 모르는 학생 화면(S-01) 바탕 */
+  /* 교사 화면의 옅은 면 두 단계. 새 색을 만들지 않고 neutral-bg에서 계산 */
+  --surface: color-mix(in srgb, var(--neutral-bg) 50%, var(--white));
+  --surface-2: var(--neutral-bg);
 
-  /* 상태색 §2.3 */
-  --warning: #b45309; /* 글자로만 */
-  --danger: #b91c1c;
-  --danger-line: #dc2626;
-  --danger-tint: #fef2f2; /* 밀린 수업 경고 칸·회차 타일에서만 채움 */
-  --danger-card-line: #fca5a5; /* OverdueAlert 항목 카드 테두리 §5 */
-  --current-col: #eef2ff;
+  /* 상태색 — DESIGN.md 1.5 */
+  --bad: #d9502e; /* 아이콘·테두리. 작은 글자에는 쓰지 않는다 */
+  --bad-bg: #fdebe5;
+  --bad-deep: #b23e20; /* 흰 글자를 올리는 작은 면(탭 배지) */
+  --ok: #2a8553;
+  --ok-bg: #eaf4ee;
+  --warning: #b45309; /* 글자로만(교사) */
+  /* 옛 이름 — 쓰는 곳을 그대로 두고 v0.2 값을 가리킨다 */
+  --danger: var(--bad-deep);
+  --danger-line: var(--bad);
+  --danger-tint: var(--bad-bg);
+  --danger-card-line: color-mix(in srgb, var(--bad) 45%, var(--white));
+  --current-col: #eef2ff; /* 교사 매트릭스 지금 회차 열 */
 
-  /* 서체 §3 */
+  /* 레벨 팔레트 — DESIGN.md 1.1(교재 표지 기준) */
+  --mint: #83cfb4;
+  --mint-on: #123f37;
+  --mint-tint: #f3faf8;
+  --mint-deep: #1f8a70;
+  --green: #2d8e58;
+  --green-on: #fff1d3;
+  --green-tint: #eaf4ee;
+  --green-deep: #2a8553;
+  --blue: #2266be;
+  --blue-on: #fff1d3;
+  --blue-tint: #e9f0f8;
+  --blue-deep: #2266be;
+  --navy: #1c2e64;
+  --navy-on: #fff1d3;
+  --navy-tint: #e8eaf0;
+  --navy-deep: #1c2e64;
+  --black: #1a191c;
+  --black-on: #fff1d3;
+  --black-tint: #f4f4f5;
+  --black-deep: #1a191c;
+  --black-point: #ff7a59;
+  --paper: #fffaf0; /* S-06 종이 전용 */
+  --paper-handle: #ddd6c6;
+
+  /* 레벨을 모를 때(S-01 등)의 --L-* — 바탕은 neutral-bg, 주 버튼은 ink + 검은 턱(DESIGN.md 6.1) */
+  --L: var(--ink);
+  --L-on: var(--cream);
+  --L-tint: var(--neutral-bg);
+  --L-deep: var(--ink);
+  --L-lip: #000000;
+  --L-ring: var(--ink); /* 번호 동그라미 "지금" 고리 */
+
+  /* 서체 */
   --font-sans: 'Pretendard Variable', Pretendard, 'Noto Sans KR', system-ui, sans-serif;
   --tracking-title: -0.01em;
   --tracking-code: 0.02em;
   --tracking-join-code: 0.18em;
 
-  /* 간격 §4 — 4px 단위 */
+  /* 간격 — 4px 단위 */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -40,8 +83,9 @@
   --student-max-width: 520px;
   --sidebar-width: 240px;
 
-  /* 반경·테두리 §4 */
-  --radius-control: 12px; /* 버튼·입력창 */
+  /* 반경·테두리 */
+  --radius-control: 12px; /* 교사 버튼·입력창 */
+  --radius-button-student: 14px; /* DESIGN.md 1.2 */
   --radius-card-student: 16px;
   --radius-card-teacher: 10px;
   --radius-tile: 10px;
@@ -50,28 +94,78 @@
   --border-control: 1.5px;
   --border-card: 1px;
 
-  /* 크기 §5·§8 */
+  /* 크기 */
   --touch-min: 44px;
   --touch-student: 48px;
-  --button-h-student: 52px;
+  --button-h-student: 54px; /* DESIGN.md 1.2 */
   --button-h-teacher: 36px;
   --field-h-student: 56px;
   --field-h-teacher: 40px;
   --row-h-teacher: 40px;
+  --lip: 3px; /* 턱 높이(DESIGN.md 1.2). 재생 버튼만 4px */
+  /* 떠 있는 탭 바(DESIGN.md 1.7) — 바닥에서 띄운 거리와, 탭 바 화면 스크롤 영역의 아래 여백 */
+  --tabbar-h: 64px;
+  --tabbar-bottom: calc(22px + env(safe-area-inset-bottom));
+  --tabbar-clearance: calc(104px + env(safe-area-inset-bottom));
 
-  /* 포커스·모션 §6·§8 */
+  /* 포커스·모션 */
   --focus-ring: 2px solid var(--ink);
   --focus-offset: 2px;
-  --motion: 150ms ease-out;
-  /* hover·active에 섞어 어둡게 하는 색(§5 Button: hover 2%, active 4%) */
+  --motion: 150ms ease-out; /* 교사 화면 상태 변화 */
+  --motion-press: 80ms; /* 학생 턱 버튼 누름 */
+  /* hover·active에 섞어 어둡게 하는 색(교사 Button: hover 2%, active 4%) */
   --shade: #000000;
 
-  /* 레벨 색 §2.1 — 실제 값은 서버 level.colorHex를 [data-level] 요소에 style로 주입 */
+  /* 레벨 색 — 교사·관리자는 서버 level.colorHex를 [data-level=""] 요소에 style로 주입(level.ts) */
   --level: var(--ink);
 }
 
-/* --level-tint는 --level이 바뀌는 요소에서 다시 계산되어야 하므로 :root와 [data-level] 양쪽에 둔다 */
-:root,
-[data-level] {
-  --level-tint: color-mix(in srgb, var(--level) 12%, white);
+/* 학생 화면: StudentLayout이 <html data-level="…">을 붙인다(level.code → 이름).
+   아직 개편하지 않은 부품이 쓰는 --level도 공식 색(--L-deep)을 가리킨다 */
+[data-level='mint'] {
+  --L: var(--mint);
+  --L-on: var(--mint-on);
+  --L-tint: var(--mint-tint);
+  --L-deep: var(--mint-deep);
+  --L-lip: #186c57;
+  --L-ring: var(--mint-deep);
+}
+[data-level='green'] {
+  --L: var(--green);
+  --L-on: var(--green-on);
+  --L-tint: var(--green-tint);
+  --L-deep: var(--green-deep);
+  --L-lip: #216841;
+  --L-ring: var(--green-deep);
+}
+[data-level='blue'] {
+  --L: var(--blue);
+  --L-on: var(--blue-on);
+  --L-tint: var(--blue-tint);
+  --L-deep: var(--blue-deep);
+  --L-lip: #1b5094;
+  --L-ring: var(--blue-deep);
+}
+[data-level='navy'] {
+  --L: var(--navy);
+  --L-on: var(--navy-on);
+  --L-tint: var(--navy-tint);
+  --L-deep: var(--navy-deep);
+  --L-lip: #16244e;
+  --L-ring: var(--navy-deep);
+}
+[data-level='black'] {
+  --L: var(--black);
+  --L-on: var(--black-on);
+  --L-tint: var(--black-tint);
+  --L-deep: var(--black-deep);
+  --L-lip: #000000;
+  --L-ring: var(--black-point); /* Black 레벨의 고리는 코랄(DESIGN.md 1.4) */
+}
+[data-level='mint'],
+[data-level='green'],
+[data-level='blue'],
+[data-level='navy'],
+[data-level='black'] {
+  --level: var(--L-deep);
 }

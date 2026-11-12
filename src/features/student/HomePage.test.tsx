@@ -42,14 +42,16 @@ const heading = () => screen.findByRole('heading', { name: '제이G 4 Seasons' }
 const todayCard = () => screen.findByRole('region', { name: 'Reading Day 5' })
 
 describe('S-03 홈', () => {
-  it('반·이름·레벨 칩을 보이고 레벨 색을 서버 값으로 넣는다', async () => {
+  it('반·이름·레벨 칩을 보이고 반 레벨(level.code)을 <html data-level>로 넣는다', async () => {
     const { container } = renderHome()
     await heading()
 
     expect(screen.getByText('그린 · 겨울')).toBeInTheDocument()
     expect(screen.getByText('겨울 그린 A반 · 김민준')).toBeInTheDocument()
-    const main = container.querySelector('main') as HTMLElement
-    expect(main.style.getPropertyValue('--level')).toBe(STUDENT_MOCK.level.colorHex)
+    expect(STUDENT_MOCK.level.code).toBe('L2')
+    expect(document.documentElement).toHaveAttribute('data-level', 'green')
+    // 떠 있는 탭 바 화면 — 맨 끝이 탭 바에 가리지 않게 아래 여백
+    expect((container.querySelector('main') as HTMLElement).className).toMatch(/withTabBar/)
   })
 
   it('밀린 수업: 날짜·멈춘 곳/시작 안 함과 이어서·시작 링크', async () => {

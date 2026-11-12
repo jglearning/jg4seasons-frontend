@@ -45,3 +45,20 @@ svg {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
+
+/* 학생 화면(StudentLayout이 <html data-level>을 붙인 동안): 레벨 연한 바탕, 영문 ss06(DESIGN.md 1.1·1.3) */
+html[data-level] body {
+  background: var(--L-tint);
+  font-feature-settings: 'ss06';
+}
+
+/* 움직임 줄이기: 전환·애니메이션을 바로 바뀌게(DESIGN.md 1.3) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

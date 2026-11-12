@@ -28,7 +28,7 @@ export function HomePage() {
   // 데이터가 있으면 백그라운드 재조회가 실패해도 보던 화면을 유지한다
   if (home.data === undefined) {
     return (
-      <StudentLayout>
+      <StudentLayout tabBar>
         <LoadState query={home} />
         <StudentTabs home={undefined} />
       </StudentLayout>
@@ -37,7 +37,7 @@ export function HomePage() {
 
   const data = home.data
   return (
-    <StudentLayout levelColorHex={data.class.level.colorHex}>
+    <StudentLayout levelCode={data.class.level.code} tabBar>
       <header className={styles.header}>
         {/* 오른쪽: 레벨 칩 → 설정 아이콘(S07 검토 안 A, 11/9) */}
         <div className={styles.brandRow}>
