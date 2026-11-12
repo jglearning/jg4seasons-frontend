@@ -21,7 +21,7 @@ export function SettingsPage() {
   const level = home.data?.class.level
 
   return (
-    <StudentLayout levelColorHex={level?.colorHex}>
+    <StudentLayout levelCode={level?.code} tabBar>
       <header className={styles.subHeader}>
         <Link to="/" className={styles.backButton} aria-label="홈으로">
           <ChevronLeft size={24} strokeWidth={2} aria-hidden />

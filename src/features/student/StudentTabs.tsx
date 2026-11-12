@@ -1,4 +1,4 @@
-import { BookOpen, House, LayoutGrid } from 'lucide-react'
+import { Copy, House, List } from 'lucide-react'
 import { BottomBar, type BottomTab } from '../../shared/ui/BottomBar'
 import type { StudentHome } from './studentApi'
 
@@ -9,15 +9,15 @@ export function StudentTabs({ home }: { home: StudentHome | undefined }) {
   const wordsCode = home?.words?.lessonCode
   const words: BottomTab =
     wordsCode === undefined
-      ? { label: '단어', icon: BookOpen, unavailable: '오늘 단어 없음' }
-      : { label: '단어', icon: BookOpen, to: `/lessons/${wordsCode}/words` }
+      ? { label: '단어', icon: Copy, unavailable: '오늘 단어 없음' }
+      : { label: '단어', icon: Copy, to: `/lessons/${wordsCode}/words` }
   return (
     <BottomBar
       tabs={[
         { label: '홈', icon: House, to: '/', end: true },
         {
           label: '회차',
-          icon: LayoutGrid,
+          icon: List,
           to: '/lessons',
           end: true,
           badge: { count: overdue, label: `밀린 수업 ${overdue}개` },

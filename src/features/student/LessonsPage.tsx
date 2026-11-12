@@ -54,7 +54,7 @@ export function LessonsPage() {
 
   if (home.data === undefined) {
     return (
-      <StudentLayout>
+      <StudentLayout tabBar>
         <LoadState query={home} />
         <StudentTabs home={undefined} />
       </StudentLayout>
@@ -66,7 +66,7 @@ export function LessonsPage() {
   const legend = hasOpen ? [...LEGEND.slice(0, 3), 'open' as const, 'locked' as const] : LEGEND
 
   return (
-    <StudentLayout levelColorHex={klass.level.colorHex}>
+    <StudentLayout levelCode={klass.level.code} tabBar>
       <header className={styles.header}>
         <h1 className={styles.pageTitle}>
           {klass.book.season} · {klass.book.label}

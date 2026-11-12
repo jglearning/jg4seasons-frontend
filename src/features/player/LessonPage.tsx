@@ -155,7 +155,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   const durationMs = onThisTrack ? player.durationMs : (speed?.durationMs ?? 0)
 
   return (
-    <StudentLayout levelColorHex={data.level.colorHex}>
+    <StudentLayout levelCode={data.level.code}>
       <header className={styles.header}>
         <h1 className={styles.title}>{data.lesson.title}</h1>
         <p className={styles.summary}>

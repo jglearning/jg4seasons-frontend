@@ -2,8 +2,9 @@ import type { LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
 import styles from './BottomBar.module.css'
 
-// 학생 하단 탭(S-03·S-04). 화면 아래 고정, 지금 화면 탭은 aria-current="page"(NavLink가 붙인다).
-// 배지는 숫자만 보이고 읽을 때는 badge.label(예: "밀린 수업 2개")을 붙인다
+// 학생 탭 바(S-03·S-04) — 화면 아래에 떠 있는 알약(DESIGN.md 1.7). 내용은 탭 바 뒤로 지나가고,
+// 맨 끝이 가리지 않게 하는 아래 여백은 StudentLayout tabBar가 맡는다.
+// 지금 화면 탭은 aria-current="page"(NavLink가 붙인다). 배지는 숫자만 보이고 읽을 때는 badge.label을 붙인다
 type TabBase = { label: string; icon: LucideIcon }
 
 export type BottomTab = TabBase &
@@ -23,28 +24,25 @@ export type BottomTab = TabBase &
 
 export function BottomBar({ tabs }: { tabs: BottomTab[] }) {
   return (
-    <>
-      <div className={styles.spacer} aria-hidden />
-      <nav aria-label="주 메뉴" className={styles.bar}>
-        <ul className={styles.list}>
-          {tabs.map((tab) => (
-            <li key={tab.label} className={styles.item}>
-              <Tab tab={tab} />
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </>
+    <nav aria-label="주 메뉴" className={styles.bar}>
+      <ul className={styles.list}>
+        {tabs.map((tab) => (
+          <li key={tab.label} className={styles.item}>
+            <Tab tab={tab} />
+          </li>
+        ))}
+      </ul>
+    </nav>
   )
 }
 
 function Tab({ tab }: { tab: BottomTab }) {
   const Icon = tab.icon
   const count = tab.to !== undefined && tab.badge !== undefined ? tab.badge.count : 0
-  const body = (
+  const body = (active: boolean) => (
     <>
       <span className={styles.iconWrap}>
-        <Icon size={22} strokeWidth={2} aria-hidden />
+        <Icon size={24} strokeWidth={active ? 2.4 : 2} aria-hidden />
         {count > 0 && (
           <span className={styles.badge} aria-hidden>
             {count}
@@ -63,7 +61,7 @@ function Tab({ tab }: { tab: BottomTab }) {
         aria-label={`${tab.label}, ${tab.unavailable}`}
         className={`${styles.tab} ${styles.disabled}`}
       >
-        {body}
+        {body(false)}
       </span>
     )
   }
@@ -75,7 +73,7 @@ function Tab({ tab }: { tab: BottomTab }) {
       aria-label={name}
       className={({ isActive }) => `${styles.tab} ${isActive ? styles.active : ''}`}
     >
-      {body}
+      {({ isActive }) => body(isActive)}
     </NavLink>
   )
 }

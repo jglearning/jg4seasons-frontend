@@ -1,0 +1,66 @@
+/* 번호 동그라미(DESIGN.md 1.4). 턱은 아래 3px — 누를 수 있는 상태에만 */
+.circle {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--nc-size);
+  height: var(--nc-size);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--nc-font);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition:
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
+}
+
+.done {
+  background: var(--L-deep);
+  color: var(--cream);
+  box-shadow: 0 var(--lip) 0 var(--L-lip);
+}
+
+.current {
+  background: var(--cream);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
+  outline: 3px solid var(--L-ring);
+  outline-offset: 3px;
+}
+
+.overdue {
+  background: var(--white);
+  color: var(--ink);
+  border: 2px solid var(--bad);
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
+}
+
+.open {
+  background: var(--white);
+  color: var(--ink);
+  border: var(--border-control) solid var(--line-strong);
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
+}
+
+.locked {
+  background: transparent;
+  color: var(--muted);
+  border: var(--border-control) dashed var(--faint);
+}
+
+.level {
+  background: var(--cream);
+  color: var(--L-deep);
+  border: 1px solid var(--line-strong);
+}
+
+/* 부모 버튼·링크를 누르는 동안 턱이 사라지며 3px 내려간다 */
+:active > .pressable,
+:active > * > .pressable {
+  transform: translateY(var(--lip));
+  box-shadow: 0 0 0 transparent;
+}

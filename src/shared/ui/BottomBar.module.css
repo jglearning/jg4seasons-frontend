@@ -1,51 +1,66 @@
-/* 고정 탭에 내용이 가리지 않게 같은 높이의 빈 칸 */
-.spacer {
-  flex: none;
-  height: calc(64px + env(safe-area-inset-bottom));
-}
-
+/* 떠 있는 알약 탭 바(DESIGN.md 1.7). 그림자·블러 없이 1.5px 테두리 + 아래 3px 턱 */
 .bar {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-top: var(--border-card) solid var(--line);
+  z-index: 10;
+  left: var(--gutter-student);
+  right: var(--gutter-student);
+  bottom: var(--tabbar-bottom);
+  max-width: 350px;
+  margin: 0 auto;
+  height: var(--tabbar-h);
+  padding: 5px;
+  border-radius: 32px;
   background: var(--white);
-  padding-bottom: env(safe-area-inset-bottom);
+  border: var(--border-control) solid var(--line-strong);
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
 }
 
 .list {
   list-style: none;
-  margin: 0 auto;
+  margin: 0;
   padding: 0;
-  max-width: var(--student-max-width);
+  height: 100%;
   display: flex;
+  gap: 4px;
 }
 
 .item {
   flex: 1;
+  min-width: 0;
 }
 
 .tab {
+  height: 100%;
+  border-radius: 26px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  height: 64px;
   color: var(--muted);
   text-decoration: none;
+  transition: transform var(--motion-press);
+}
+
+/* 누르는 느낌 — 그 칸만 줄어든다. 탭 바 전체는 움직이지 않는다 */
+a.tab:active {
+  transform: scale(0.96);
 }
 
 .active {
+  background: var(--L-tint);
   color: var(--ink);
+}
+
+.active .iconWrap {
+  color: var(--L-deep);
 }
 
 .active .label {
   font-weight: 700;
 }
 
-/* 아이콘만 흐리게 — 12px 글자는 faint 대비가 모자라 muted 그대로(§2.2) */
+/* 아이콘만 흐리게 — 12px 글자는 faint 대비가 모자라 muted 그대로 */
 .disabled .iconWrap {
   color: var(--faint);
 }
@@ -53,6 +68,7 @@
 .label {
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.2;
 }
 
 .iconWrap {
@@ -63,16 +79,17 @@
 .badge {
   position: absolute;
   top: -6px;
-  right: -12px;
+  left: 50%;
+  margin-left: 8px;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   box-sizing: border-box;
   border-radius: var(--radius-pill);
-  background: var(--danger);
+  background: var(--bad-deep);
   color: var(--white);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 18px;
   text-align: center;
   font-variant-numeric: tabular-nums;

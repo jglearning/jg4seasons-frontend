@@ -737,13 +737,13 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
 })
 
 describe('BE #18 계약 — 레벨 색, 문장 시각 없음', () => {
-  it('반 레벨 색(level.colorHex)을 --level로 넣는다', async () => {
+  it('반 레벨(level.code L2)을 <html data-level="green">으로 — colorHex는 쓰지 않는다(DESIGN.md)', async () => {
     renderLesson()
     await heading()
 
-    const main = screen.getByRole('main')
-    expect(main).toHaveAttribute('data-level')
-    expect(main.style.getPropertyValue('--level')).toBe(LESSON_MOCK.level.colorHex)
+    expect(LESSON_MOCK.level.code).toBe('L2')
+    expect(document.documentElement).toHaveAttribute('data-level', 'green')
+    expect(screen.getByRole('main').style.getPropertyValue('--level')).toBe('')
   })
 
   it('timings가 []면 강조·문장 이동 없이 재생만 — 안내 카드도 안 들은 문장을 세지 않는다', async () => {
