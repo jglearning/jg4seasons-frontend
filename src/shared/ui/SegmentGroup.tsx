@@ -1,9 +1,8 @@
 import { Check } from 'lucide-react'
 import styles from './SegmentGroup.module.css'
 
-// 디자인 가이드 §5 Player의 세그먼트(0.8 | 1.0 | 1.2)를 일반화한 선택 줄 — S-05 목소리·재생 속도.
-// 고른 칸은 ink 채움(aria-pressed). done이면 ✓ 아이콘 + 읽는 이름에 "완료" — 색만으로 구분하지 않는다.
-// block이면 한 줄을 칸 수로 나눠 채우고 학생 터치 높이(48)를 쓴다
+// 선택 줄 — S-05 재생 속도(0.8 | 1.0 | 1.2, v0.2 지시문 §2.2-8). 고른 칸은 흰 면 + ink 테두리 + 굵게(aria-pressed).
+// done이면 ✓ 아이콘 + 읽는 이름에 "완료" — 색만으로 구분하지 않는다. block이면 한 줄을 칸 수로 나눠 채운다
 export type SegmentOption<V extends string> = { value: V; label: string; done?: boolean }
 
 type SegmentGroupProps<V extends string> = {

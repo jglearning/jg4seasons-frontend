@@ -1,8 +1,8 @@
 import { Link } from 'react-router'
 import styles from './NudgeCard.module.css'
 
-// 디자인 가이드 §5 NudgeCard(11/5). 완료 전에 넘어가려 할 때만 하단 바 바로 위에 뜨는 작은 카드.
-// 모달·딤 없음, 막지 않는다 — 넘어가도 완료가 안 될 뿐. 주 동작(ink)과 넘어가기(흰 버튼 또는 다른 화면 링크)
+// NudgeCard(11/5, v0.2 모양). 완료 전에 넘어가려 할 때만 "다음 지문" 버튼 바로 위에 뜨는 작은 카드.
+// 모달·딤 없음, 막지 않는다 — 넘어가도 완료가 안 될 뿐. 주 동작(레벨 턱 버튼)과 넘어가기(흰 턱 버튼 또는 다른 화면 링크)
 type Action = { label: string; onClick: () => void }
 
 type NudgeCardProps = {

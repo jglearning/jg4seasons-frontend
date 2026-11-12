@@ -1,37 +1,44 @@
+/* 6개까지 한 줄 균등(양 끝 붙임), 7개부터 6칸 격자로 줄 바꿈 */
 .tabs {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  display: flex;
+  justify-content: space-between;
   gap: var(--space-2);
 }
 
+.tabs:has(> :only-child) {
+  justify-content: flex-start;
+}
+
+.wrap {
+  display: grid;
+  grid-template-columns: repeat(6, 46px);
+  justify-content: space-between;
+  row-gap: 14px;
+}
+
+/* 버튼은 동그라미 크기 그대로(46 — 터치 44 이상). 포커스 링은 동그라미 둘레에 */
 .tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: var(--touch-student);
-  border: var(--border-control) solid var(--line-strong);
-  border-radius: var(--radius-tile);
-  background: var(--white);
-  color: var(--ink);
-  font-size: 16px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
   cursor: pointer;
-  transition: background-color var(--motion);
 }
 
-/* 들은 지문: 레벨 fill 채움 + ✓ */
-.done {
-  border-color: var(--level);
-  background: var(--level);
-  color: var(--white);
+.tab:focus-visible {
+  outline-offset: 8px;
 }
 
-/* 지금 지문: ink 테두리 2px + 굵은 밑줄(포커스 링과 헷갈리지 않게, 완료 채움과 함께 보인다) */
-.tab[aria-current='true'] {
-  border: 2px solid var(--ink);
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+/* 지문이 완료되는 순간 한 번 커졌다 돌아온다(transform만, 움직임 줄이기면 base.css가 바로 끝낸다) */
+.pop > * {
+  animation: pop 220ms ease-out;
+}
+
+@keyframes pop {
+  from {
+    transform: scale(1.15);
+  }
 }

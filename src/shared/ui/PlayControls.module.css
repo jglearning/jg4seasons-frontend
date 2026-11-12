@@ -1,0 +1,90 @@
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 22px;
+}
+
+/* 옆 버튼: 버튼 전체(동그라미 + 글자)가 누르는 곳 — 76px 폭 */
+.side {
+  width: 76px;
+  margin-top: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+}
+
+.round {
+  box-sizing: border-box;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: var(--border-control) solid var(--line-strong);
+  background: var(--white);
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
+}
+
+.side:active:not(:disabled) .round {
+  transform: translateY(var(--lip));
+  box-shadow: 0 0 0 transparent;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.side:disabled {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
+.side:disabled .round {
+  background: var(--line);
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+/* 재생 버튼만 턱 4px(DESIGN.md 1.2) */
+.play {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--L-deep);
+  color: var(--cream);
+  box-shadow: 0 4px 0 var(--L-lip);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
+}
+
+.play:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 transparent;
+}
+
+.play:disabled {
+  background: var(--line);
+  color: var(--muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}

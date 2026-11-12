@@ -1,24 +1,24 @@
-/* 디자인 가이드 §5 NudgeCard — 흰 배경, ink 테두리 1.5px, 반경 14 */
+/* NudgeCard — 흰 면, line-strong 1.5px, 반경 16. 정보 상자라 카드에는 턱 없음, 버튼만 턱(DESIGN.md 1.2, v0.2) */
 .card {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) 14px;
-  border: var(--border-control) solid var(--ink);
-  border-radius: 14px;
+  padding: 14px var(--space-4) var(--space-4);
+  border: var(--border-control) solid var(--line-strong);
+  border-radius: var(--radius-card-student);
   background: var(--white);
   word-break: keep-all;
 }
 
 .title {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .body {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--muted);
 }
@@ -27,6 +27,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 .primary,
@@ -37,23 +38,33 @@
   box-sizing: border-box;
   min-height: var(--touch-student);
   padding: 0 var(--space-2);
-  border-radius: var(--radius-tile);
+  border-radius: 12px;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 700;
   text-decoration: none;
   cursor: pointer;
+  transition:
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
 }
 
 .primary {
   border: none;
-  background: var(--ink);
-  color: var(--white);
-  font-weight: 700;
+  background: var(--L-deep);
+  color: var(--cream);
+  box-shadow: 0 var(--lip) 0 var(--L-lip);
 }
 
 .secondary {
   border: var(--border-control) solid var(--line-strong);
   background: var(--white);
   color: var(--ink);
-  font-weight: 500;
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
+}
+
+.primary:active,
+.secondary:active {
+  transform: translateY(var(--lip));
+  box-shadow: 0 0 0 transparent;
 }

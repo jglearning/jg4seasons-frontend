@@ -1,26 +1,30 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { BookOpen, ChevronLeft, House, Lock } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ApiError } from '../../api/errors'
+import { meQuery } from '../../api/session'
 import { errorMessage, NETWORK_MESSAGE } from '../../shared/errorMessage'
 import { Button, ButtonLink } from '../../shared/ui/Button'
+import { HeardBar } from '../../shared/ui/HeardBar'
 import { NudgeCard } from '../../shared/ui/NudgeCard'
 import { PassageTabs } from '../../shared/ui/PassageTabs'
-import { Player } from '../../shared/ui/Player'
-import { ReviewLock } from '../../shared/ui/ReviewLock'
-import { SentenceRow } from '../../shared/ui/SentenceRow'
+import { PlayControls } from '../../shared/ui/PlayControls'
 import { SegmentGroup } from '../../shared/ui/SegmentGroup'
-import { StepTabs } from '../../shared/ui/StepTabs'
+import { SentenceDots } from '../../shared/ui/SentenceDots'
+import { SentenceRow } from '../../shared/ui/SentenceRow'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
-import { TestCard } from '../../shared/ui/TestCard'
+import { VoiceButton, VoiceSheet } from '../../shared/ui/VoiceSheet'
 import type { FlushResult } from './flushApi'
 import { lessonQuery, type LessonDetail, type Passage, type Voice } from './lessonApi'
 import { mergeRanges } from './listeningTracker'
 import {
+  DEFAULT_VOICE,
   PLAYBACK_RATES,
-  rateLabel,
   usePlayer,
   VOICE_LABEL,
+  VOICE_ORDER,
+  voiceLong,
   type PlaybackRate,
   type PlayerValue,
   type Source,
@@ -31,12 +35,12 @@ import { heardSentences } from './sentenceSync'
 import { useSentenceSync } from './useSentenceSync'
 import styles from './LessonPage.module.css'
 
-// S-05 회차 듣기(STU-04·05·06·11, 와이어프레임 S05_Player 11/6, ADR-26 따라 읽기).
-// 단계 탭: 테스트(기본 — 본문 없이 책을 펴고 듣기) | 복습(본문 따라 읽기, 지문을 다 들어야 열림 — 서버 completion 값).
-// 지문 음원 하나를 들으며 지금 문장을 강조하고, 문장을 누르면 그 위치로 옮긴다.
-// 목소리 4개(us_w·us_m·uk_w·uk_m)는 파일 선택, 속도 0.8·1.0·1.2는 재생 속도(ADR-27). 아무 목소리 하나를 다 들으면 지문 완료.
-// 고른 목소리·속도는 이 화면 안에서만 유지한다(저장하지 않는다).
-// 완료·청취율·문장 시각은 모두 서버 값 — 화면은 보여 주기만 한다("들음" 점은 표시용 80% 규칙, 03 §2.3)
+// S-05 회차 듣기(STU-04·05·06·11, v0.2 지시문 §2 · 와이어프레임 S05_Player·S05_VoiceSheet, ADR-26 따라 읽기).
+// 머리 줄(뒤로·제목·이름·홈) → 지문 번호 → 듣기 카드(음성·속도·지문·책 안내·문장 위치·재생 줄·들은 구간 바) → 복습 줄 → 맨 아래 다음 지문.
+// 지문 음원 하나를 들으며 지금 문장을 따라가고, 문장 버튼·바로 위치를 옮긴다.
+// 음성 4개(us_w·us_m·uk_w·uk_m)는 파일 선택, 속도 0.8·1.0·1.2는 재생 속도(ADR-27). 아무 음성 하나를 다 들으면 지문 완료(서버).
+// 고른 음성·속도는 이 화면 안에서만 유지한다(저장은 이슈 9). 처음 음성은 미국 여성(A5).
+// 완료·청취율·완료 기준·문장 시각은 모두 서버 값 — 화면은 보여 주기만 한다("들음" 점·빗금은 표시용, 03 §2.3)
 
 export function LessonPage() {
   const { code = '' } = useParams()
@@ -64,23 +68,26 @@ export function LessonPage() {
 }
 
 type Nudge = 'next' | 'words'
-type Step = 'test' | 'review'
 
 function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   const player = usePlayer()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const studentName = useQuery(meQuery).data?.name
   const [selectedNo, setSelectedNo] = useState(() => firstUnfinished(data))
   const passage = data.passages.find((p) => p.no === selectedNo) ?? data.passages[0]
-  const [variant, setVariant] = useState<Variant>(() => preferredVoice(passage).variant)
+  const [variant, setVariant] = useState<Variant>(DEFAULT_VOICE)
   const [nudge, setNudge] = useState<Nudge | null>(null)
-  const [step, setStep] = useState<Step>('test')
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [reviewShown, setReviewShown] = useState(false)
   // 복습은 회차의 지문을 다 들었을 때만(서버 값 — 클라이언트가 세지 않는다)
   const reviewOpen =
     data.completion.passagesTotal > 0 &&
     data.completion.passagesDone === data.completion.passagesTotal
   const listRef = useRef<HTMLOListElement>(null)
 
-  const speed: Voice | undefined =
-    passage.voices.find((v) => v.variant === variant) ?? passage.voices[0]
+  // 고른 음성이 이 지문에 없으면 첫 음성으로 듣는다(버튼 글자는 고른 음성 그대로 — 지시문 §2.4)
+  const speed: Voice | undefined = voiceOf(passage, variant)
   const timings = speed?.timings ?? []
   const onThisTrack = speed !== undefined && player.source?.trackId === speed.trackId
   const positionMs = onThisTrack ? player.positionMs : 0
@@ -91,34 +98,35 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     playing: player.playing,
     container: listRef,
   })
-  const heard = speed ? heardSentences(timings, heardRanges(speed, player)) : []
+  const listened = speed ? heardRanges(speed, player) : []
+  const heard = speed ? heardSentences(timings, listened) : []
   const sentenceCount = passage.sentences.length
   const at = Math.max(current, 0)
-  // timings가 []면 문장 시각이 아직 없다(BE #18) — 강조·문장 이동 없이 재생만
+  // timings가 []면 문장 시각이 아직 없다(BE #18) — 문장 위치·이동 없이 재생만
   const hasTimings = timings.length > 0
-  const atSentence = started && hasTimings
 
-  // 지문을 고르면 그 지문 음원(지금 목소리)을 올려 둔다(바로 재생하지는 않는다)
+  // 지문을 고르면 그 지문 음원(지금 음성)을 올려 둔다(바로 재생하지는 않는다)
   const { load } = player
   useEffect(() => {
     const target = data.passages.find((p) => p.no === selectedNo)
-    const next = target?.voices.find((v) => v.variant === variant) ?? target?.voices[0]
+    const next = target ? voiceOf(target, variant) : undefined
     if (target === undefined || next === undefined) return
     load(passageSource(target, next))
-    // 지문을 바꿀 때만 다시 올린다(데이터 갱신 때마다 올리지 않게. 목소리는 selectVariant가 올린다)
+    // 지문을 바꿀 때만 다시 올린다(데이터 갱신 때마다 올리지 않게. 음성은 selectVariant가 올린다)
   }, [selectedNo]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 복습 본문을 펼친 채 지문을 옮기면 그대로 펼쳐 둔다(지문마다 따라 읽기)
   function selectPassage(no: number) {
     setNudge(null)
     setSelectedNo(no)
   }
 
-  /** 목소리는 파일 선택 — 목소리마다 길이가 달라 같은 문장의 새 목소리 시작 시각으로 옮겨 이어 듣는다 */
+  /** 음성은 파일 선택 — 음성마다 길이가 달라 같은 문장의 새 음성 시작 시각으로 옮겨 이어 듣는다(재생 상태 유지) */
   function selectVariant(next: Variant, options: { from?: number; play?: boolean } = {}) {
-    const target = passage.voices.find((v) => v.variant === next)
-    if (target === undefined) return
+    setVariant(next)
+    const target = voiceOf(passage, next)
+    if (target === undefined || target.trackId === speed?.trackId) return
     const index = options.from ?? (started ? at : 0)
-    setVariant(target.variant)
     load(passageSource(passage, target), {
       atMs: target.timings[index]?.[0] ?? 0,
       play: options.play ?? player.playing,
@@ -131,19 +139,10 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     if (!player.playing) player.play()
   }
 
-  /** 재생 상태는 그대로 두고 문장만 옮긴다(이전·다음 문장) */
-  function moveTo(index: number) {
-    player.seekTo(timings[index]?.[0] ?? 0)
-  }
-
   const next = data.passages.find((p) => p.no === selectedNo + 1)
   const done = passageDone(passage)
   const unfinished = data.passages.filter((p) => !passageDone(p))
-
-  function selectStep(next: Step) {
-    setNudge(null)
-    setStep(next)
-  }
+  const allDone = unfinished.length === 0
 
   function goNext() {
     if (next === undefined) return
@@ -151,100 +150,153 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     else setNudge('next')
   }
 
+  /** 들어온 화면으로. 주소로 바로 들어와 돌아갈 곳이 없으면(첫 위치의 key는 "default") 회차 목록 */
+  function goBack() {
+    if (location.key !== 'default') navigate(-1)
+    else navigate('/lessons')
+  }
+
   const wordsTo = `/lessons/${code}/words`
   const durationMs = onThisTrack ? player.durationMs : (speed?.durationMs ?? 0)
+  const voiceOptions = VOICE_ORDER.filter((v) => passage.voices.some((p) => p.variant === v)).map(
+    (v) => ({ value: v, ...voiceLong(v) }),
+  )
+  const threshold = data.completion.threshold
 
   return (
     <StudentLayout levelCode={data.level.code}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{data.lesson.title}</h1>
-        <p className={styles.summary}>
-          지문 듣기 {data.completion.passagesDone} / {data.completion.passagesTotal}
-        </p>
-      </header>
-
-      <PassageTabs
-        tabs={data.passages.map((p) => ({ no: p.no, done: passageDone(p) }))}
-        selected={selectedNo}
-        onSelect={selectPassage}
-      />
-
-      <section className={styles.passage} aria-labelledby="passage-title">
-        <StepTabs
-          label="듣기 방식"
-          tabs={[
-            { id: 'test', label: '테스트 듣기 · 책 보고' },
-            reviewOpen
-              ? { id: 'review', label: '복습 · 본문 보며' }
-              : {
-                  id: 'review',
-                  label: `복습 · 잠김 ${data.completion.passagesDone}/${data.completion.passagesTotal}`,
-                  muted: true,
-                },
-          ]}
-          selected={step}
-          onSelect={selectStep}
-        />
-        <div className={styles.passageHead}>
-          <div className={styles.passageName}>
-            <p className={styles.eyebrow}>
-              지문 {passage.no} · {passage.wordCount}단어
+      <div className={styles.screen}>
+        <header className={styles.header}>
+          <button type="button" className={styles.iconButton} aria-label="뒤로" onClick={goBack}>
+            <ChevronLeft size={24} strokeWidth={2} aria-hidden />
+          </button>
+          <div className={styles.headText}>
+            <h1 className={styles.title}>{data.lesson.title}</h1>
+            <p className={styles.summary}>
+              지문 듣기 {data.completion.passagesDone} / {data.completion.passagesTotal}
             </p>
-            <h2 id="passage-title" className={styles.passageTitle}>
-              {passage.title}
-            </h2>
           </div>
-        </div>
+          {studentName && <span className={styles.name}>{studentName}</span>}
+          <Link to="/" className={styles.iconButton} aria-label="홈으로">
+            <House size={24} strokeWidth={2} aria-hidden />
+          </Link>
+        </header>
 
-        <div className={styles.controls}>
-          <div className={styles.control}>
-            <span className={styles.controlLabel} aria-hidden>
-              목소리
-            </span>
-            <SegmentGroup
-              label="목소리"
-              block
-              options={passage.voices.map((v) => ({
-                value: v.variant,
-                label: VOICE_LABEL(v.variant),
-                done: v.completed,
-              }))}
-              selected={variant}
-              onSelect={(v) => {
-                if (v !== variant) selectVariant(v)
-              }}
+        <PassageTabs
+          tabs={data.passages.map((p) => ({ no: p.no, done: passageDone(p) }))}
+          selected={selectedNo}
+          onSelect={selectPassage}
+        />
+
+        <section className={styles.card} aria-label={`지문 ${passage.no} 듣기`}>
+          <div className={styles.cardTop}>
+            <VoiceButton
+              label={voiceLong(variant).label}
+              onClick={() => setSheetOpen(true)}
               disabled={player.source === null}
             />
-          </div>
-          <div className={styles.controlRow}>
-            <span className={styles.controlLabel} aria-hidden>
-              속도
-            </span>
             <SegmentGroup
-              label="재생 속도"
+              label="속도"
               options={PLAYBACK_RATES.map((r) => ({ value: rateValue(r), label: r.toFixed(1) }))}
               selected={rateValue(player.rate)}
               onSelect={(value) => player.setRate(Number(value) as PlaybackRate)}
             />
           </div>
-        </div>
 
-        <Button className={styles.fromStart} onClick={() => playFrom(0)} disabled={!speed}>
-          처음부터 듣기 · {clock(speed?.durationMs ?? 0)}
-        </Button>
+          <p className={styles.eyebrow}>
+            지문 {passage.no} · {clock(speed?.durationMs ?? 0)}
+          </p>
+          <h2 className={styles.passageTitle} lang="en">
+            {passage.title}
+          </h2>
+          <p className={styles.guide}>
+            <BookOpen size={20} strokeWidth={2} aria-hidden />책 {passage.no}번 지문을 펴고 들어요
+          </p>
 
-        {step === 'test' ? (
-          <TestCard
-            passageNo={passage.no}
-            position={
-              atSentence ? `문장 ${at + 1} / ${sentenceCount}` : `전체 ${clock(durationMs)}`
-            }
-            onReplay={() => playFrom(at)}
-            onPrevious={() => playFrom(Math.max(at - 1, 0))}
-            previousDisabled={at <= 0}
-            disabled={!speed || !hasTimings}
-          />
-        ) : reviewOpen ? (
+          <div className={styles.center}>
+            <p className={styles.position}>
+              {hasTimings ? (
+                <>
+                  <span className={styles.positionLabel}>문장</span>
+                  <span className={styles.positionValue}>
+                    {at + 1} / {sentenceCount}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className={styles.positionLabel}>전체</span>
+                  <span className={styles.positionValue}>{clock(durationMs)}</span>
+                </>
+              )}
+            </p>
+            {hasTimings && (
+              <SentenceDots count={sentenceCount} current={started ? at : -1} heard={heard} />
+            )}
+            <PlayControls
+              playing={player.playing}
+              onToggle={player.toggle}
+              onPrevious={() => playFrom(Math.max(at - 1, 0))}
+              onReplay={() => playFrom(at)}
+              disabled={player.source === null}
+              previousDisabled={!hasTimings || at <= 0}
+              replayDisabled={!hasTimings}
+            />
+          </div>
+
+          {player.error !== null && (
+            <div className={styles.error} role="alert">
+              <span>{PLAYER_ERROR[player.error]}</span>
+              <button type="button" className={styles.retry} onClick={player.retry}>
+                다시 불러오기
+              </button>
+            </div>
+          )}
+
+          <div className={styles.heard}>
+            <div className={styles.heardHead}>
+              <span className={styles.heardLabel}>
+                들은 구간 {speed ? percent(speed.coverage) : '0%'}
+              </span>
+              <span className={styles.heardGoal}>{percent(threshold)}면 완료</span>
+            </div>
+            <HeardBar
+              listened={listened}
+              positionMs={positionMs}
+              durationMs={durationMs}
+              threshold={threshold}
+              onSeek={player.seekTo}
+              disabled={player.source === null}
+            />
+            <div className={styles.times}>
+              <span>{clock(positionMs)}</span>
+              <button
+                type="button"
+                className={styles.fromStart}
+                onClick={() => playFrom(0)}
+                disabled={!speed}
+              >
+                처음부터 듣기
+              </button>
+              <span>{clock(durationMs)}</span>
+            </div>
+          </div>
+        </section>
+
+        {reviewOpen ? (
+          <div className={styles.reviewRow}>
+            <Button variant="secondary" block onClick={() => setReviewShown((v) => !v)}>
+              {reviewShown ? '복습 닫기' : '복습하기 · 본문 보며 듣기'}
+            </Button>
+          </div>
+        ) : (
+          <p className={styles.reviewLock}>
+            <Lock size={16} strokeWidth={2.2} aria-hidden />
+            복습은 지문 {data.completion.passagesTotal}개를 다 들으면 열려요 ·{' '}
+            {data.completion.passagesDone} / {data.completion.passagesTotal}
+          </p>
+        )}
+
+        {reviewOpen && reviewShown && (
           <ol ref={listRef} className={styles.sentences} aria-label="지문 본문">
             {passage.sentences.map((sentence, i) => (
               <SentenceRow
@@ -258,93 +310,67 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
               />
             ))}
           </ol>
-        ) : (
-          <ReviewLock
-            done={data.completion.passagesDone}
-            total={data.completion.passagesTotal}
-            remaining={unfinished.map((p) => p.no)}
-            onGoTest={() => selectStep('test')}
-          />
-        )}
-      </section>
-
-      <div className={styles.after}>
-        {next ? (
-          <Button variant={done ? 'primary' : 'secondary'} block onClick={goNext}>
-            다음 지문 →
-          </Button>
-        ) : (
-          <div className={styles.last}>
-            <p className={styles.lastTitle}>마지막 지문이에요</p>
-            <p className={styles.lastBody}>다음은 이 수업의 단어 {data.words.total}개예요.</p>
-            <ButtonLink
-              to={wordsTo}
-              block
-              onClick={(event) => {
-                if (unfinished.length === 0) return
-                event.preventDefault()
-                setNudge('words')
-              }}
-            >
-              오늘의 단어 학습하기 →
-            </ButtonLink>
-          </div>
         )}
       </div>
 
-      <Player
-        title={
-          atSentence
-            ? `지문 ${passage.no} · 문장 ${at + 1} / ${sentenceCount} · ${trackLabel(variant, player.rate)}`
-            : `지문 ${passage.no} 전체 · ${clock(durationMs)} · ${trackLabel(variant, player.rate)}`
-        }
-        aside={speed ? `들은 구간 ${percent(speed.coverage)}` : undefined}
-        playing={player.playing}
-        positionMs={positionMs}
-        durationMs={durationMs}
-        listened={speed ? heardRanges(speed, player) : []}
-        onToggle={player.toggle}
-        onPrev={() => moveTo(Math.max(at - 1, 0))}
-        onNext={() => moveTo(Math.min(at + 1, sentenceCount - 1))}
-        onSeek={player.seekTo}
-        prevDisabled={!hasTimings || at <= 0}
-        nextDisabled={!hasTimings || at >= sentenceCount - 1}
-        error={
-          player.error === null
-            ? undefined
-            : { message: PLAYER_ERROR[player.error], onRetry: player.retry }
-        }
-        disabled={player.source === null}
-        overlay={
-          nudge === 'next' && next ? (
-            <NextNudge
-              passage={passage}
-              player={player}
-              onStay={(target, index) => {
-                setNudge(null)
-                // 문장 시각이 없으면 문장으로 옮기지 않고 지금 자리에서 이어 듣는다
-                if (target.variant !== variant)
-                  selectVariant(target.variant, { from: index, play: true })
-                else if (target.timings.length > 0) playFrom(index)
-                else player.play()
-              }}
-              onGo={() => selectPassage(next.no)}
-            />
-          ) : nudge === 'words' && unfinished.length > 0 ? (
-            <NudgeCard
-              title="아직 완료 안 된 지문이 있어요"
-              body={`완료 안 된 지문: ${unfinished.map((p) => p.no).join(', ')} · 아무 목소리로 끝까지 들으면 완료돼요`}
-              primary={{ label: '마저 듣기', onClick: () => selectPassage(unfinished[0].no) }}
-              secondary={{ label: '그래도 단어로', to: wordsTo }}
-            />
-          ) : undefined
-        }
+      <div className={styles.bottom}>
+        {nudge === 'next' && next ? (
+          <NextNudge
+            passage={passage}
+            player={player}
+            onStay={(target, index) => {
+              setNudge(null)
+              // 문장 시각이 없으면 문장으로 옮기지 않고 지금 자리에서 이어 듣는다
+              if (target.variant !== speed?.variant)
+                selectVariant(target.variant, { from: index, play: true })
+              else if (target.timings.length > 0) playFrom(index)
+              else player.play()
+            }}
+            onGo={() => selectPassage(next.no)}
+          />
+        ) : nudge === 'words' && !allDone ? (
+          <NudgeCard
+            title="아직 완료 안 된 지문이 있어요"
+            body={`완료 안 된 지문: ${unfinished.map((p) => p.no).join(', ')} · 아무 음성으로 끝까지 들으면 완료돼요`}
+            primary={{ label: '마저 듣기', onClick: () => selectPassage(unfinished[0].no) }}
+            secondary={{ label: '그래도 단어로', to: wordsTo }}
+          />
+        ) : null}
+        {next ? (
+          <Button variant={done ? 'primary' : 'secondary'} block onClick={goNext}>
+            다음 지문
+          </Button>
+        ) : (
+          <ButtonLink
+            to={wordsTo}
+            variant={allDone ? 'primary' : 'secondary'}
+            block
+            onClick={(event) => {
+              if (allDone) return
+              event.preventDefault()
+              setNudge('words')
+            }}
+          >
+            오늘 단어 {data.words.total}개 보기
+          </ButtonLink>
+        )}
+      </div>
+
+      <VoiceSheet
+        open={sheetOpen}
+        options={voiceOptions}
+        selected={variant}
+        onClose={() => setSheetOpen(false)}
+        onApply={(value) => {
+          setSheetOpen(false)
+          if (value !== variant) selectVariant(value)
+        }}
       />
     </StudentLayout>
   )
 }
 
-/** 완료 안 된 지문에서 "다음 지문"을 누르면: 가장 많이 들은 목소리의 들은 구간과 안 들은 문장 */
+/** 완료 안 된 지문에서 "다음 지문"을 누르면: 가장 많이 들은 음성의 들은 구간과 안 들은 문장 */
 function NextNudge({
   passage,
   player,
@@ -356,8 +382,8 @@ function NextNudge({
   onStay: (voice: Voice, sentenceIndex: number) => void
   onGo: () => void
 }) {
-  // 완료로 치는 목소리(서버 required) 중 가장 많이 들은 것 — 아무 목소리 하나를 다 들으면 완료(ADR-27)
-  const target = preferredVoice(passage)
+  // 완료로 치는 음성(서버 required) 중 가장 많이 들은 것 — 아무 음성 하나를 다 들으면 완료(ADR-27)
+  const target = mostHeardVoice(passage)
   const heard = target ? heardSentences(target.timings, heardRanges(target, player)) : []
   const missing = passage.sentences.filter((_, i) => !heard[i]).map((s) => s.no)
   const firstMissing = Math.max(
@@ -424,7 +450,7 @@ function LessonLoadState({
 
 // ── 서버 값 → 화면 ──
 
-/** 소리가 안 날 때(플레이어 안내) */
+/** 소리가 안 날 때(카드 안 안내) */
 const PLAYER_ERROR: Record<NonNullable<PlayerValue['error']>, string> = {
   blocked: '재생이 멈췄어요. 다시 불러와 주세요',
   load: '소리를 불러오지 못했어요',
@@ -438,16 +464,17 @@ function firstUnfinished(data: LessonDetail): number {
   return data.passages.find((p) => !passageDone(p))?.no ?? data.passages[0]?.no ?? 1
 }
 
-/** 처음 고를 목소리·안내 기준: 완료로 치는 목소리(required) 중 가장 많이 들은 것, 같으면 서버 순서(us_w 먼저) */
-function preferredVoice(passage: Passage): Voice {
-  const candidates = passage.voices.filter((v) => v.required)
-  const pool = candidates.length > 0 ? candidates : passage.voices
-  return pool.reduce((best, v) => (v.coverage > best.coverage ? v : best), pool[0])
+/** 고른 음성의 트랙, 이 지문에 없으면 첫 트랙 */
+function voiceOf(passage: Passage, variant: Variant): Voice | undefined {
+  return passage.voices.find((v) => v.variant === variant) ?? passage.voices[0]
 }
 
-/** 플레이어 제목 끝: "미국 여 · 1.0×" */
-function trackLabel(variant: Variant, rate: PlaybackRate): string {
-  return `${VOICE_LABEL(variant)} · ${rateLabel(rate)}`
+/** 안내 기준: 완료로 치는 음성(required) 중 가장 많이 들은 것, 같으면 서버 순서(us_w 먼저) */
+function mostHeardVoice(passage: Passage): Voice | undefined {
+  const candidates = passage.voices.filter((v) => v.required)
+  const pool = candidates.length > 0 ? candidates : passage.voices
+  if (pool.length === 0) return undefined
+  return pool.reduce((best, v) => (v.coverage > best.coverage ? v : best), pool[0])
 }
 
 /** 속도 선택 줄의 값(문자열): 1 → "1.0" */
@@ -463,9 +490,9 @@ function heardRanges(speed: Voice, player: PlayerValue): Array<[number, number]>
   ])
 }
 
-/** 서버 coverage(0~1) → "72%". 내림 — 완료 전에 100%로 보이지 않게 */
-function percent(coverage: number): string {
-  return `${Math.floor(Math.min(Math.max(coverage, 0), 1) * 100)}%`
+/** 서버 비율(0~1) → "72%". 내림 — 완료 전에 100%로 보이지 않게 */
+function percent(ratio: number): string {
+  return `${Math.floor(Math.min(Math.max(ratio, 0), 1) * 100)}%`
 }
 
 /** 숫자 뒤 목적격 조사: 1·3·6·7·8·0(받침 있음) → 을, 나머지 → 를 */

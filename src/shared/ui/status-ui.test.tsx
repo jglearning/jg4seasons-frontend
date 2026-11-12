@@ -1,12 +1,15 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import { House, LayoutGrid } from 'lucide-react'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import type { ReactElement } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { BottomBar, type BottomTab } from './BottomBar'
 import { Button } from './Button'
+import { HeardBar } from './HeardBar'
 import { NumberCircle } from './NumberCircle'
+import { PassageTabs } from './PassageTabs'
+import { SentenceDots } from './SentenceDots'
 import { OverdueAlert } from './OverdueAlert'
 import { ProgressBar } from './ProgressBar'
 import { levelName, levelProps } from '../level'
@@ -283,5 +286,67 @@ describe('BottomBar', () => {
     const words = screen.getByRole('link', { name: '단어, 준비 중' })
     expect(words).toHaveAttribute('aria-disabled', 'true')
     expect(words).not.toHaveAttribute('href')
+  })
+})
+
+describe('PassageTabs', () => {
+  const tabs = (n: number, doneUpTo = 0) =>
+    Array.from({ length: n }, (_, i) => ({ no: i + 1, done: i + 1 <= doneUpTo }))
+
+  it('6개까지는 한 줄, 7개부터(블루 12) 줄을 바꾼다 — 숫자는 서버 개수 그대로', () => {
+    const { rerender } = render(<PassageTabs tabs={tabs(6)} selected={1} onSelect={() => {}} />)
+    const nav = screen.getByRole('navigation', { name: '지문 고르기' })
+    expect(nav.className).not.toMatch(/wrap/)
+    rerender(<PassageTabs tabs={tabs(12)} selected={1} onSelect={() => {}} />)
+    expect(nav.className).toMatch(/wrap/)
+    expect(within(nav).getAllByRole('button')).toHaveLength(12)
+    rerender(<PassageTabs tabs={tabs(1)} selected={1} onSelect={() => {}} />)
+    expect(within(nav).getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('완료로 바뀐 지문만 한 번 커졌다 돌아온다(처음부터 완료였던 지문은 아님)', () => {
+    vi.useFakeTimers()
+    const { rerender } = render(<PassageTabs tabs={tabs(3, 1)} selected={2} onSelect={() => {}} />)
+    const button = (name: string) => screen.getByRole('button', { name })
+    expect(button('지문 1 완료').className).not.toMatch(/pop/)
+
+    rerender(<PassageTabs tabs={tabs(3, 2)} selected={2} onSelect={() => {}} />)
+    expect(button('지문 2 듣는 중 · 완료').className).toMatch(/pop/)
+    expect(button('지문 1 완료').className).not.toMatch(/pop/)
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+    expect(button('지문 2 듣는 중 · 완료').className).not.toMatch(/pop/)
+  })
+})
+
+describe('SentenceDots', () => {
+  it('문장이 14개를 넘으면 점을 그리지 않는다(숫자만)', () => {
+    const { rerender } = render(<SentenceDots count={14} current={0} heard={[]} />)
+    expect(screen.getByRole('img', { name: '문장 14개 중 1번째' }).children).toHaveLength(14)
+    rerender(<SentenceDots count={15} current={0} heard={[]} />)
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+})
+
+describe('HeardBar', () => {
+  it('건너뛴 곳은 지금 위치보다 앞인데 듣지 않은 곳만, 1초 미만 틈은 빼고, 완료 기준 눈금', () => {
+    const { container } = render(
+      <HeardBar
+        listened={[
+          [0, 10_000],
+          [10_500, 20_000],
+          [40_000, 45_000],
+        ]}
+        positionMs={60_000}
+        durationMs={83_000}
+        threshold={0.9}
+      />,
+    )
+    const attr = (name: string) =>
+      [...container.querySelectorAll(`[${name}]`)].map((el) => el.getAttribute(name))
+    expect(attr('data-skipped')).toEqual(['20000-40000', '45000-60000'])
+    expect(attr('data-range')).toEqual(['0-10000', '10500-20000', '40000-45000'])
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument() // onSeek이 없으면 표시만
   })
 })
