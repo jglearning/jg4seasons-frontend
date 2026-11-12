@@ -17,6 +17,14 @@
     box-shadow var(--motion-press);
 }
 
+/* 펼침 버튼 — 링크와 같은 모양(버튼 기본 글꼴·폭·정렬을 지움) */
+.button {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .row:active {
   transform: translateY(var(--lip));
   box-shadow: 0 0 0 transparent;

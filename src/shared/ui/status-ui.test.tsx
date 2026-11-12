@@ -253,6 +253,38 @@ describe('ActionRow', () => {
     expect(link).toHaveAttribute('href', '/lessons')
     expect(link).toHaveAccessibleName('밀린 수업 2개 Reading Day 3 · 4 — 다음 수업 전에 끝내요')
   })
+
+  it('onToggle이면 같은 모양의 버튼 — aria-expanded·aria-controls, 누르면 onToggle', () => {
+    const onToggle = vi.fn()
+    const { rerender } = render(
+      <ActionRow
+        title="홈 화면에 추가"
+        detail="방법 보기"
+        expanded={false}
+        controls="steps"
+        onToggle={onToggle}
+      />,
+    )
+    const button = screen.getByRole('button', { name: '홈 화면에 추가 방법 보기' })
+    expect(button).toHaveAttribute('type', 'button')
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(button).toHaveAttribute('aria-controls', 'steps')
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+
+    act(() => button.click())
+    expect(onToggle).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <ActionRow
+        title="홈 화면에 추가"
+        detail="방법 보기"
+        expanded
+        controls="steps"
+        onToggle={onToggle}
+      />,
+    )
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+  })
 })
 
 describe('BottomBar', () => {

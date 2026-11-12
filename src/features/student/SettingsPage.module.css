@@ -1,0 +1,137 @@
+/* S-07 설정 v0.2(지시문 §6.5, 와이어프레임 S07_Settings). 바탕은 StudentLayout의 --L-tint */
+
+/* 머리 줄: 뒤로 44 + "설정" 17/700. 뒤로 단추가 거터 안쪽 12에서 시작하게 왼쪽으로 8 당김 */
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 56px;
+  margin-left: calc(var(--space-2) * -1);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+}
+
+.title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding-top: var(--space-2);
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 내 정보: 흰 면 반경 16, 1px line, 번호 동그라미 52 + 이름·반 */
+.me {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: var(--space-4);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-student);
+  background: var(--white);
+}
+
+.meText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.classLine {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* 묶음: 이름 14/700 muted + 아래 8 */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* 펼친 기기별 안내 — 정보 상자(턱 없음) */
+.panel {
+  margin-top: var(--space-1);
+  padding: var(--space-4);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-student);
+  background: var(--white);
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+/* 번호는 글자에 적혀 있다(1. 2.) — 목록 기호는 숨김 */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.stepIcon {
+  vertical-align: -3px;
+}
+
+.note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* 맨 아래 흰 턱 버튼 — 내용이 짧아도 화면 바닥에 붙는다 */
+.footer {
+  margin-top: auto;
+  padding: var(--space-4) 0 28px;
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.error svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--bad);
+}
