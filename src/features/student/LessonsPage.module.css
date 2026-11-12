@@ -1,0 +1,178 @@
+/* S-04 도장판(지시문 §6.4, 와이어프레임 v0.2 S04_Lessons). 바탕은 StudentLayout의 --L-tint */
+
+/* 머리 줄: 뒤로 + 책 이름 / 범위·완료·밀림 (높이 56) */
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 56px;
+  margin-left: calc(var(--space-2) * -1);
+}
+
+.back {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.sub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 카드·상자는 화면 좌우 12(학생 틀 여백 20에서 8을 넘긴다), 카드 → 첫 상자 14, 상자 사이 10 */
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: var(--space-1) calc((var(--gutter-student) - 12px) * -1) 0;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 오늘 회차 카드: 흰 면, 반경 20, 1.5px line-strong */
+.featured {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: var(--space-1);
+  padding: 14px var(--space-4);
+  border: var(--border-control) solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--white);
+}
+
+.featuredHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.featuredTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.featuredState {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 턱 버튼(DESIGN.md 1.2) — 이 카드에서는 높이 44, 반경 12. 글자 19/700은 Button 그대로 */
+.featuredAction {
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+/* 묶음 상자: 흰 면, 반경 20, 1px line, 안쪽 14·16·18 */
+.group {
+  padding: 14px var(--space-4) 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--white);
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.groupRange {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.groupBar {
+  flex: none;
+  width: 64px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.groupFill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--L-deep);
+}
+
+.groupCount {
+  flex: none;
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 동그라미 4열, 줄 간격 14. 회차 수가 8이 아니어도 4열로 줄바꿈 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  row-gap: 14px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cell {
+  display: flex;
+}
+
+/* 누르는 자리는 격자 칸 전체(약 85×52) */
+.stamp {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}

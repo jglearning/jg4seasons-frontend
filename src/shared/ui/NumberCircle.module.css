@@ -52,6 +52,13 @@
   border: var(--border-control) dashed var(--faint);
 }
 
+/* S-04 도장판 전용 잠김 — 점선 대신 옅은 면(지시문 §6.4-5). 숫자는 faint가 아니라 muted(옅은 면 위 대비 4.5:1, 11/13 동섭 승인) */
+.lockedSoft {
+  background: var(--lock-soft-bg);
+  color: var(--muted);
+  border: var(--border-control) solid var(--lock-soft-line);
+}
+
 .level {
   background: var(--cream);
   color: var(--L-deep);

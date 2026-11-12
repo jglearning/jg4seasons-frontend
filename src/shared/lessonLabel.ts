@@ -24,13 +24,6 @@ export function lessonCircleNo(code: string): string {
   return no.supplement ? `S${no.n}` : String(no.n)
 }
 
-/** 회차 타일 번호: "05" · "S1" */
-export function lessonTileNo(code: string): string {
-  const no = parse(code)
-  if (no === null) return code
-  return no.supplement ? `S${no.n}` : String(no.n).padStart(2, '0')
-}
-
 /**
  * 회차 코드 앞의 레벨 코드: `L2-B1-05` → "L2", `K-B1-S1` → "K". 형식이 다르면 undefined.
  * 레벨을 주지 않는 응답(2.4 단어)의 화면이 레벨 색을 고를 때만 쓴다 — 서버가 준 code를 읽을 뿐 계산하지 않는다
