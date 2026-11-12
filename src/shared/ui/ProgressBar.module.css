@@ -9,8 +9,9 @@
   height: 8px;
 }
 
+/* S-06 단어 카드 — 12px 알약(지시문 §3.2) */
 .word {
-  height: 6px;
+  height: 12px;
 }
 
 .fill {

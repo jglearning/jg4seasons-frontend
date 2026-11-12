@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { Play, Volume2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { Button } from '../../shared/ui/Button'
 import { ProgressBar } from '../../shared/ui/ProgressBar'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { WordCard } from '../../shared/ui/WordCard'
+import { lessonLevelCode } from '../../shared/lessonLabel'
 import { POS_LABEL, SOURCE_LABEL } from './study'
 import { useStudySaver } from './useStudySaver'
 import { useWordAudio } from './useWordAudio'
@@ -21,17 +22,24 @@ export function WordsPage() {
   const { code = '' } = useParams()
   const words = useQuery(wordsQuery(code))
 
+  const level = lessonLevelCode(code)
   if (words.data === undefined) {
     return (
-      <StudentLayout>
-        <WordsLoadState query={words} />
+      <StudentLayout levelCode={level}>
+        <div className={styles.screen}>
+          <WordsHead code={code} />
+          <WordsLoadState query={words} />
+        </div>
       </StudentLayout>
     )
   }
   if (words.data.items.length === 0) {
     return (
-      <StudentLayout>
-        <p className={styles.loadMessage}>이 수업에는 아직 단어가 없어요</p>
+      <StudentLayout levelCode={level}>
+        <div className={styles.screen}>
+          <WordsHead code={code} />
+          <p className={styles.empty}>이 수업에는 아직 단어가 없어요</p>
+        </div>
       </StudentLayout>
     )
   }
@@ -71,29 +79,22 @@ function WordsBody({ code, items }: { code: string; items: Word[] }) {
   }
 
   return (
-    <StudentLayout>
+    <StudentLayout levelCode={lessonLevelCode(code)}>
       <div className={styles.screen}>
-        <header className={styles.header}>
-          <div className={styles.headText}>
-            <h1 className={styles.title}>단어 카드</h1>
-            <p className={styles.sub}>
-              {code} · 단어 {total}개
-            </p>
-          </div>
-          <span className={styles.counter}>
-            {index + 1} / {total}
-          </span>
-        </header>
-        <ProgressBar value={index + 1} max={total} label="단어 카드" size="word" />
+        <WordsHead
+          code={code}
+          sub={`${code} · 단어 ${total}개`}
+          counter={`${index + 1} / ${total}`}
+          bar={<ProgressBar value={index + 1} max={total} label="단어 카드" size="word" />}
+        />
 
-        {/* key — 카드가 바뀌면 덮개가 닫힌 새 카드 */}
+        {/* key — 카드가 바뀌면 덮개가 닫힌 새 카드. 자동 재생은 표시 없이 위 useEffect가 한다(v0.2) */}
         <WordCard
           key={index}
           sourceLabel={SOURCE_LABEL[word.source]}
           english={word.english}
           posLabel={POS_LABEL[word.pos]}
           korean={word.korean}
-          autoplay={word.audio !== null && !audio.blocked}
         />
 
         <Button
@@ -104,11 +105,11 @@ function WordsBody({ code, items }: { code: string; items: Word[] }) {
         >
           {audio.blocked && word.audio !== null ? (
             <>
-              <Play size={18} strokeWidth={2} aria-hidden /> 눌러서 듣기
+              <Play size={22} fill="currentColor" strokeWidth={0} aria-hidden /> 눌러서 듣기
             </>
           ) : (
             <>
-              <Volume2 size={18} strokeWidth={2} aria-hidden /> 단어 듣기
+              <Volume2 size={24} strokeWidth={2.2} aria-hidden /> 단어 듣기
             </>
           )}
         </Button>
@@ -125,5 +126,32 @@ function WordsBody({ code, items }: { code: string; items: Word[] }) {
         </div>
       </div>
     </StudentLayout>
+  )
+}
+
+// 머리: "단어 카드" + 보조 글(코드 · 단어 n개) + 오른쪽 진행 수, 아래 진행 바.
+// 불러오는 중·못 받음·단어 없음에서는 제목과 코드만(진행 수·바 없음)
+function WordsHead({
+  code,
+  sub = code,
+  counter,
+  bar,
+}: {
+  code: string
+  sub?: string
+  counter?: string
+  bar?: ReactNode
+}) {
+  return (
+    <div className={styles.head}>
+      <header className={styles.header}>
+        <div className={styles.headText}>
+          <h1 className={styles.title}>단어 카드</h1>
+          <p className={styles.sub}>{sub}</p>
+        </div>
+        {counter !== undefined && <span className={styles.counter}>{counter}</span>}
+      </header>
+      {bar}
+    </div>
   )
 }

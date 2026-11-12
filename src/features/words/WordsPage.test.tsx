@@ -100,14 +100,16 @@ function bareFirstWord() {
 }
 
 describe('S-06 단어 카드', () => {
-  it('첫 카드: 출처·품사·단어, 발음 1회 자동 재생, 진행 1 / 57 — 뜻은 종이 아래, 예문은 없다', async () => {
+  it('첫 카드: 출처·품사·단어, 발음 1회 자동 재생(표시는 없음, v0.2), 진행 1 / 57 — 뜻은 종이 아래, 예문은 없다', async () => {
     renderWords()
     await counter(`1 / ${WORD_MOCK.total}`)
 
     expect(card()).toHaveTextContent('어휘책')
     expect(card()).toHaveTextContent('동사')
     expect(card()).toHaveTextContent(WORD_MOCK.english(1))
-    expect(card()).toHaveTextContent('발음 자동 재생')
+    expect(screen.queryByText('발음 자동 재생')).not.toBeInTheDocument()
+    // 회차 코드 L2-B1-05 → 레벨 green(단어 응답에는 레벨이 없다)
+    expect(document.documentElement).toHaveAttribute('data-level', 'green')
     expectDown(WORD_MOCK.english(1), WORD_MOCK.korean(1))
     expect(shift()).toBe('0px')
     expect(card()).not.toHaveTextContent('우리는 매일 점심 뒤에 수다를 떤다.')
@@ -119,6 +121,23 @@ describe('S-06 단어 카드', () => {
     )
     expect(screen.queryByRole('link', { name: /암기·리콜·스펠/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /정답 확인/ })).not.toBeInTheDocument()
+  })
+
+  it('단어 없음: 카드 자리에 안내 상자, 머리에는 제목·회차 코드만(진행 수·카드·버튼 없음)', async () => {
+    server.use(
+      http.get('*/api/v1/student/lessons/:code/words', () =>
+        HttpResponse.json({ ...buildWords(), items: [], total: 0 }),
+      ),
+    )
+    renderWords('K-B1-S1')
+
+    expect(await screen.findByText('이 수업에는 아직 단어가 없어요')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '단어 카드' })).toBeInTheDocument()
+    expect(screen.getByText('K-B1-S1')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '단어 카드' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다음' })).not.toBeInTheDocument()
+    expect(document.documentElement).toHaveAttribute('data-level', 'black')
   })
 
   it('음원 없는 단어(BE #38): 자동 재생 표시·재생 없이, 듣기 버튼은 누를 수 없다, 새 품사 표기', async () => {
