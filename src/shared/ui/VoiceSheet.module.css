@@ -1,0 +1,191 @@
+/* 음성 버튼 — 높이 40 흰 턱 버튼. 누르는 자리는 ::before로 44(DESIGN.md 1.3) */
+.trigger {
+  position: relative;
+  height: 40px;
+  flex: none;
+  box-sizing: border-box;
+  padding: 0 10px 0 12px;
+  border-radius: 12px;
+  border: var(--border-control) solid var(--line-strong);
+  background: var(--white);
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition:
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
+}
+
+.trigger::before {
+  content: '';
+  position: absolute;
+  inset: -3px 0;
+}
+
+.trigger:active:not(:disabled) {
+  transform: translateY(var(--lip));
+  box-shadow: 0 0 0 transparent;
+}
+
+.trigger:disabled {
+  background: var(--line);
+  border-color: var(--line);
+  box-shadow: none;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.chevron {
+  color: var(--muted);
+}
+
+/* 시트 */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+/* 뒤를 어둡게 — 그림자가 아니라 반투명 면(ink 45%) */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+  animation: fade 200ms ease-out;
+}
+
+.sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--student-max-width);
+  margin: 0 auto;
+  padding: 12px var(--gutter-student) calc(24px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: rise 200ms ease-out;
+}
+
+.grip {
+  align-self: center;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 800;
+}
+
+.sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* 나머지 칸 — 흰 턱 버튼 모양 */
+.option {
+  height: 76px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: var(--border-control) solid var(--line-strong);
+  background: var(--white);
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
+  color: var(--ink);
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+/* 고른 칸 — 진한 레벨 테두리 2px + 연한 레벨 면 + 체크, 턱 없이 3px 내려간 모양 */
+.checked {
+  border: 2px solid var(--L-deep);
+  background: var(--L-tint);
+  box-shadow: none;
+  transform: translateY(var(--lip));
+}
+
+.names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.en {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.check {
+  flex: none;
+  color: var(--L-deep);
+}
+
+.apply {
+  height: var(--button-h-student);
+  border: 0;
+  border-radius: var(--radius-button-student);
+  background: var(--L-deep);
+  color: var(--cream);
+  box-shadow: 0 var(--lip) 0 var(--L-lip);
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
+}
+
+.apply:active {
+  transform: translateY(var(--lip));
+  box-shadow: 0 0 0 transparent;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
