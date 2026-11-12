@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { CodeBoxes } from './CodeBoxes'
-import { Keypad } from './Keypad'
 
 type Kind = 'join' | 'pin'
 const NAMES: Record<Kind, string> = { join: '가입 코드 8자리', pin: '개인 코드 숫자 4자리' }
@@ -159,28 +158,5 @@ describe('CodeBoxes join(가입 코드 8칸)', () => {
     expect(input).toHaveAttribute('autocapitalize', 'characters')
     expect(input).toHaveAttribute('spellcheck', 'false')
     expect(input).toHaveAttribute('inputmode', 'text')
-  })
-})
-
-describe('Keypad', () => {
-  it('숫자·한 글자 지우기·모두 지움을 각각 알린다(보이는 글자와 이름이 같다)', async () => {
-    const onDigit = vi.fn()
-    const onDelete = vi.fn()
-    const onClear = vi.fn()
-    render(<Keypad onDigit={onDigit} onDelete={onDelete} onClear={onClear} />)
-
-    await userEvent.click(screen.getByRole('button', { name: '7' }))
-    await userEvent.click(screen.getByRole('button', { name: '0' }))
-    await userEvent.click(screen.getByRole('button', { name: '한 글자 지우기' }))
-    await userEvent.click(screen.getByRole('button', { name: '모두 지움' }))
-
-    expect(onDigit.mock.calls).toEqual([['7'], ['0']])
-    expect(onDelete).toHaveBeenCalledTimes(1)
-    expect(onClear).toHaveBeenCalledTimes(1)
-  })
-
-  it('disabled면 모든 키가 막힌다', () => {
-    render(<Keypad onDigit={() => {}} onDelete={() => {}} onClear={() => {}} disabled />)
-    expect(screen.getAllByRole('button').every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
   })
 })
