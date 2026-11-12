@@ -137,9 +137,18 @@ const heardNos = () =>
   screen
     .queryAllByRole('button', { name: /^문장 \d+ · 들음,/ })
     .map((b) => Number(/문장 (\d+) · 들음,/.exec(b.textContent ?? '')?.[1]))
-const player = () => screen.getByRole('region', { name: '플레이어' })
-const voices = () => screen.getByRole('group', { name: '목소리' })
-const rates = () => screen.getByRole('group', { name: '재생 속도' })
+/** 듣기 카드(지금 지문) */
+const player = () => screen.getByRole('region', { name: /^지문 \d+ 듣기$/ })
+const rates = () => screen.getByRole('group', { name: '속도' })
+/** 음성 버튼 — 이름은 늘 지금 고른 음성 */
+const voiceButton = () => screen.getByRole('button', { name: /^음성 고르기, 지금 / })
+/** 음성 시트를 열어 그 음성을 고르고 "이 음성으로 듣기" */
+async function chooseVoice(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(voiceButton())
+  const sheet = screen.getByRole('dialog', { name: '음성 고르기' })
+  await user.click(within(sheet).getByRole('radio', { name: new RegExp(`^${label}`) }))
+  await user.click(within(sheet).getByRole('button', { name: '이 음성으로 듣기' }))
+}
 /** 서버가 "지문을 다 들었다"(6 / 6)고 주는 회차 — 복습이 열린다. 지문 5의 트랙 값은 그대로(첫 화면은 지문 5) */
 function reviewOpenMock() {
   server.use(
@@ -151,56 +160,55 @@ function reviewOpenMock() {
     }),
   )
 }
-/** 복습 탭으로(열려 있을 때) */
+/** 복습 본문을 펼친다(열려 있을 때) */
 function openReview() {
   act(() => {
-    screen.getByRole('tab', { name: '복습 · 본문 보며' }).click()
+    screen.getByRole('button', { name: '복습하기 · 본문 보며 듣기' }).click()
   })
 }
-const testCard = () => screen.getByRole('region', { name: '테스트 듣기' })
+const testCard = player
 const nudge = () => screen.queryByRole('status')
 
 describe('S-05 화면', () => {
-  it('머리글·지문 탭(서버 완료)·첫 미완료 지문·문장·플레이어', async () => {
+  it('머리 줄(뒤로·이름·홈)·지문 번호(서버 완료)·첫 미완료 지문·듣기 카드', async () => {
     renderLesson()
     await heading()
 
     expect(screen.getByText('지문 듣기 4 / 6')).toBeInTheDocument()
-    const tabs = screen.getByRole('navigation', { name: '지문' })
-    expect(within(tabs).getByRole('button', { name: '지문 4 · 완료' })).toBeInTheDocument()
-    expect(within(tabs).getByRole('button', { name: '지문 5' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument()
+    expect(await screen.findByText('김민준')).toBeInTheDocument() // /me
+    expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
+    const tabs = screen.getByRole('navigation', { name: '지문 고르기' })
+    expect(within(tabs).getByRole('button', { name: '지문 4 완료' })).toBeInTheDocument()
+    expect(within(tabs).getByRole('button', { name: '지문 5 듣는 중' })).toHaveAttribute(
       'aria-current',
       'true',
     )
+    expect(within(tabs).getByRole('button', { name: '지문 6 아직 안 들음' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(5) })).toBeInTheDocument()
-    // 기본은 테스트 듣기: 본문 글자 없이 책을 펴고 듣는다. 복습은 잠김(서버 4 / 6)
-    expect(screen.getByRole('tab', { name: '테스트 듣기 · 책 보고' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
-    expect(screen.getByRole('tab', { name: '복습 · 잠김 4/6' })).toBeInTheDocument()
-    expect(testCard()).toHaveTextContent('책 5번 지문을 펴고 들어요')
-    expect(testCard()).toHaveTextContent('전체 1:23')
+    // 듣기 방식 탭·하단 고정 플레이어는 없다(v0.2). 본문 없이 책을 펴고 듣는다. 복습은 잠김(서버 4 / 6)
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '플레이어' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /10초/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/복습은 지문 6개를 다 들으면 열려요 · 4 \/ 6/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^복습하기/ })).not.toBeInTheDocument()
+    expect(player()).toHaveTextContent('지문 5 · 1:23')
+    expect(player()).toHaveTextContent('책 5번 지문을 펴고 들어요')
+    expect(player()).toHaveTextContent(/문장\s*1 \/ 9/)
+    expect(screen.getByRole('img', { name: '문장 9개' })).toBeInTheDocument() // 재생 전에는 지금 문장 없음
     expect(screen.queryByText(LESSON_MOCK.sentence(5, 1))).not.toBeInTheDocument()
     expect(screen.queryAllByRole('button', { name: /^문장 \d+( ·|,)/ })).toHaveLength(0)
 
-    // 목소리 4개(서버 순서), 처음은 가장 많이 들은 목소리(지문 5: 미국 여 30%). 속도는 1.0
-    expect(
-      within(voices())
-        .getAllByRole('button')
-        .map((b) => b.textContent),
-    ).toEqual(['미국 여', '미국 남', '영국 여', '영국 남'])
-    expect(within(voices()).getByRole('button', { name: '미국 여' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    // 처음 음성은 미국 여성(A5 — 저장 전). 속도는 1.0
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 미국 여성')
     expect(within(rates()).getByRole('button', { name: '1.0' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
-    expect(player()).toHaveTextContent('지문 5 전체 · 1:23 · 미국 여 · 1.0×')
     expect(player()).toHaveTextContent('들은 구간 30%') // 서버 coverage 0.30
-    expect(screen.getByRole('button', { name: '처음부터 듣기 · 1:23' })).toBeInTheDocument()
+    expect(player()).toHaveTextContent('90%면 완료') // 서버 completion.threshold
+    expect(screen.getByRole('button', { name: '처음부터 듣기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '다음 지문' })).toBeInTheDocument()
     expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'us_w')}.wav`)
     expect(audio().playbackRate).toBe(1)
     expect(play).not.toHaveBeenCalled()
@@ -218,7 +226,7 @@ describe('S-05 화면', () => {
     // 재생 전에는 강조된 문장이 없다
     for (const row of sentences()) expect(row).not.toHaveAttribute('aria-current')
     expect(heardNos()).toEqual([1, 2, 3])
-    await user.click(screen.getByRole('button', { name: '지문 1 · 완료' }))
+    await user.click(screen.getByRole('button', { name: '지문 1 완료' }))
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(1) })).toBeInTheDocument()
     expect(heardNos()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
   })
@@ -267,15 +275,28 @@ describe('S-05 화면', () => {
   })
 })
 
-describe('단계 탭 — 테스트 듣기 · 복습(11/6)', () => {
-  it('테스트: 재생하면 "문장 n / m", "이 문장 다시"·"앞 문장"은 그 문장부터 재생', async () => {
+describe('듣기 카드 · 복습 줄(v0.2)', () => {
+  it('재생하면 "문장 n / m"과 점, "이 문장 다시"·"앞 문장"은 그 문장부터 재생', async () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
     expect(within(testCard()).getByRole('button', { name: '앞 문장' })).toBeDisabled()
 
     listen(0, startOf(5, 3) + 1)
-    expect(testCard()).toHaveTextContent('문장 3 / 9')
+    expect(testCard()).toHaveTextContent(/문장\s*3 \/ 9/)
+    const dots = screen.getByRole('img', { name: '문장 9개 중 3번째' })
+    // 서버 heardRanges가 1~3을 덮고 지금 문장이 3 — 1·2는 들음, 3은 지금, 나머지는 남음
+    expect([...dots.children].map((d) => d.getAttribute('data-state'))).toEqual([
+      'heard',
+      'heard',
+      'current',
+      'rest',
+      'rest',
+      'rest',
+      'rest',
+      'rest',
+      'rest',
+    ])
     play.mockClear()
     audio().paused = true
     fire(audio(), 'pause')
@@ -288,36 +309,32 @@ describe('단계 탭 — 테스트 듣기 · 복습(11/6)', () => {
     expect(audio().currentTime).toBe(startOf(5, 2))
   })
 
-  it('복습이 잠겼으면 잠금 안내 — "테스트 듣기로"로 돌아온다', async () => {
+  it('복습이 열리면(서버 6 / 6) 복습 버튼으로 본문을 펼치고 닫는다', async () => {
+    reviewOpenMock()
     const user = userEvent.setup()
     renderLesson()
     await heading()
+    expect(screen.queryByText(/복습은 지문/)).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: /^문장 \d+( ·|,)/ })).toHaveLength(0)
 
-    await user.click(screen.getByRole('tab', { name: '복습 · 잠김 4/6' }))
-
-    const lock = screen.getByRole('region', { name: '복습 잠김' })
-    expect(lock).toHaveTextContent('복습은 지문 6개를 다 들으면 열려요')
-    expect(lock).toHaveTextContent('지금 4 / 6 · 남은 지문 5, 6')
-    expect(screen.queryByText(LESSON_MOCK.sentence(5, 1))).not.toBeInTheDocument()
-
-    await user.click(within(lock).getByRole('button', { name: '테스트 듣기로' }))
-    expect(testCard()).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '테스트 듣기 · 책 보고' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
+    await user.click(screen.getByRole('button', { name: '복습하기 · 본문 보며 듣기' }))
+    expect(sentences()).toHaveLength(9)
+    await user.click(screen.getByRole('button', { name: '복습 닫기' }))
+    expect(screen.queryAllByRole('button', { name: /^문장 \d+( ·|,)/ })).toHaveLength(0)
   })
 
-  it('탭을 바꾸면 안내 카드를 닫는다', async () => {
+  it('뒤로: 들어온 화면으로, 바로 들어왔으면 회차 목록으로', async () => {
     const user = userEvent.setup()
-    renderLesson()
+    const direct = renderLesson()
     await heading()
-    await user.click(screen.getByRole('button', { name: '다음 지문 →' }))
-    expect(nudge()).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '뒤로' }))
+    expect(direct.router.state.location.pathname).toBe('/lessons')
+    direct.unmount()
 
-    await user.click(screen.getByRole('tab', { name: '복습 · 잠김 4/6' }))
-
-    expect(nudge()).not.toBeInTheDocument()
+    const fromHome = renderRoutes(routes, { initialEntries: ['/', `/lessons/${LESSON_MOCK.code}`] })
+    await heading()
+    await user.click(screen.getByRole('button', { name: '뒤로' }))
+    expect(fromHome.router.state.location.pathname).toBe('/')
   })
 })
 
@@ -336,7 +353,7 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     expect(audio().currentTime).toBe(startOf(5, 4))
     expect(play).toHaveBeenCalledTimes(1)
     expect(sentence(4)).toHaveAttribute('aria-current', 'true')
-    expect(player()).toHaveTextContent('지문 5 · 문장 4 / 9 · 미국 여 · 1.0×')
+    expect(player()).toHaveTextContent(/문장\s*4 \/ 9/)
   })
 
   it('"처음부터 듣기"는 0초에서 재생', async () => {
@@ -401,7 +418,7 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     const { container } = renderLesson()
     await heading()
     openReview()
-    await user.click(screen.getByRole('button', { name: '지문 6' }))
+    await user.click(screen.getByRole('button', { name: '지문 6 아직 안 들음' }))
 
     listen(0, 5)
     await user.click(sentence(3))
@@ -417,7 +434,7 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     expect(filled).toEqual(['0-5000', `${s3}-${s3 + 3000}`])
   })
 
-  it('목소리를 바꾸면 그 목소리 파일로, 같은 문장의 새 시작 시각에서 이어 듣는다', async () => {
+  it('음성을 바꾸면 그 음성 파일로, 같은 문장의 새 시작 시각에서 이어 듣는다', async () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
@@ -426,22 +443,19 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     listen(startOf(5, 4), startOf(5, 4) + 2)
     play.mockClear()
 
-    await user.click(within(voices()).getByRole('button', { name: '영국 남' }))
+    await chooseVoice(user, '영국 남성')
 
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'uk_m')}.wav`)
     expect(play).toHaveBeenCalledTimes(1) // 듣던 중이었으니 이어서 재생 — 누른 그 순간에
     metadata(seconds(5, 'uk_m'))
     // 목소리마다 길이가 달라 같은 문장이라도 시각이 다르다
     expect(startOf(5, 4, 'uk_m')).not.toBe(startOf(5, 4))
     expect(audio().currentTime).toBe(startOf(5, 4, 'uk_m'))
-    expect(within(voices()).getByRole('button', { name: '영국 남' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    expect(player()).toHaveTextContent('영국 남 · 1.0×')
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 영국 남성')
   })
 
-  it('속도는 재생 속도(playbackRate) — 파일·위치·구간은 그대로, 목소리를 바꿔도 유지(ADR-27)', async () => {
+  it('속도는 재생 속도(playbackRate) — 파일·위치·구간은 그대로, 음성을 바꿔도 유지(ADR-27)', async () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
@@ -458,9 +472,7 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
       'aria-pressed',
       'true',
     )
-    expect(player()).toHaveTextContent('미국 여 · 1.2×')
-
-    await user.click(within(voices()).getByRole('button', { name: '미국 남' }))
+    await chooseVoice(user, '미국 남성')
     expect(audio().playbackRate).toBe(1.2)
     expect(audio().defaultPlaybackRate).toBe(1.2)
 
@@ -470,34 +482,43 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     expect(audio().playbackRate).toBe(1.2)
   })
 
-  it('이전·다음 문장은 그 문장 시작으로 옮긴다(재생 상태는 그대로)', async () => {
+  it('음성 시트: 서버 음성 4개 순서, 고른 칸 체크, 방향키로 옮기기, Esc·바깥은 바꾸지 않고 닫기', async () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
-    openReview()
-    expect(within(player()).getByRole('button', { name: '이전 문장' })).toBeDisabled()
+    const src = audio().getAttribute('src')
 
-    await user.click(within(player()).getByRole('button', { name: '다음 문장' }))
-    expect(audio().currentTime).toBe(startOf(5, 2))
-    expect(play).not.toHaveBeenCalled()
-    expect(player()).toHaveTextContent('문장 2 / 9')
+    await user.click(voiceButton())
+    const sheet = screen.getByRole('dialog', { name: '음성 고르기' })
+    expect(sheet).toHaveTextContent('고르면 지금 문장부터 그 음성으로 이어서 들려요')
+    const radios = within(sheet).getAllByRole('radio')
+    expect(radios.map((r) => r.textContent)).toEqual([
+      '미국 여성US · Female',
+      '미국 남성US · Male',
+      '영국 여성UK · Female',
+      '영국 남성UK · Male',
+    ])
+    expect(radios[0]).toHaveAttribute('aria-checked', 'true')
+    expect(radios[0]).toHaveFocus()
 
-    await user.click(within(player()).getByRole('button', { name: '다음 문장' }))
-    await user.click(within(player()).getByRole('button', { name: '이전 문장' }))
-    expect(audio().currentTime).toBe(startOf(5, 2))
-
-    await user.click(sentence(9))
-    expect(within(player()).getByRole('button', { name: '다음 문장' })).toBeDisabled()
+    await user.keyboard('{ArrowRight}')
+    expect(radios[1]).toHaveAttribute('aria-checked', 'true')
+    expect(radios[1]).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(voiceButton()).toHaveFocus() // 연 버튼으로 돌아온다
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 미국 여성') // 바뀌지 않음
+    expect(audio().getAttribute('src')).toBe(src)
   })
 
-  it('트랙(목소리)을 바꾸면 이전 트랙에서 들은 구간을 sendBeacon(final)으로 보낸다', async () => {
+  it('트랙(음성)을 바꾸면 이전 트랙에서 들은 구간을 sendBeacon(final)으로 보낸다', async () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
     openReview()
     listen(30, 40)
 
-    await user.click(within(voices()).getByRole('button', { name: '미국 남' }))
+    await chooseVoice(user, '미국 남성')
 
     expect(beacon).toHaveBeenCalledTimes(1)
     expect(await beaconBody(0)).toMatchObject({
@@ -507,7 +528,7 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     })
   })
 
-  it('진행 바는 서버의 들은 구간 + 이 화면에서 들은 구간만 채우고, 목소리를 바꿨다 와도 남는다', async () => {
+  it('들은 구간 바는 서버 + 이 화면에서 들은 구간만 채우고 건너뛴 곳은 빗금, 음성을 바꿨다 와도 남는다', async () => {
     const user = userEvent.setup()
     const { container } = renderLesson()
     await heading()
@@ -518,15 +539,19 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
       [...container.querySelectorAll('[data-range]')].map((el) => el.getAttribute('data-range'))
     const seeded = LESSON_MOCK.timings(5, 'us_w')[2][1]
     expect(filled()).toEqual([`0-${seeded}`, '40000-45000'])
+    // 지금 위치(45초)보다 앞인데 듣지 않은 곳 = 서버 구간 끝 ~ 40초
+    const skipped = () =>
+      [...container.querySelectorAll('[data-skipped]')].map((el) => el.getAttribute('data-skipped'))
+    expect(skipped()).toEqual([`${seeded}-40000`])
 
-    await user.click(within(voices()).getByRole('button', { name: '영국 여' }))
+    await chooseVoice(user, '영국 여성')
     expect(filled()).toEqual([])
-    await user.click(within(voices()).getByRole('button', { name: '미국 여' }))
+    await chooseVoice(user, '미국 여성')
     expect(filled()).toEqual([`0-${seeded}`, '40000-45000'])
   })
 })
 
-describe('진행 바로 위치 옮기기(STU-05 — 11/9 실기기 요청)', () => {
+describe('들은 구간 바로 위치 옮기기(STU-05 — 11/9 실기기 요청)', () => {
   const seekBar = () => within(player()).getByRole('slider', { name: '재생 위치' })
   /** 바 영역(x 20~370, 폭 350)에 jsdom이 모르는 레이아웃을 넣는다 */
   function layout() {
@@ -555,7 +580,10 @@ describe('진행 바로 위치 옮기기(STU-05 — 11/9 실기기 요청)', () 
     pointer(area, 'pointerdown', 20 + 350 * 0.25)
     pointer(area, 'pointermove', 20 + 350 * 0.5)
     expect(audio().currentTime).toBe(0) // 끄는 중에는 옮기지 않는다(seek 한 번 = 구간 끊김 한 번)
-    expect(player()).toHaveTextContent(clockOf(duration * 0.5))
+    expect(seekBar()).toHaveAttribute(
+      'aria-valuetext',
+      `${clockOf(duration * 0.5)} / ${clockOf(duration)}`,
+    )
 
     pointer(area, 'pointerup', 20 + 350 * 0.5)
     expect(audio().currentTime).toBe(Math.round(duration * 0.5) / 1000)
@@ -616,7 +644,7 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     renderLesson()
     await heading()
 
-    await user.click(screen.getByRole('button', { name: '다음 지문 →' }))
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
 
     expect(nudge()).toHaveTextContent('지문 5를 아직 다 안 들었어요')
     expect(nudge()).toHaveTextContent('미국 여 들은 구간 30% · 안 들은 문장 4, 5, 6, 7, 8, 9')
@@ -627,7 +655,7 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
-    await user.click(screen.getByRole('button', { name: '다음 지문 →' }))
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
 
     await user.click(within(nudge() as HTMLElement).getByRole('button', { name: '이어서 듣기' }))
 
@@ -640,17 +668,18 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
-    await user.click(screen.getByRole('button', { name: '다음 지문 →' }))
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
 
     await user.click(within(nudge() as HTMLElement).getByRole('button', { name: '그냥 넘어가기' }))
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(6) })).toBeInTheDocument()
     expect(nudge()).not.toBeInTheDocument()
-    expect(screen.getByText('마지막 지문이에요')).toBeInTheDocument()
+    // 마지막 지문: 단어 버튼(지문을 다 듣기 전에는 흰 버튼)
+    expect(screen.queryByRole('button', { name: '다음 지문' })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('link', { name: '오늘의 단어 학습하기 →' }))
+    await user.click(screen.getByRole('link', { name: '오늘 단어 57개 보기' }))
     expect(nudge()).toHaveTextContent('아직 완료 안 된 지문이 있어요')
     expect(nudge()).toHaveTextContent(
-      '완료 안 된 지문: 5, 6 · 아무 목소리로 끝까지 들으면 완료돼요',
+      '완료 안 된 지문: 5, 6 · 아무 음성으로 끝까지 들으면 완료돼요',
     )
     expect(
       within(nudge() as HTMLElement).getByRole('link', { name: '그래도 단어로' }),
@@ -664,10 +693,10 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
-    await user.click(screen.getByRole('button', { name: '다음 지문 →' }))
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
     expect(nudge()).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '지문 1 · 완료' }))
+    await user.click(screen.getByRole('button', { name: '지문 1 완료' }))
 
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(1) })).toBeInTheDocument()
     expect(nudge()).not.toBeInTheDocument()
@@ -677,15 +706,15 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
-    await user.click(screen.getByRole('button', { name: '지문 1 · 완료' }))
+    await user.click(screen.getByRole('button', { name: '지문 1 완료' }))
 
-    await user.click(screen.getByRole('button', { name: '다음 지문 →' }))
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
 
     expect(nudge()).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(2) })).toBeInTheDocument()
   })
 
-  it('어느 목소리로든 완료하면 지문 완료 — 그 목소리 칸에 ✓, 안내는 가장 많이 들은 목소리', async () => {
+  it('어느 음성으로든 완료하면 지문 완료(서버) — 처음 음성은 가장 많이 들은 것이 아니라 미국 여성', async () => {
     server.use(
       http.get('*/api/v1/student/lessons/:code', () => {
         const detail = buildLessonDetail(LESSON_MOCK.code)
@@ -701,19 +730,14 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
         return HttpResponse.json(detail)
       }),
     )
-    const user = userEvent.setup()
     renderLesson()
     await heading()
 
-    // 첫 미완료는 지문 6, 처음 목소리는 가장 많이 들은 미국 남
+    // 첫 미완료는 지문 6, 지문 5는 완료
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(6) })).toBeInTheDocument()
-    expect(within(voices()).getByRole('button', { name: '미국 남' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    await user.click(screen.getByRole('button', { name: '지문 5 · 완료' }))
-    expect(within(voices()).getByRole('button', { name: '영국 남 완료' })).toBeInTheDocument()
-    expect(within(voices()).getByRole('button', { name: '미국 여' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '지문 5 완료' })).toBeInTheDocument()
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 미국 여성')
+    expect(player()).toHaveTextContent('들은 구간 10%') // 미국 여성 트랙의 서버 coverage
   })
 
   it('지문을 모두 마쳤으면 단어 학습 링크는 그대로 이동한다', async () => {
@@ -727,9 +751,9 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     const user = userEvent.setup()
     const { router } = renderLesson()
     await heading()
-    await user.click(screen.getByRole('button', { name: '지문 6 · 완료' }))
+    await user.click(screen.getByRole('button', { name: '지문 6 완료' }))
 
-    await user.click(screen.getByRole('link', { name: '오늘의 단어 학습하기 →' }))
+    await user.click(screen.getByRole('link', { name: '오늘 단어 57개 보기' }))
 
     expect(nudge()).not.toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/lessons/L2-B1-05/words')
@@ -759,16 +783,15 @@ describe('BE #18 계약 — 레벨 색, 문장 시각 없음', () => {
     await heading()
 
     listen(0, 20)
-    expect(testCard()).toHaveTextContent('전체 1:23')
+    expect(testCard()).toHaveTextContent(/전체\s*1:23/)
+    expect(screen.queryByRole('img', { name: /^문장/ })).not.toBeInTheDocument()
     expect(within(testCard()).getByRole('button', { name: '이 문장 다시' })).toBeDisabled()
-    expect(player()).toHaveTextContent('지문 5 전체 · 1:23 · 미국 여 · 1.0×')
-    expect(within(player()).getByRole('button', { name: '이전 문장' })).toBeDisabled()
-    expect(within(player()).getByRole('button', { name: '다음 문장' })).toBeDisabled()
+    expect(within(testCard()).getByRole('button', { name: '앞 문장' })).toBeDisabled()
 
     audio().paused = true
     fire(audio(), 'pause')
     play.mockClear()
-    await user.click(screen.getByRole('button', { name: '다음 지문 →' }))
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
     expect(nudge()).toHaveTextContent('미국 여 들은 구간 30%')
     expect(nudge()).not.toHaveTextContent('안 들은 문장')
     await user.click(within(nudge() as HTMLElement).getByRole('button', { name: '이어서 듣기' }))
@@ -786,7 +809,7 @@ describe('청취 기록(03 §3.1)', () => {
     vi.useFakeTimers()
     try {
       act(() => {
-        screen.getByRole('button', { name: '지문 6' }).click()
+        screen.getByRole('button', { name: '지문 6 아직 안 들음' }).click()
       })
       await act(() => vi.advanceTimersByTimeAsync(0))
       listen(0, 8)
@@ -820,7 +843,7 @@ describe('청취 기록(03 §3.1)', () => {
     listen(0, seconds(5))
     finish(seconds(5))
 
-    expect(await screen.findByRole('button', { name: '지문 5 · 완료' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '지문 5 듣는 중 · 완료' })).toBeInTheDocument()
     expect(screen.getByText('지문 듣기 5 / 6')).toBeInTheDocument()
     expect(player()).toHaveTextContent('들은 구간 100%')
   })
@@ -833,13 +856,13 @@ describe('청취 기록(03 §3.1)', () => {
 
     listen(0, seconds(5))
     finish(seconds(5))
-    await screen.findByRole('button', { name: '지문 5 · 완료' })
-    await user.click(screen.getByRole('button', { name: '지문 6' }))
+    await screen.findByRole('button', { name: '지문 5 듣는 중 · 완료' })
+    await user.click(screen.getByRole('button', { name: '지문 6 아직 안 들음' }))
     listen(0, seconds(6))
     finish(seconds(6))
-    await screen.findByRole('button', { name: '지문 6 · 완료' })
+    await screen.findByRole('button', { name: '지문 6 듣는 중 · 완료' })
     // 서버가 6 / 6이라 하면 복습이 열린다
-    expect(screen.getByRole('tab', { name: '복습 · 본문 보며' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '복습하기 · 본문 보며 듣기' })).toBeInTheDocument()
 
     const detail = client.getQueryData<{ completion: { status: string } }>([
       'student',
@@ -868,6 +891,21 @@ describe('청취 기록(03 §3.1)', () => {
       segments: [expect.objectContaining({ startMs: 0, endMs: 3000 })],
     })
     expect(beacon).not.toHaveBeenCalled()
+  })
+
+  it('홈 버튼으로 나가도 들은 구간을 sendBeacon(final)으로 보낸다(뒤로와 같은 처리)', async () => {
+    const user = userEvent.setup()
+    const { router } = renderLesson()
+    await heading()
+    listen(0, 6)
+
+    await user.click(screen.getByRole('link', { name: '홈으로' }))
+
+    expect(router.state.location.pathname).toBe('/')
+    expect(beacon).toHaveBeenCalledTimes(1)
+    const body = await beaconBody(0)
+    expect(body).toMatchObject({ final: true, trackId: LESSON_MOCK.passageTrackId(5, 'us_w') })
+    expect(body.segments).toEqual([expect.objectContaining({ startMs: 0, endMs: 6000 })])
   })
 
   it('듣다가 화면을 떠나면 들은 구간을 sendBeacon(final, text/plain)으로 보낸다', async () => {
@@ -985,7 +1023,7 @@ describe('소리가 안 날 때 · 잠금화면', () => {
 
     await user.click(within(rates()).getByRole('button', { name: '1.2' }))
     expect(session.metadata).toMatchObject({ title: 'Reading Day 5 · 지문 5 · 미국 여 · 1.2×' })
-    await user.click(within(voices()).getByRole('button', { name: '영국 여' }))
+    await chooseVoice(user, '영국 여성')
     expect(session.metadata).toMatchObject({ title: 'Reading Day 5 · 지문 5 · 영국 여 · 1.2×' })
   })
 })

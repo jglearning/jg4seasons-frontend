@@ -15,6 +15,19 @@ export type Variant = Passage['voices'][number]['variant']
 /** 화면 글: 목소리 이름("미국 여") — 교사 화면과 같은 글(shared/lessonLabel) */
 export const VOICE_LABEL = (variant: Variant): string => voiceLabel(variant) ?? variant
 
+/** 음성 고르기 시트·음성 버튼(v0.2 지시문 §2.4): 긴 이름과 영문 보조. 순서는 시트 칸 순서 */
+export const VOICE_ORDER: readonly Variant[] = ['us_w', 'us_m', 'uk_w', 'uk_m']
+const VOICE_LONG: Record<Variant, { label: string; sub: string }> = {
+  us_w: { label: '미국 여성', sub: 'US · Female' },
+  us_m: { label: '미국 남성', sub: 'US · Male' },
+  uk_w: { label: '영국 여성', sub: 'UK · Female' },
+  uk_m: { label: '영국 남성', sub: 'UK · Male' },
+}
+export const voiceLong = (variant: Variant) => VOICE_LONG[variant]
+
+/** 처음 고르는 음성(A5 — 저장 전에는 늘 미국 여성) */
+export const DEFAULT_VOICE: Variant = 'us_w'
+
 /** 0.8 → "0.8×", 1 → "1.0×" */
 export function rateLabel(rate: PlaybackRate): string {
   return `${rate.toFixed(1)}×`
