@@ -13,6 +13,9 @@
   --white: #ffffff;
   --cream: #fff1d3;
   --neutral-bg: #f4f4f5; /* 레벨을 모르는 학생 화면(S-01) 바탕 */
+  /* S-04 도장판의 잠긴 동그라미(지시문 §6.4-5, 다섯 레벨 같은 값) */
+  --lock-soft-bg: #f4f7f5;
+  --lock-soft-line: #d6ddd8;
   /* 교사 화면의 옅은 면 두 단계. 새 색을 만들지 않고 neutral-bg에서 계산 */
   --surface: color-mix(in srgb, var(--neutral-bg) 50%, var(--white));
   --surface-2: var(--neutral-bg);
