@@ -10,8 +10,7 @@ import { StudentsPage } from '../features/admin/StudentsPage'
 import { TeacherDetailPage } from '../features/admin/TeacherDetailPage'
 import { TeacherNewPage } from '../features/admin/TeacherNewPage'
 import { TeachersPage } from '../features/admin/TeachersPage'
-import { JoinPage } from '../features/auth/JoinPage'
-import { RejoinPage } from '../features/auth/RejoinPage'
+import { EntryPage } from '../features/auth/EntryPage'
 import { RequireSession } from '../features/auth/RequireSession'
 import { TeacherLoginPage } from '../features/auth/TeacherLoginPage'
 import { LessonPage } from '../features/player/LessonPage'
@@ -34,8 +33,9 @@ export const routes: RouteObject[] = [
     element: <SessionRoot />,
     errorElement: <RouteError />,
     children: [
-      { path: '/join', element: <JoinPage /> },
-      { path: '/rejoin', element: <RejoinPage /> },
+      // S-01·S-02는 화면 하나(#88) — 주소는 둘 다 유지. /rejoin은 저장된 가입 코드가 있을 때 보내는 주소(entry.ts)
+      { path: '/join', element: <EntryPage /> },
+      { path: '/rejoin', element: <EntryPage /> },
       { path: '/teacher/login', element: <TeacherLoginPage /> },
       {
         element: <RequireSession area="student" />,

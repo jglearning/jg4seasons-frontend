@@ -98,7 +98,8 @@ const authHandlers: AnyHandler[] = [
         id: 12,
         name: AUTH_MOCK.className,
         academyName: AUTH_MOCK.academyName,
-        level: { code: 'L2', nameKo: '그린', colorHex: '#1F7A4F' },
+        // 학생 목과 같은 레벨(dev:mock `?level=` 스위치가 바꾼다 — 들어가기 화면 다섯 레벨 확인용, 기본 L2)
+        level: { ...STUDENT_MOCK.level },
         book: { code: 'L2-B1', season: '겨울' },
       },
     })

@@ -1,34 +1,69 @@
+/* 학생 입장 코드 칸(지시문 §6.1): 흰 면, 반경 12, line-strong 1.5px, 22px 800. 지금 칸은 ink 2px, 오류는 --bad 2px */
 .field {
+  align-self: stretch;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  gap: 14px;
 }
 
 .label {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--muted);
 }
 
 .boxes {
   position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.cells {
+  display: flex;
+}
+
+/* 가입 코드: 4칸 + 4칸(묶음 사이 14, 칸 사이 5), 칸 38×54. 좁은 화면에서는 칸 폭이 줄어든다 */
+.join .cells {
+  gap: 14px;
+  width: min(100%, 348px);
+}
+
+.group {
+  flex: 1;
   display: grid;
-  gap: var(--space-3);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.join .box {
+  height: 54px;
+}
+
+/* 개인 코드: 칸 60×64, 사이 12 */
+.pin .cells {
+  gap: 12px;
+}
+
+.pin .box {
+  width: 60px;
+  height: 64px;
 }
 
 .box {
-  height: var(--field-h-student);
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: var(--white);
   border: var(--border-control) solid var(--line-strong);
-  border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
-}
-
-.filled {
-  border-color: var(--ink);
 }
 
 .active {
@@ -36,7 +71,15 @@
 }
 
 .invalid {
-  border-color: var(--danger);
+  border: 2px solid var(--bad);
+}
+
+/* 입력한 개인 코드 칸 — ink 점 지름 12 */
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink);
 }
 
 /* 칸 전체를 덮는 투명 입력. 글자는 칸이 보여 준다 */
@@ -50,9 +93,5 @@
   padding: 0;
   font-size: 16px; /* iOS가 16px 미만 입력에 화면을 확대하지 않게 */
   caret-color: transparent;
-}
-
-.error {
-  font-size: 13px;
-  color: var(--danger);
+  cursor: pointer;
 }

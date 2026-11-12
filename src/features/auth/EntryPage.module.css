@@ -1,0 +1,383 @@
+/* 들어가기(지시문 §6.1). 화면 전체를 덮고, 키보드를 뺀 나머지(visualViewport) 높이의 세로 가운데에 내용을 둔다 */
+.screen {
+  position: fixed;
+  left: 0;
+  right: 0;
+  overflow-y: auto;
+  container-type: size;
+  background: var(--L-tint);
+  transition: background-color 300ms ease-out;
+}
+
+/* 왼쪽 위 제이G 심볼(임시 로고 — 모양·비율·색을 바꾸지 않는다) */
+.symbol {
+  position: absolute;
+  left: 20px;
+  top: 14px;
+  width: auto;
+  height: 34px;
+}
+
+/* 다 받기 전에는 숨긴다 — 파일이 없을 때 깨진 그림·대체 글자가 잠깐이라도 보이지 않게(받지 못하면 요소를 뺀다) */
+.symbol:not([data-loaded]) {
+  visibility: hidden;
+}
+
+/* 오른쪽 위 "교사" — 글자는 오른 24·위 22, 누르는 자리 44 */
+.teacher {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding: 0 12px;
+  border-radius: var(--radius-control);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.center {
+  position: relative;
+  box-sizing: border-box;
+  max-width: var(--student-max-width);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 56px 24px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* ① 큰 동그라미 5개(지름 58, 12씩 겹침, 바탕색 3px 테두리) + "4 Seasons" 30/800 */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.dots {
+  display: flex;
+}
+
+.dot {
+  box-sizing: border-box;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 3px solid var(--L-tint);
+}
+
+.dot + .dot {
+  margin-left: -12px;
+}
+
+.dot[data-color='mint'] {
+  background: var(--mint);
+}
+.dot[data-color='green'] {
+  background: var(--green);
+}
+.dot[data-color='blue'] {
+  background: var(--blue);
+}
+.dot[data-color='navy'] {
+  background: var(--navy);
+}
+.dot[data-color='black'] {
+  background: var(--black);
+}
+
+.title {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+/* ② 작은 점 14(사이 6) + "4 Seasons" 15/800 */
+[data-stage='pin'] .brand {
+  gap: 10px;
+}
+
+[data-stage='pin'] .dots {
+  gap: 6px;
+}
+
+[data-stage='pin'] .dot {
+  width: 14px;
+  height: 14px;
+  border: 0;
+}
+
+[data-stage='pin'] .dot + .dot {
+  margin-left: 0;
+}
+
+[data-stage='pin'] .title {
+  font-size: 15px;
+}
+
+/* 단계 묶음. 지금 단계가 아닌 쪽은 화면 밖(투명) — 입력은 DOM에 남아 코드로 포커스를 옮길 수 있다 */
+.step {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.offstage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-step='join'] {
+  margin-top: 76px;
+}
+
+/* ② 반 카드: 폭 가득, 반경 20, --L 면, --L-on 글자. 제목 아래 28 */
+.card {
+  align-self: stretch;
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: var(--L);
+  color: var(--L-on);
+  text-align: left;
+}
+
+/* 반을 확인하지 못했을 때 — 회색 카드(레벨 색 없음) */
+.codeCard {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.cardMark {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--L-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.cardText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cardName {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+/* 반 이름 19/700(큰 글자 — 색 면 위 작은 크림 글자 금지, 11/13 동섭). 길면 한 줄 말줄임 */
+.cardClass {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardCode {
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "바꾸기": 누르는 자리 44 안에 알약 높이 32(크림 면 + ink 14/700, 좌우 14, 반경 16, 턱 없음) */
+.change {
+  flex: none;
+  min-height: var(--touch-min);
+  margin: -6px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.pill {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: var(--cream);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 32px;
+}
+
+/* 회색 카드에서는 흰 면 + line-strong 1.5px */
+.codeCard .pill {
+  background: var(--white);
+  border: var(--border-control) solid var(--line-strong);
+  line-height: 29px;
+}
+
+/* "개인 코드" 이름표는 반 카드 아래 64 */
+.pinField {
+  align-self: stretch;
+  margin-top: 64px;
+}
+
+/* 오류·안내 한 줄 — 칸 아래 14, 높이 22를 늘 비워 둔다 */
+.line {
+  align-self: stretch;
+  min-height: 22px;
+  margin-top: 14px;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+/* alert·status 두 영역은 늘 있고, 빈 쪽은 높이가 0이다 */
+.lineError,
+.lineMuted {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+}
+
+.lineError {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lineMuted {
+  color: var(--muted);
+}
+
+.lineIcon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--bad);
+}
+
+/* 카드 QR로 채워졌을 때만 — 4칸 아래 24 */
+.enter {
+  margin-top: 24px;
+}
+
+/* ① → ② 앞: "가입 코드" 이름표와 8칸이 8px 올라가며 사라짐(160ms).
+   "바꾸기" 뒤(data-moved)의 ① 나타나기 규칙보다 앞서도록 선택자를 더 구체적으로 */
+.screen[data-stage] [data-step].leaving {
+  animation: leave-up 160ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes leave-up {
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* ① → ②(약 0.6초, png/S01_motion.gif): 작은 점·이름표가 큰 자리에서 올라오며 작아지고, 반 카드·개인 코드가 차례로 올라온다.
+   움직이는 것은 transform·opacity와 바탕색뿐 */
+[data-moved][data-stage='pin'] .brand {
+  animation: shrink-in 320ms ease-out both;
+}
+
+[data-moved][data-stage='pin'] .card {
+  animation: rise-in 260ms ease-out 20ms both;
+}
+
+[data-moved][data-stage='pin'] .pinField {
+  animation: rise-in 260ms ease-out 140ms both;
+}
+
+/* ② → ①(바꾸기): 반대 방향 */
+[data-moved][data-stage='join'] .brand {
+  animation: grow-in 320ms ease-out both;
+}
+
+[data-moved][data-stage='join'] [data-step='join'] {
+  animation: rise-in 260ms ease-out 160ms both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes shrink-in {
+  from {
+    opacity: 0.4;
+    transform: translateY(48px) scale(1.6);
+  }
+}
+
+@keyframes grow-in {
+  from {
+    opacity: 0.4;
+    transform: translateY(-32px) scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen,
+  .screen * {
+    animation: none !important;
+  }
+}
+
+/* 키보드가 올라와 남은 높이가 낮으면(390×667 + 키보드 등) 사이를 줄여 칸이 가려지지 않게 */
+@container (max-height: 560px) {
+  .center {
+    padding-top: 52px;
+  }
+
+  .dot {
+    width: 44px;
+    height: 44px;
+  }
+
+  .brand {
+    gap: 12px;
+  }
+
+  .title {
+    font-size: 26px;
+  }
+
+  [data-step='join'] {
+    margin-top: 32px;
+  }
+
+  .card {
+    margin-top: 16px;
+    padding: 12px 16px;
+  }
+
+  .pinField {
+    margin-top: 28px;
+  }
+}
