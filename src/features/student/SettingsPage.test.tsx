@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { AUTH_MOCK, resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
+import { buildHome } from '../../mocks/studentData'
 import { renderRoutes } from '../../test/render'
 
 // S-07 설정(와이어프레임 S07 v2, 11/9): 내 정보 · 홈 화면에 추가 방법 · 로그아웃(확인 없이 → S-02)
@@ -35,7 +36,8 @@ function renderSettings(path = '/settings') {
 }
 
 const title = () => screen.findByRole('heading', { name: '설정', level: 1 })
-const homeScreenCard = () => screen.queryByRole('region', { name: '홈 화면에 추가' })
+const homeScreenRow = () => screen.queryByRole('button', { name: /홈 화면에 추가/ })
+const steps = () => document.getElementById('home-screen-steps')!
 const logoutButton = () => screen.getByRole('button', { name: /로그아웃|나가는 중/ })
 
 function iphone() {
@@ -45,48 +47,72 @@ function iphone() {
 }
 
 describe('S-07 설정', () => {
-  it('뒤로(홈으로) · 내 정보 · 홈 화면에 추가(안드로이드 안내) · 로그아웃, 탭은 아무것도 선택 안 됨', async () => {
+  it('뒤로(홈으로) · 내 정보(레벨 번호·반·레벨 이름) · 앱 묶음 · 맨 아래 로그아웃, 탭 바 없음', async () => {
     renderSettings()
     await title()
 
     expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
     const me = await screen.findByRole('region', { name: '내 정보' })
     expect(me).toHaveTextContent('김민준')
-    expect(me).toHaveTextContent('그린 · 겨울')
-    expect(me).toHaveTextContent('겨울 그린 A반')
+    expect(me).toHaveTextContent('겨울 그린 A반 · Green 그린')
+    expect(me.querySelector('[data-state="level"]')).toHaveTextContent('2')
 
-    const card = homeScreenCard()!
-    expect(card).toHaveTextContent('앱처럼 바로 열 수 있어요')
-    expect(card).toHaveTextContent('1. 오른쪽 위 ⋮ 를 눌러요')
-    expect(card).toHaveTextContent("2. '홈 화면에 추가'를 골라요")
-    expect(within(card).queryByRole('button')).not.toBeInTheDocument() // 설치 버튼 없음(안 B)
-
-    const logout = screen.getByRole('region', { name: '로그아웃' })
-    expect(logout).toHaveTextContent('로그아웃하면 개인 코드 4자리를 다시 넣어야 들어올 수 있어요')
-    // 순서: 내 정보 → 홈 화면에 추가 → 로그아웃
-    const order = [me, card, logout]
+    const app = screen.getByRole('region', { name: '앱' })
+    expect(within(app).getByRole('button', { name: /홈 화면에 추가/ })).toHaveTextContent(
+      '앱처럼 바로 열 수 있어요 · 방법 보기',
+    )
+    // 순서: 내 정보 → 앱 → 로그아웃
+    expect(me.compareDocumentPosition(app) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(
-      order[0].compareDocumentPosition(order[1]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      app.compareDocumentPosition(logoutButton()) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(
-      order[1].compareDocumentPosition(order[2]) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+    // 로그아웃 설명 글·탭 바는 없다(v0.2)
+    expect(screen.queryByText(/개인 코드 4자리를 다시/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+  })
 
-    const tabs = screen.getByRole('navigation')
-    expect(within(tabs).queryByRole('link', { current: 'page' })).not.toBeInTheDocument()
+  it('홈 화면에 추가: 처음엔 접혀 있고, 누르면 아래에 안드로이드 안내가 펼쳐지고 다시 누르면 접힌다', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    const row = await screen.findByRole('button', { name: /홈 화면에 추가/ })
+    expect(row).toHaveAttribute('aria-expanded', 'false')
+    expect(row).toHaveAttribute('aria-controls', 'home-screen-steps')
+    expect(steps()).not.toBeVisible()
+
+    await user.click(row)
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+    expect(steps()).toBeVisible()
+    expect(steps()).toHaveTextContent('1. 오른쪽 위 ⋮ 를 눌러요')
+    expect(steps()).toHaveTextContent("2. '홈 화면에 추가'를 골라요")
+    expect(within(steps()).queryByRole('button')).not.toBeInTheDocument() // 설치 버튼 없음(안 B)
+
+    await user.click(row)
+    expect(row).toHaveAttribute('aria-expanded', 'false')
+    expect(steps()).not.toBeVisible()
+  })
+
+  it('Black(K) 레벨은 번호 대신 코드 그대로, 레벨 이름은 "Black 블랙"', async () => {
+    const home = buildHome()
+    home.class.level = { ...home.class.level, code: 'K', nameKo: '블랙' }
+    server.use(http.get('*/api/v1/student/home', () => HttpResponse.json(home)))
+    renderSettings()
+
+    const me = await screen.findByRole('region', { name: '내 정보' })
+    expect(me.querySelector('[data-state="level"]')).toHaveTextContent(/^K$/)
+    expect(me).toHaveTextContent('겨울 그린 A반 · Black 블랙')
+    expect(document.documentElement).toHaveAttribute('data-level', 'black')
   })
 
   it('아이폰이면 공유 버튼 안내', async () => {
     iphone()
+    const user = userEvent.setup()
     renderSettings()
-    await title()
-
-    const card = await screen.findByRole('region', { name: '홈 화면에 추가' })
-    expect(card).toHaveTextContent('1. 아래 공유 버튼 을 눌러요')
-    expect(card).not.toHaveTextContent('⋮')
+    await user.click(await screen.findByRole('button', { name: /홈 화면에 추가/ }))
+    expect(steps()).toHaveTextContent('1. 아래 공유 버튼 을 눌러요')
+    expect(steps()).not.toHaveTextContent('⋮')
   })
 
-  it('이미 홈 화면 앱으로 열었으면 카드 대신 한 줄', async () => {
+  it('이미 홈 화면 앱으로 열었으면 줄 대신 한 줄 안내', async () => {
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({ matches: query === '(display-mode: standalone)' })),
@@ -95,7 +121,7 @@ describe('S-07 설정', () => {
     await title()
 
     expect(await screen.findByText('홈 화면 앱으로 쓰고 있어요')).toBeInTheDocument()
-    expect(homeScreenCard()).not.toBeInTheDocument()
+    expect(homeScreenRow()).not.toBeInTheDocument()
   })
 
   it('홈 응답을 못 받으면 내 정보만 빼고 로그아웃은 보인다', async () => {
@@ -110,7 +136,7 @@ describe('S-07 설정', () => {
     renderSettings()
     await title()
 
-    expect(await screen.findByRole('region', { name: '로그아웃' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '로그아웃' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '내 정보' })).not.toBeInTheDocument()
   })
 
@@ -175,7 +201,7 @@ describe('S-03 홈 → S-07', () => {
     expect(router.state.location.pathname).toBe('/settings')
   })
 
-  it('홈 안내 카드 "방법 보기" → S-07 홈 화면 추가 카드, 제목에 포커스', async () => {
+  it('홈 안내 카드 "방법 보기" → S-07 홈 화면 추가 줄, 펼친 채로 그 줄에 포커스', async () => {
     const user = userEvent.setup()
     const { router } = renderSettings('/')
     const hint = await screen.findByRole('region', { name: '홈 화면에 추가' })
@@ -184,6 +210,9 @@ describe('S-03 홈 → S-07', () => {
 
     expect(router.state.location.pathname).toBe('/settings')
     expect(router.state.location.hash).toBe('#home-screen')
-    expect(await screen.findByRole('heading', { name: '홈 화면에 추가', level: 2 })).toHaveFocus()
+    const row = await screen.findByRole('button', { name: /홈 화면에 추가/ })
+    await vi.waitFor(() => expect(row).toHaveFocus())
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+    expect(steps()).toBeVisible()
   })
 })
