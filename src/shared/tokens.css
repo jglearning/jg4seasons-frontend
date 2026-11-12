@@ -55,6 +55,11 @@
   --black-point: #ff7a59;
   --paper: #fffaf0; /* S-06 종이 전용 */
   --paper-handle: #ddd6c6;
+  /* 말리는 종이 뒷면 명암·그림자 — 이 종이에만 쓰는 예외(DESIGN.md 1.3) */
+  --paper-back-dark: #dcd5c3; /* 접힌 선 쪽 */
+  --paper-back-mid: #eee8da;
+  --paper-back-light: #fbf7ec; /* 끝(모서리) */
+  --paper-shadow: rgba(26, 25, 28, 0.2);
 
   /* 레벨을 모를 때(S-01 등)의 --L-* — 바탕은 neutral-bg, 주 버튼은 ink + 검은 턱(DESIGN.md 6.1) */
   --L: var(--ink);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { lessonDayLabel, lessonNoLabel, lessonTileNo, voiceLabel } from './lessonLabel'
+import {
+  lessonDayLabel,
+  lessonLevelCode,
+  lessonNoLabel,
+  lessonTileNo,
+  voiceLabel,
+} from './lessonLabel'
 
 describe('회차 번호는 code 끝(백엔드 ADR-27)', () => {
   it('정규 회차: 5회 · 05 · Day 5', () => {
@@ -21,6 +27,17 @@ describe('회차 번호는 code 끝(백엔드 ADR-27)', () => {
 
   it('모양이 다른 code는 그대로', () => {
     expect(lessonNoLabel('ABC')).toBe('ABC')
+  })
+})
+
+describe('회차 code 앞의 레벨 코드(S-06 레벨 색용)', () => {
+  it('L1~L4·K, 보충 회차 포함. 모양이 다르면 undefined', () => {
+    expect(
+      ['L1-B1-05', 'L2-B2-24', 'L3-B1-01', 'L4-B4-08', 'K-B1-07', 'K-B1-S1'].map(lessonLevelCode),
+    ).toEqual(['L1', 'L2', 'L3', 'L4', 'K', 'K'])
+    expect(lessonLevelCode('L5-B1-05')).toBeUndefined()
+    expect(lessonLevelCode('L2-05')).toBeUndefined()
+    expect(lessonLevelCode('')).toBeUndefined()
   })
 })
 

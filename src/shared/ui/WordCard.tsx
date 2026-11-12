@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Volume2 } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import {
   useEffect,
   useId,
@@ -22,8 +22,6 @@ type WordCardProps = {
   english: string
   posLabel: string
   korean: string
-  /** 위 절반에 "발음 자동 재생" 표시 */
-  autoplay?: boolean
 }
 
 /** 손가락이 이만큼 움직여야 끌기로 본다(그보다 작으면 누르기) */
@@ -39,13 +37,7 @@ function reducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 }
 
-export function WordCard({
-  sourceLabel,
-  english,
-  posLabel,
-  korean,
-  autoplay = false,
-}: WordCardProps) {
+export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardProps) {
   const meaningId = useId()
   /** 종이가 위로 넘어가 있는가(뜻이 보임) */
   const [up, setUp] = useState(false)
@@ -170,12 +162,6 @@ export function WordCard({
         <span className={styles.word} lang="en">
           {english}
         </span>
-        {autoplay && (
-          <span className={styles.autoplay}>
-            <Volume2 size={16} strokeWidth={2} aria-hidden />
-            발음 자동 재생
-          </span>
-        )}
       </div>
       <div className={styles.bottom}>
         <p id={meaningId} className={styles.meaning} aria-hidden={up ? undefined : true}>
@@ -191,9 +177,9 @@ export function WordCard({
         >
           <span className={styles.handle} />
           {restUp ? (
-            <ChevronDown size={20} strokeWidth={2} />
+            <ChevronDown size={24} strokeWidth={2.2} />
           ) : (
-            <ChevronUp size={20} strokeWidth={2} />
+            <ChevronUp size={24} strokeWidth={2.2} />
           )}
           <span>{restUp ? '내려서 단어 보기' : '올려서 뜻 보기'}</span>
         </span>
@@ -210,7 +196,7 @@ export function WordCard({
               style={{
                 clipPath: polygon(curl.flap),
                 // 뒷면 명암: 접힌 선 쪽이 어둡고 끝(모서리)으로 갈수록 밝다
-                backgroundImage: `linear-gradient(${curl.crease.angle}deg, var(--paper-back-dark), var(--paper-back-light) 70%)`,
+                backgroundImage: `linear-gradient(${curl.crease.angle}deg, var(--paper-back-dark), var(--paper-back-mid) 22%, var(--paper-back-light))`,
               }}
             />
           </span>
