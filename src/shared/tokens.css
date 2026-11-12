@@ -68,6 +68,8 @@
   --L-deep: var(--ink);
   --L-lip: #000000;
   --L-ring: var(--ink); /* 번호 동그라미 "지금" 고리 */
+  /* 표지 헤더의 레벨 이름 — 보통은 표지 글자색, Black만 코랄(DESIGN.md·지시문 §6.3) */
+  --L-name: var(--L-on);
 
   /* 서체 */
   --font-sans: 'Pretendard Variable', Pretendard, 'Noto Sans KR', system-ui, sans-serif;
@@ -166,6 +168,7 @@
   --L-deep: var(--black-deep);
   --L-lip: #000000;
   --L-ring: var(--black-point); /* Black 레벨의 고리는 코랄(DESIGN.md 1.4) */
+  --L-name: var(--black-point);
 }
 [data-level='mint'],
 [data-level='green'],

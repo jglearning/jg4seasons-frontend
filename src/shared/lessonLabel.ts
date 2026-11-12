@@ -17,6 +17,13 @@ export function lessonNoLabel(code: string): string {
   return no.supplement ? `보충 ${no.n}` : `${no.n}회`
 }
 
+/** 번호 동그라미(표지 헤더·회차 길): "5" · "S1" */
+export function lessonCircleNo(code: string): string {
+  const no = parse(code)
+  if (no === null) return code
+  return no.supplement ? `S${no.n}` : String(no.n)
+}
+
 /** 회차 타일 번호: "05" · "S1" */
 export function lessonTileNo(code: string): string {
   const no = parse(code)

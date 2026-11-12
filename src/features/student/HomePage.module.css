@@ -1,0 +1,175 @@
+/* S-03 홈 (v0.2 지시문 §6.3, 와이어프레임 Main) */
+
+.loading {
+  padding-top: var(--space-8);
+}
+
+/* 표지 안 왼쪽 위: 레벨 이름 → 번호 동그라미 + 회차 이름 */
+.cover {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  word-break: keep-all;
+}
+
+.level {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: var(--L-name);
+}
+
+.lesson {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 크림 동그라미 72 + 진한 레벨 색 숫자 40/800 — 정보 표시라 턱 없음 */
+.lessonNo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--L-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.lessonTitle {
+  margin: 0;
+  max-width: 60%;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.settings {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: var(--L-on);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings:focus-visible {
+  outline-color: var(--L-on);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 18px;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.whoName {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.whoLesson {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.progressRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.progressLabel {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.progressCount {
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.badIcon {
+  color: var(--bad);
+}
+
+/* 오늘 단어(턱 카드 링크) · 다음 수업(정보 상자, 턱 없음) — 반 폭씩 */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pair:empty {
+  display: none;
+}
+
+.pair > :only-child {
+  grid-column: 1 / -1;
+}
+
+.wordsCard,
+.nextBox {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--white);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.wordsCard {
+  border: var(--border-control) solid var(--line-strong);
+  box-shadow: 0 var(--lip) 0 var(--line-strong);
+  transition:
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
+}
+
+.wordsCard:active {
+  transform: translateY(var(--lip));
+  box-shadow: 0 0 0 transparent;
+}
+
+.nextBox {
+  border: var(--border-card) solid var(--line);
+}
+
+.smallLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.smallValue {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}

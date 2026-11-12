@@ -97,7 +97,9 @@ describe('S-01 코드로 들어가기', () => {
     await user.type(personalInput(), AUTH_MOCK.personalCode)
     await user.click(submitButton())
 
-    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' }),
+    ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 
@@ -179,7 +181,9 @@ describe('S-01 코드로 들어가기', () => {
     await user.type(personalInput(), AUTH_MOCK.personalCode)
     await user.click(submitButton())
 
-    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' }),
+    ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
     expect(readJoinCode()).toBe(AUTH_MOCK.joinCode)
     expect(Object.keys(localStorage)).toHaveLength(1)
@@ -293,7 +297,9 @@ describe('S-01 카드 QR로 열기', () => {
     expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
 
     await userEvent.setup().click(submitButton())
-    expect(await screen.findByRole('heading', { name: '제이G 4 Seasons' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' }),
+    ).toBeInTheDocument()
     expect(readJoinCode()).toBe(AUTH_MOCK.joinCode)
     expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
   })

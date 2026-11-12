@@ -1,12 +1,12 @@
 import { onlineManager } from '@tanstack/react-query'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
-import { buildHome, STUDENT_MOCK } from '../../mocks/studentData'
+import { buildHome } from '../../mocks/studentData'
 import { createTestQueryClient, renderRoutes } from '../../test/render'
 
 beforeEach(() => {
@@ -38,47 +38,79 @@ function problem(status: number, code: string, title: string) {
   )
 }
 
-const heading = () => screen.findByRole('heading', { name: '제이G 4 Seasons' })
-const todayCard = () => screen.findByRole('region', { name: 'Reading Day 5' })
+/** 표지 헤더의 회차 이름(h1) — 화면이 다 그려졌다 */
+const heading = (name = 'Reading Day 5') => screen.findByRole('heading', { level: 1, name })
+const coverHeader = () => screen.getByRole('banner')
+const overdueLink = () => screen.queryByRole('link', { name: /^밀린 수업/ })
 
 describe('S-03 홈', () => {
-  it('반·이름·레벨 칩을 보이고 반 레벨(level.code)을 <html data-level>로 넣는다', async () => {
+  it('표지 헤더: 레벨 이름·오늘 회차 번호와 이름·설정·캐릭터, 아래 반·이름·오늘 수업 줄', async () => {
     const { container } = renderHome()
     await heading()
 
-    expect(screen.getByText('그린 · 겨울')).toBeInTheDocument()
+    const cover = coverHeader()
+    expect(cover).toHaveTextContent('Green 그린')
+    expect(within(cover).getByText('5')).toBeInTheDocument()
+    expect(within(cover).getByRole('link', { name: '설정' })).toHaveAttribute('href', '/settings')
+    // 캐릭터는 장식(alt="") — 레벨·계절 그림 자리
+    const art = within(cover).getByTestId('cover-art')
+    expect(art).toHaveAttribute('src', '/art/green/winter/cover.webp')
+    expect(art).toHaveAttribute('alt', '')
     expect(screen.getByText('겨울 그린 A반 · 김민준')).toBeInTheDocument()
-    expect(STUDENT_MOCK.level.code).toBe('L2')
+    expect(screen.getByText('오늘 수업 · 12월 19일 (토) · 겨울 1 · L2-B1-05')).toBeInTheDocument()
     expect(document.documentElement).toHaveAttribute('data-level', 'green')
-    // 떠 있는 탭 바 화면 — 맨 끝이 탭 바에 가리지 않게 아래 여백
     expect((container.querySelector('main') as HTMLElement).className).toMatch(/withTabBar/)
+    // v0.2에서 빠진 것: 서비스 이름 제목·레벨 칩·지문 제목 목록·전체 회차 보기
+    expect(screen.queryByRole('heading', { name: '제이G 4 Seasons' })).not.toBeInTheDocument()
+    expect(screen.queryByText('그린 · 겨울')).not.toBeInTheDocument()
+    expect(screen.queryByText('What Tree Rings Tell Us')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '전체 회차 보기' })).not.toBeInTheDocument()
   })
 
-  it('밀린 수업: 날짜·멈춘 곳/시작 안 함과 이어서·시작 링크', async () => {
+  it('캐릭터 그림을 못 받으면 그림만 숨긴다(색만 있는 헤더), 그림이 없는 계절도 색만', async () => {
     renderHome()
-    const alert = await screen.findByRole('alert', { name: '밀린 수업 2개' })
+    await heading()
+    const art = within(coverHeader()).getByTestId('cover-art')
+    act(() => {
+      art.dispatchEvent(new Event('error'))
+    })
+    expect(within(coverHeader()).queryByTestId('cover-art')).not.toBeInTheDocument()
+    expect(coverHeader()).toHaveTextContent('Reading Day 5')
+  })
 
-    expect(alert).toHaveTextContent('12/15 (화) 수업 · 지문 듣기 2 / 6에서 멈춤')
-    expect(alert).toHaveTextContent('12/17 (목) 수업 · 아직 시작 안 함')
-    expect(within(alert).getByRole('link', { name: 'Reading Day 3 이어서' })).toHaveAttribute(
-      'href',
-      '/lessons/L2-B1-03',
+  it('계절 그림 자리는 서버 book.season(새봄은 봄 그림)', async () => {
+    useHome((home) => {
+      home.class.book.season = '새봄'
+    })
+    renderHome()
+    await heading()
+    expect(within(coverHeader()).getByTestId('cover-art')).toHaveAttribute(
+      'src',
+      '/art/green/spring/cover.webp',
     )
-    expect(within(alert).getByRole('link', { name: 'Reading Day 4 시작' })).toHaveAttribute(
-      'href',
-      '/lessons/L2-B1-04',
-    )
+  })
+
+  it('밀린 수업: 한 줄 요약(회차 이름 + 번호, 다음 수업 전에), 누르면 회차 목록 — 회차별 버튼은 없다', async () => {
+    renderHome()
+    await heading()
+
+    const row = overdueLink()!
+    expect(row).toHaveTextContent('밀린 수업 2개')
+    expect(row).toHaveTextContent('Reading Day 3 · 4 — 다음 수업 전에 끝내요')
+    expect(row).toHaveAttribute('href', '/lessons')
+    expect(screen.queryByRole('link', { name: /이어서$/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /시작$/ })).not.toBeInTheDocument()
   })
 
   it('교재 사용 중(active)이면 사용 기간 안내가 없다', async () => {
     renderHome()
-    await todayCard()
+    await heading()
 
     expect(screen.queryByRole('region', { name: '사용 기간이 아니에요' })).not.toBeInTheDocument()
   })
 
   it.each(['before_start', 'expired'] as const)(
-    '교재 사용 상태가 %s면 맨 위에 사용 기간 안내(회차는 서버 값 그대로)',
+    '교재 사용 상태가 %s면 헤더 바로 아래 사용 기간 안내(회차는 서버 값 그대로)',
     async (licenseStatus) => {
       useHome((home) => {
         home.class.licenseStatus = licenseStatus
@@ -87,14 +119,15 @@ describe('S-03 홈', () => {
       const notice = await screen.findByRole('region', { name: '사용 기간이 아니에요' })
 
       expect(notice).toHaveTextContent('지금은 회차를 열 수 없어요. 선생님께 물어봐 주세요')
-      // 밀린 수업 경고보다 위
-      const alert = screen.getByRole('alert', { name: '밀린 수업 2개' })
-      expect(notice.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      expect(await todayCard()).toBeInTheDocument()
+      // 밀린 수업 줄보다 위
+      expect(
+        notice.compareDocumentPosition(overdueLink()!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+      expect(await heading()).toBeInTheDocument()
     },
   )
 
-  it('밀린 수업이 없으면 경고 칸을 숨긴다', async () => {
+  it('밀린 수업이 없으면 그 줄을 그리지 않는다', async () => {
     useHome((h) => {
       h.overdue = []
       h.stats.overdueLessons = 0
@@ -102,35 +135,21 @@ describe('S-03 홈', () => {
     renderHome()
     await heading()
 
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(overdueLink()).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '회차' })).toBeInTheDocument()
   })
 
-  it('블랙 오늘 회차: 번호는 code 끝(보충 K-B1-S1 → 보충 1, number 7이 아니다), 묶음은 서버 그대로', async () => {
+  it('블랙 보충 회차: 헤더 번호는 code 끝(K-B1-S1 → S1, number 7이 아니다), 묶음은 서버 그대로', async () => {
     useHome((home) => {
       if (home.today === null) return
       home.today.groupLabel = '새봄 1'
       Object.assign(home.today.lesson, { code: 'K-B1-S1', number: 7, type: 'supplement' })
     })
     renderHome()
-    const card = await todayCard()
+    await heading()
 
-    expect(card).toHaveTextContent('새봄 1 · 보충 1 · K-B1-S1')
-  })
-
-  it('오늘 수업: 날짜·묶음·회차·상태·지문 6개·이어서 듣기', async () => {
-    renderHome()
-    const card = await todayCard()
-
-    expect(card).toHaveTextContent('오늘 수업 · 12월 19일 (토)')
-    expect(card).toHaveTextContent('겨울 1 · 5회 · L2-B1-05')
-    expect(within(card).getByText('진행 중')).toBeInTheDocument()
-    expect(within(card).getAllByRole('listitem')).toHaveLength(6)
-    expect(within(card).getByText('What Tree Rings Tell Us')).toBeInTheDocument()
-    expect(within(card).getByRole('link', { name: '이어서 듣기' })).toHaveAttribute(
-      'href',
-      '/lessons/L2-B1-05',
-    )
+    expect(within(coverHeader()).getByText('S1')).toBeInTheDocument()
+    expect(screen.getByText(/새봄 1 · K-B1-S1$/)).toBeInTheDocument()
   })
 
   it('지문 듣기 진행은 서버의 passagesDone / passagesTotal(지문 수로 세지 않음)', async () => {
@@ -138,77 +157,76 @@ describe('S-03 홈', () => {
       if (h.today?.progress) Object.assign(h.today.progress, { passagesDone: 3, passagesTotal: 5 })
     })
     renderHome()
-    const card = await todayCard()
+    await heading()
 
-    expect(within(card).getByRole('progressbar', { name: '지문 듣기' })).toHaveAttribute(
+    expect(screen.getByRole('progressbar', { name: '지문 듣기' })).toHaveAttribute(
       'aria-valuetext',
       '3 / 5',
     )
-    expect(within(card).getByText('3 / 5')).toBeInTheDocument()
+    expect(screen.getByText('3 / 5')).toBeInTheDocument()
   })
 
   it.each([
-    ['not_started', '시작 전', '듣기 시작'],
-    ['completed', '완료', '다시 듣기'],
-  ] as const)('오늘 수업 상태 %s → "%s"·"%s"', async (status, label, action) => {
+    ['not_started', '듣기 시작'],
+    ['in_progress', '이어서 듣기'],
+    ['completed', '다시 듣기'],
+  ] as const)('오늘 수업 상태 %s → 주 버튼 "%s"', async (status, action) => {
     useHome((h) => {
       if (h.today?.progress) h.today.progress.status = status
     })
     renderHome()
-    const card = await todayCard()
+    await heading()
 
-    expect(within(card).getByText(label)).toBeInTheDocument()
-    expect(within(card).getByRole('link', { name: action })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: action })).toHaveAttribute('href', '/lessons/L2-B1-05')
   })
 
-  it('오늘 수업 기록이 없으면 서버 값(not_started · 0 / 지문 수) 그대로', async () => {
-    useHome((h) => {
-      if (h.today) h.today.progress = { status: 'not_started', passagesDone: 0, passagesTotal: 6 }
-    })
-    renderHome()
-    const card = await todayCard()
-
-    expect(within(card).getByText('시작 전')).toBeInTheDocument()
-    expect(within(card).getByText('0 / 6')).toBeInTheDocument()
-    expect(within(card).getByRole('link', { name: '듣기 시작' })).toBeInTheDocument()
-  })
-
-  it('계약에 없는 진도 상태가 와도 홈은 그대로 — 상태 표시만 빼고 기록한다', async () => {
+  it('계약에 없는 진도 상태가 와도 홈은 그대로 — 버튼은 "듣기", 기록한다', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     useHome((h) => {
       if (h.today?.progress) (h.today.progress as { status: string }).status = 'paused_by_teacher'
     })
     renderHome()
-    const card = await todayCard()
+    await heading()
 
-    expect(within(card).queryByText('진행 중')).not.toBeInTheDocument()
-    expect(within(card).getByRole('link', { name: '듣기' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '듣기' })).toBeInTheDocument()
     expect(log).toHaveBeenCalledWith('[student] unknown progress status', 'paused_by_teacher')
   })
 
-  it('오늘 수업이 없으면 안내 한 문장', async () => {
+  it('개강 전(today 없음): 헤더는 첫 수업(다음 수업)의 번호·이름, "첫 수업" 한 줄, 진행·버튼 없음', async () => {
     useHome((h) => {
       h.today = null
     })
     renderHome()
+    await heading('Reading Day 6')
 
-    const card = await screen.findByRole('region', { name: '오늘 수업' })
-    expect(card).toHaveTextContent('오늘은 수업이 없어요')
+    expect(within(coverHeader()).getByText('6')).toBeInTheDocument()
+    expect(screen.getByText('첫 수업 · 12월 22일 (화)')).toBeInTheDocument()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /듣기/ })).not.toBeInTheDocument()
   })
 
-  it('오늘 단어·다음 수업 카드', async () => {
+  it('수업도 다음 수업도 없으면 레벨 이름과 안내 한 문장만', async () => {
+    useHome((h) => {
+      h.today = null
+      h.next = null
+    })
+    renderHome()
+
+    expect(await screen.findByText('오늘은 수업이 없어요')).toBeInTheDocument()
+    expect(coverHeader()).toHaveTextContent('Green 그린')
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+  })
+
+  it('오늘 단어(턱 카드 링크)·다음 수업(날짜만)', async () => {
     renderHome()
     await heading()
 
     const words = screen.getByRole('link', { name: /오늘 단어/ })
     expect(words).toHaveTextContent('57개')
-    expect(words).not.toHaveTextContent('암기')
-    expect(words).not.toHaveTextContent('지문')
     expect(words).toHaveAttribute('href', '/lessons/L2-B1-05/words')
     const next = screen.getByText('다음 수업').parentElement as HTMLElement
     expect(within(next).getByText('12/22 (화)')).toBeInTheDocument()
-    expect(within(next).getByText('Reading Day 6')).toBeInTheDocument()
+    expect(within(next).queryByText('Reading Day 6')).not.toBeInTheDocument()
   })
 
   it('단어·다음 수업이 없으면 그 카드를 숨기고 단어 탭은 누를 수 없다', async () => {
@@ -227,25 +245,23 @@ describe('S-03 홈', () => {
     )
   })
 
-  it('통계·배지는 서버 stats 그대로(밀린 목록 개수로 세지 않음)', async () => {
+  it('회차 탭 배지는 서버 stats 그대로(밀린 목록 개수로 세지 않음)', async () => {
     useHome((h) => {
       h.stats = { completedLessons: 7, overdueLessons: 3, totalLessons: 30 }
     })
     renderHome()
     await heading()
 
-    expect(screen.getByText('완료 7 · 밀림 3 · 전체 30')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '회차, 밀린 수업 3개' })).toHaveAttribute(
       'href',
       '/lessons',
     )
   })
 
-  it('전체 회차 보기·하단 탭', async () => {
+  it('하단 탭', async () => {
     renderHome()
     await heading()
 
-    expect(screen.getByRole('link', { name: '전체 회차 보기' })).toHaveAttribute('href', '/lessons')
     expect(screen.getByRole('link', { name: '홈' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: '단어' })).toHaveAttribute(
       'href',
@@ -348,14 +364,14 @@ describe('S-03 홈', () => {
   it('이미 받은 뒤 백그라운드 재조회가 실패해도 보던 화면을 그대로 둔다', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const { client } = renderHome()
-    await todayCard()
+    await heading()
 
     server.use(http.get('*/api/v1/student/home', () => problem(503, 'INTERNAL', '잠시 후')))
     await client.refetchQueries({ queryKey: ['student', 'home'] })
 
     expect(client.getQueryState(['student', 'home'])?.status).toBe('error')
-    expect(screen.getByRole('region', { name: 'Reading Day 5' })).toBeInTheDocument()
-    expect(screen.getByRole('alert', { name: '밀린 수업 2개' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Reading Day 5' })).toBeInTheDocument()
+    expect(overdueLink()).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
   })
 
@@ -391,13 +407,13 @@ describe('S-03 홈', () => {
 describe('S-03 홈 화면에 추가 안내', () => {
   const hint = () => screen.queryByRole('region', { name: '홈 화면에 추가' })
 
-  it('홈 맨 위에 보이고, 닫으면 기기에 닫은 표시만 남기고 다시 열어도 안 보인다', async () => {
+  it('헤더 바로 아래 맨 위에 보이고, 닫으면 기기에 닫은 표시만 남기고 다시 열어도 안 보인다', async () => {
     const { container, unmount } = renderHome()
     await heading()
 
     const card = hint()!
     expect(card).toHaveTextContent('홈 화면에 추가하면 다음부터 바로 열 수 있어요')
-    // 홈 칸들 중 첫째
+    // 헤더 아래 칸들 중 첫째
     expect(card.parentElement!.firstElementChild).toBe(card)
     expect(container.contains(card)).toBe(true)
 

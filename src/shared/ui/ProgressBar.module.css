@@ -5,8 +5,9 @@
   background: var(--line);
 }
 
+/* S-03 지문 진행 — 12px 알약(지시문 §6.3-8) */
 .student {
-  height: 8px;
+  height: 12px;
 }
 
 /* S-06 단어 카드 — 12px 알약(지시문 §3.2) */
