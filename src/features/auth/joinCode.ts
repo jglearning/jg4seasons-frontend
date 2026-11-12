@@ -4,15 +4,6 @@ const STORAGE_KEY = 'jg4s.joinCode'
 export const JOIN_CODE_LENGTH = 8
 const JOIN_CODE = /^[A-Z0-9]{8}$/
 
-/** 입력값을 서버로 보낼 모양으로: 전각 → 반각, 대문자, 영문·숫자만, 8자까지 */
-export function normalizeJoinCode(raw: string): string {
-  return raw
-    .normalize('NFKC')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .slice(0, JOIN_CODE_LENGTH)
-}
-
 // 저장소를 쓸 수 없는 브라우저(사생활 보호 모드 등)에서도 로그인은 되게, 읽기·쓰기 실패는 "저장 안 됨"으로 본다
 export function readJoinCode(): string | undefined {
   try {

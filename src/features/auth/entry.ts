@@ -15,13 +15,13 @@ export function entryPathFor(pathname: string): string {
 /**
  * 입장 화면으로 보낸 이유(라우터 state)
  * - sessionExpired: 들어와 있다가 세션이 끝남(처음 열 때 세션이 없는 것과 구분)
- * - savedCodeInvalid: S-02가 저장된 가입 코드를 쓸 수 없어서 S-01로 보냄
+ * 저장된 가입 코드를 쓸 수 없을 때는 들어가기 화면 안에서 ①로 돌아간다(#88 — 주소 이동 없음)
  */
-export type EntryReason = 'sessionExpired' | 'savedCodeInvalid'
+export type EntryReason = 'sessionExpired'
 export type EntryState = { reason: EntryReason }
 
 export function entryReason(state: unknown): EntryReason | undefined {
   if (typeof state !== 'object' || state === null) return undefined
   const reason = (state as Partial<EntryState>).reason
-  return reason === 'sessionExpired' || reason === 'savedCodeInvalid' ? reason : undefined
+  return reason === 'sessionExpired' ? reason : undefined
 }

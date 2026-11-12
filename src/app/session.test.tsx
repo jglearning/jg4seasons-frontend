@@ -18,21 +18,22 @@ describe('들어온 뒤의 세션', () => {
   it('학생이 로그인해 홈으로 간 뒤 세션이 끝나면 S-02로 보낸다(지금 주소 기준)', async () => {
     const { router, client } = renderRoutes(routes, { initialEntries: ['/join'] })
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/가입 코드/), AUTH_MOCK.joinCode)
-    await user.type(screen.getByLabelText(/개인 코드/), AUTH_MOCK.personalCode)
-    await user.click(screen.getByRole('button', { name: '들어가기' }))
+    await user.type(screen.getByLabelText('가입 코드 8자리'), AUTH_MOCK.joinCode)
+    await screen.findByText('Green 그린')
+    await user.type(screen.getByLabelText('개인 코드 숫자 4자리'), AUTH_MOCK.personalCode)
     await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' })
 
     resetAuthMock() // 서버에서 세션이 끝남
     await client.invalidateQueries({ queryKey: ['me'] })
 
-    expect(await screen.findByRole('heading', { name: /개인 코드만/ })).toBeInTheDocument()
+    // 다시 들어오기(②)에서 시작 — 저장된 반 카드 + 안내(홈 표지에도 "Green 그린"이 있어 "바꾸기"로 기다린다)
+    expect(await screen.findByRole('button', { name: '다른 반 코드로 바꾸기' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/rejoin')
-    expect(screen.getByRole('status')).toHaveTextContent('로그인이 끝났어요')
+    expect(screen.getByText('로그인이 끝났어요. 다시 들어와 주세요.')).toBeInTheDocument()
 
     // 다시 치기 시작하면 안내는 내려간다
-    await user.click(screen.getByRole('button', { name: '1' }))
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('개인 코드 숫자 4자리'), '1')
+    expect(screen.queryByText(/로그인이 끝났어요/)).not.toBeInTheDocument()
   })
 
   it('교사가 로그인한 뒤 세션이 끝나면 저장된 반과 상관없이 T-01로 보내고 안내한다', async () => {
@@ -55,8 +56,8 @@ describe('들어온 뒤의 세션', () => {
     saveJoinCode(AUTH_MOCK.joinCode)
     renderRoutes(routes, { initialEntries: ['/'] })
 
-    expect(await screen.findByRole('heading', { name: /개인 코드만/ })).toBeInTheDocument()
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(await screen.findByText('Green 그린')).toBeInTheDocument()
+    expect(screen.queryByText(/로그인이 끝났어요/)).not.toBeInTheDocument()
   })
 
   it('학생이 홈에서 세션이 끝나 S-01로 가면(저장된 반 없음) 안내를 보이고, 코드를 치면 내려간다', async () => {
@@ -68,10 +69,10 @@ describe('들어온 뒤의 세션', () => {
     resetAuthMock()
     await client.invalidateQueries({ queryKey: ['me'] })
 
-    expect(await screen.findByRole('status')).toHaveTextContent('로그인이 끝났어요')
+    expect(await screen.findByText('로그인이 끝났어요. 다시 들어와 주세요.')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/join')
-    await user.type(screen.getByLabelText(/가입 코드/), 'G')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('가입 코드 8자리'), 'G')
+    expect(screen.queryByText(/로그인이 끝났어요/)).not.toBeInTheDocument()
   })
 
   it('이미 들어온 뒤 백그라운드 재조회가 5xx로 실패해도 보던 화면을 그대로 둔다', async () => {
@@ -146,7 +147,8 @@ describe('로그인한 사람만 들어오는 경로(GET /me)', () => {
   it('세션이 없고 저장된 반도 없으면 S-01로 보낸다', async () => {
     const { router } = renderRoutes(routes, { initialEntries: ['/'] })
 
-    expect(await screen.findByRole('heading', { name: /코드 두 개로/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '4 Seasons' })).toBeInTheDocument()
+    expect(screen.getByLabelText('가입 코드 8자리')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/join')
   })
 
@@ -154,7 +156,7 @@ describe('로그인한 사람만 들어오는 경로(GET /me)', () => {
     saveJoinCode(AUTH_MOCK.joinCode)
     const { router } = renderRoutes(routes, { initialEntries: ['/'] })
 
-    expect(await screen.findByRole('heading', { name: /개인 코드만/ })).toBeInTheDocument()
+    expect(await screen.findByText('Green 그린')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/rejoin')
   })
 
