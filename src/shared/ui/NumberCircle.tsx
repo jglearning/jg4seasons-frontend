@@ -5,8 +5,8 @@ import styles from './NumberCircle.module.css'
 // 보이는 모양만 그린다: 누를 수 있는 동그라미는 부르는 쪽이 <button>/<a> 안에 넣고 pressable을 켠다
 // (부모를 누르면 턱이 사라지며 3px 내려간다). 상태를 읽어 주는 이름도 부르는 쪽 요소에 붙인다.
 //   done     완료 — 레벨 진한 색 채움 + 크림 글자(체크 또는 숫자) + 레벨 턱
-//   current  오늘·듣는 중 — 크림 채움 + ink 숫자 + 1px 테두리 + 바깥 고리(Black은 코랄) + 턱
-//   overdue  밀림 — 흰 채움 + --bad 2px 테두리 + 턱
+//   current  오늘·듣는 중 — 크림 채움 + ink 숫자 + 1px 테두리 + 턱 + 턱까지 감싸는 바깥 고리(Black은 코랄)
+//   overdue  밀림 — 흰 채움 + --bad 2px 테두리 + --bad-deep 턱
 //   open     열림·아직 — 흰 채움 + line-strong 1.5px 테두리 + 턱
 //   locked   잠김 — 채움 없음 + faint 점선 + muted 숫자, 턱 없음
 //   lockedSoft 잠김(S-04 도장판) — 옅은 면 + 옅은 테두리 + muted 숫자, 턱 없음
