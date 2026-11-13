@@ -1,0 +1,86 @@
+/* T-02 반 입장 QR·링크(#71) — 교사 화면 규칙: 그림자·그라데이션 없음, 선과 글자 */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* 복사 결과 한 줄 — 자리는 늘 두고(낭독기가 놓치지 않게) 글만 바꾼다 */
+.copyLine {
+  min-height: 20px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.url {
+  color: var(--ink);
+  user-select: all;
+}
+
+/* 교실 화면에 띄우는 창 — 화면 전체를 흰 면으로 덮는다 */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  color: var(--ink);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--line);
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.titleSub {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  min-height: 0;
+}
+
+/* 뒤쪽 자리에서도 찍히게 화면의 짧은 변 60% 안팎 */
+.qr {
+  width: min(60vh, 70vw, 640px);
+  height: min(60vh, 70vw, 640px);
+  fill: var(--ink);
+}
+
+/* QR을 못 읽을 때 보고 치는 코드 — 4자리씩 띄어 크게 */
+.code {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-join-code);
+}
+
+.hint {
+  margin: 0;
+  font-size: 18px;
+  color: var(--muted);
+}

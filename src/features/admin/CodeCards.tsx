@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { create as createQr } from 'qrcode'
 import { levelProps } from '../../shared/level'
 import { qrJoinUrl } from '../../shared/qrJoin'
 import { Button } from '../../shared/ui/Button'
+import { QrSvg } from '../../shared/ui/QrCode'
+import { useQrLibrary } from '../../shared/ui/useQrLibrary'
 import { Table, type Column } from '../../shared/ui/Table'
 import type { AdminClass } from './adminApi'
 import { levelSeasonLabel } from './format'
@@ -23,45 +23,7 @@ type CodeCardsProps = {
 const SERVICE_NAME = '제이G 4 Seasons'
 const SITE = 'www.jg4seasons.com'
 
-type QrState =
-  { status: 'loading' } | { status: 'ready'; create: typeof createQr } | { status: 'failed' }
-
-// QR 라이브러리는 이 화면에서만 쓴다 — 학생 화면 묶음에 들어가지 않게 동적 import(#38).
-// 불러오지 못하면 QR 없이 인쇄한다(코드는 글자로도 있다)
-function useQrLibrary(): QrState {
-  const [state, setState] = useState<QrState>({ status: 'loading' })
-  useEffect(() => {
-    let alive = true
-    import('qrcode').then(
-      (mod) => alive && setState({ status: 'ready', create: mod.create }),
-      () => alive && setState({ status: 'failed' }),
-    )
-    return () => {
-      alive = false
-    }
-  }, [])
-  return state
-}
-
-/** QR 모듈을 SVG 경로 하나로(검은 칸마다 1×1 사각형). 주변 여백 2칸 — 카드 흰 여백이 나머지 조용한 영역 */
-function QrSvg({ create, text }: { create: typeof createQr; text: string }) {
-  const modules = create(text, { errorCorrectionLevel: 'M' }).modules
-  const { size } = modules
-  const margin = 2
-  let d = ''
-  for (let row = 0; row < size; row++) {
-    for (let col = 0; col < size; col++) {
-      if (modules.get(row, col)) d += `M${col + margin},${row + margin}h1v1h-1z`
-    }
-  }
-  const box = size + margin * 2
-  return (
-    <svg className={styles.qrImage} viewBox={`0 0 ${box} ${box}`} shapeRendering="crispEdges">
-      <path d={d} />
-    </svg>
-  )
-}
-
+// QR은 공용 QrCode(#71로 옮김). 불러오지 못하면 QR 없이 인쇄한다(코드는 글자로도 있다)
 export function CodeCards({ title, klass, items }: CodeCardsProps) {
   const qr = useQrLibrary()
   const columns: Column<PersonalCodeItem>[] = [
@@ -120,6 +82,7 @@ export function CodeCards({ title, klass, items }: CodeCardsProps) {
                 {qr.status === 'ready' && (
                   <div className={styles.qr}>
                     <QrSvg
+                      className={styles.qrImage}
                       create={qr.create}
                       text={qrJoinUrl(window.location.origin, klass.accessCode, s.personalCode)}
                     />

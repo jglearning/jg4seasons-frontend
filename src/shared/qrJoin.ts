@@ -13,6 +13,12 @@ export function qrJoinUrl(origin: string, joinCode: string, personalCode: string
 }
 
 /** dropped: `c`·`p` 중 모양이 틀려 버린 값이 있다(QR을 끝까지 읽지 못함 — 화면이 직접 입력을 안내한다) */
+/** 반 QR·입장 링크 주소(#71, BE ADR 0033) — 가입 코드만. 찍으면 학생은 개인 코드 4자리만 친다 */
+export function qrClassJoinUrl(origin: string, joinCode: string): string {
+  const hash = new URLSearchParams({ c: joinCode }).toString()
+  return `${origin}${JOIN_PATH}#${hash}`
+}
+
 export type QrJoinCodes = { joinCode?: string; personalCode?: string; dropped: boolean }
 
 /**

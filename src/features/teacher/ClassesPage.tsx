@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { levelProps } from '../../shared/level'
 import { Card } from '../../shared/ui/Card'
 import { LevelChip } from '../../shared/ui/LevelChip'
+import { ClassJoinActions } from './ClassJoin'
 import { koreaTime, shortDate } from './format'
 import { teacherClassesQuery, type TeacherClass } from './teacherApi'
 import { TeacherLoadState } from './TeacherLoadState'
@@ -94,6 +95,8 @@ function ClassCard({ klass }: { klass: TeacherClass }) {
           진도표
         </Link>
       </p>
+
+      <ClassJoinActions className={klass.name} accessCode={klass.accessCode} />
     </Card>
   )
 }
