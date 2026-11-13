@@ -272,6 +272,8 @@ function classItem(c: MockClass): Schemas['TeacherClassItem'] {
   return {
     id: c.id,
     name: c.name,
+    // 관리자 목과 같은 반 객체 — 관리자가 재발급하면 교사 목록에도 새 값(BE #52)
+    accessCode: c.accessCode,
     level: c.level,
     book: { code: c.bookCode, label: BOOK_LABEL[c.season], season: c.season },
     studentCount: students.length,

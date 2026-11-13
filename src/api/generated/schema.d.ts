@@ -133,6 +133,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/licenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 교재 사용권 보기
+         * @description 자기 학원의 권별 사용 기간·상태·남은 일수·학생 수(사용/한도). 사용권 줄이 있는 권만, 레벨·권 순. today·daysLeft는 학원 타임존 날짜 기준
+         */
+        get: operations["licenses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/students/search": {
         parameters: {
             query?: never;
@@ -288,7 +308,7 @@ export interface paths {
         put?: never;
         /**
          * 세션 갱신
-         * @description 요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf(운영은 음원용 CloudFront-* 3개도, 기한 2시간 새로)를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음. 회전된 지 10초 안의 옛 refresh는 200(쿠키 그대로 — 다른 탭이 받은 쿠키를 같이 씀), 그 뒤에 오면 그 사용자 refresh를 모두 끊고 401
+         * @description 요청 바디 없음. refresh 쿠키로 새 access·refresh·csrf(운영은 음원용 CloudFront-* 3개도, 기한 2시간 새로 — 범위는 로그인과 같은 규칙으로 다시 정함)를 발급한다(refresh 회전). 쿠키가 없거나 무효면 401. CSRF 검사 없음. 회전된 지 10초 안의 옛 refresh는 200(쿠키 그대로 — 다른 탭이 받은 쿠키를 같이 씀), 그 뒤에 오면 그 사용자 refresh를 모두 끊고 401
          */
         post: operations["refresh"];
         delete?: never;
@@ -308,7 +328,7 @@ export interface paths {
         put?: never;
         /**
          * 교사·관리자 로그인
-         * @description 성공하면 Set-Cookie access·refresh(14일)·csrf(운영은 음원용 CloudFront-* 3개도). 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 시도는 IP당 1분 10회(429, 성공·실패 모두). 아이디는 대소문자 구분 없음. CSRF 검사 없음
+         * @description 성공하면 Set-Cookie access·refresh(14일)·csrf(운영은 음원용 CloudFront-* 3개도 — 운영자는 받지 않고 만료). 틀리면 401 INVALID_CREDENTIALS(없는 아이디와 틀린 비밀번호를 구분하지 않음), 같은 계정 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). 시도는 IP당 1분 10회(429, 성공·실패 모두). 아이디는 대소문자 구분 없음. CSRF 검사 없음
          */
         post: operations["staffLogin"];
         delete?: never;
@@ -328,7 +348,7 @@ export interface paths {
         put?: never;
         /**
          * 가입 코드 + 개인 코드로 학생 입장
-         * @description 성공하면 Set-Cookie access·refresh·csrf(운영은 음원용 CloudFront-Policy·Signature·Key-Pair-Id도 — Path=/audio/, 2시간). 틀리면 401 INVALID_CREDENTIALS(어느 쪽이 틀렸는지 구분하지 않음), (반, IP) 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). CSRF 검사 없음
+         * @description 성공하면 Set-Cookie access·refresh·csrf(운영은 음원용 CloudFront-Policy·Signature·Key-Pair-Id도 — Path=/audio/, 2시간. 사용권을 적용하는 학원은 쓸 수 있는 권의 음원만 열고, 그런 권이 없으면 음원 쿠키를 만료). 틀리면 401 INVALID_CREDENTIALS(어느 쪽이 틀렸는지 구분하지 않음), (반, IP) 5회 실패면 10분 동안 423 LOCKED(확장 필드 until). CSRF 검사 없음
          */
         post: operations["studentLogin"];
         delete?: never;
@@ -366,7 +386,7 @@ export interface paths {
         };
         /**
          * 내 정보
-         * @description access 쿠키가 없거나 만료면 401 UNAUTHORIZED
+         * @description access 쿠키가 없거나 만료면 401 UNAUTHORIZED. 운영자는 academy null
          */
         get: operations["me"];
         put?: never;
@@ -470,6 +490,70 @@ export interface paths {
          */
         get: operations["words"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/academies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 학원 목록
+         * @description id 순
+         */
+        get: operations["listAcademies"];
+        put?: never;
+        /**
+         * 학원 + 첫 관리자 만들기
+         * @description 학원 주소(slug)가 있으면 409 ACADEMY_SLUG_TAKEN, 관리자 아이디가 있으면 409 LOGIN_ID_TAKEN — 둘 다 아무것도 남지 않는다. licenseEnforced 필수, timezone은 IANA 이름(없으면 Asia/Seoul). X-CSRF 필요
+         */
+        post: operations["createAcademy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/academies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 학원 상세·사용권 현황
+         * @description 사용권 줄이 있는 권만, 레벨·권 순. today·daysLeft는 그 학원 타임존 날짜 기준. 없는 학원 404
+         */
+        get: operations["getAcademy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/academies/{id}/licenses/{bookCode}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 교재 사용권 지정·변경
+         * @description 학원·권마다 한 줄 — 없으면 만들고 있으면 고친다(줄이기 허용, 한도를 낮춰도 기존 학생은 그대로). 삭제는 없다(종료일을 앞당긴다). 종료일 < 시작일 400(endDate), 학원·권 없음 404. 감사 기록 LICENSE_SET. X-CSRF 필요
+         */
+        put: operations["setLicense"];
         post?: never;
         delete?: never;
         options?: never;
@@ -641,10 +725,100 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcademyAdminRef: {
+            /** Format: int64 */
+            id: number;
+            loginId: string;
+            name: string;
+        };
+        AcademyAdminRequest: {
+            /** @description 영문·숫자·.·_·- 3~30자. 소문자로 저장, 전체에서 고유 */
+            loginId: string;
+            /** @description 1~30자 */
+            name: string;
+            /** @description 8자 이상, 72바이트 이하 */
+            password: string;
+        };
+        AcademyCreateRequest: {
+            admin: components["schemas"]["AcademyAdminRequest"];
+            /** @description 교재 사용권 적용 여부. 직영 false(모든 권 무제한), 연계 학원 true(사용권이 있는 권만) */
+            licenseEnforced: boolean;
+            /** @description 1~50자 */
+            name: string;
+            /** @description 학원 주소. 소문자·숫자·- 2~30자, 영숫자로 시작, 전체에서 고유. demo는 쓸 수 없다 */
+            slug: string;
+            /** @description IANA 타임존 이름(예: Asia/Seoul). 없으면 Asia/Seoul. 오프셋(+09:00)은 받지 않는다 */
+            timezone?: string | null;
+        };
+        AcademyCreatedResponse: {
+            admin: components["schemas"]["AcademyAdminRef"];
+            /** Format: int64 */
+            id: number;
+            licenseEnforced: boolean;
+            name: string;
+            slug: string;
+            /** @enum {string} */
+            status: "active" | "suspended";
+            timezone: string;
+        };
+        AcademyDetailResponse: {
+            academy: components["schemas"]["AcademyResponse"];
+            /** @description 사용권 줄이 있는 권만, 레벨·권 순 */
+            licenses: components["schemas"]["LicenseItem"][];
+            /**
+             * Format: date
+             * @description 그 학원 타임존의 오늘
+             */
+            today: string;
+        };
+        AcademyLicenseBookRef: {
+            code: string;
+            label: string;
+            season: string;
+        };
+        AcademyLicenseItem: {
+            book: components["schemas"]["AcademyLicenseBookRef"];
+            /**
+             * Format: int32
+             * @description active일 때 종료일 − 오늘 + 1(마지막 날 1), 그 밖 null
+             */
+            daysLeft: number | null;
+            /** Format: date */
+            endDate: string;
+            /**
+             * Format: int32
+             * @description 학생 수 한도
+             */
+            seats: number;
+            /** Format: date */
+            startDate: string;
+            /** @enum {string} */
+            status: "before_start" | "active" | "expired";
+            /**
+             * Format: int32
+             * @description 그 권 진행 중 반에 지금 소속된 서로 다른 학생 수. 한도를 넘으면 그 권 반으로 새 등록·이동이 409
+             */
+            usedSeats: number;
+        };
+        AcademyListResponse: {
+            items: components["schemas"]["AcademyResponse"][];
+        };
         AcademyRef: {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        AcademyResponse: {
+            /** Format: int64 */
+            id: number;
+            /** @description 교재 사용권 적용 여부. false = 직영(모든 권 무제한) */
+            licenseEnforced: boolean;
+            name: string;
+            slug: string;
+            /** @enum {string} */
+            status: "active" | "suspended";
+            /** @description IANA 타임존 — 진도표·회차 열림·사용권 기간의 "오늘" 기준 */
+            timezone: string;
         };
         AccessCodeResponse: {
             /** @description 새 가입 코드 8자 */
@@ -1062,6 +1236,65 @@ export interface components {
             /** @example 그린 */
             nameKo: string;
         };
+        LicenseBookRef: {
+            code: string;
+            /** @description 예: Book 1 */
+            label: string;
+            /** @description 겨울·봄·여름·가을(블랙은 새봄) */
+            season: string;
+        };
+        LicenseItem: {
+            book: components["schemas"]["LicenseBookRef"];
+            /**
+             * Format: int32
+             * @description active일 때 종료일 − 오늘 + 1(마지막 날 1). 그 밖·적용 안 하는 학원은 null
+             */
+            daysLeft: number | null;
+            /** Format: date */
+            endDate: string;
+            /**
+             * Format: int32
+             * @description 학생 수 한도
+             */
+            seats: number;
+            /** Format: date */
+            startDate: string;
+            /**
+             * @description 학원 날짜 기준. licenseEnforced가 false인 학원은 늘 active
+             * @enum {string}
+             */
+            status: "before_start" | "active" | "expired";
+            /**
+             * Format: int32
+             * @description 그 권 진행 중 반에 지금 소속된 서로 다른 학생 수(등록·이동 409와 같은 숫자). 한도를 낮추면 seats보다 클 수 있다
+             */
+            usedSeats: number;
+        };
+        LicenseListResponse: {
+            /** @description 사용권 줄이 있는 권만, 레벨·권 순 */
+            items: components["schemas"]["AcademyLicenseItem"][];
+            /** @description 교재 사용권 적용 여부. false = 직영(모든 권 무제한) */
+            licenseEnforced: boolean;
+            /**
+             * Format: date
+             * @description 학원 타임존의 오늘
+             */
+            today: string;
+        };
+        LicenseSetRequest: {
+            /**
+             * Format: date
+             * @description 시작일과 같거나 뒤
+             */
+            endDate: string;
+            /**
+             * Format: int32
+             * @description 학생 수 한도(산 교재 부수) 0~10000
+             */
+            seats: number;
+            /** Format: date */
+            startDate: string;
+        };
         LoginAlert: {
             /**
              * Format: int32
@@ -1153,7 +1386,8 @@ export interface components {
             school: string | null;
         };
         MeResponse: {
-            academy: components["schemas"]["AcademyRef"];
+            /** @description 운영자(superadmin)는 null — 학원에 속하지 않는다 */
+            academy: components["schemas"]["AcademyRef"] | null;
             /** Format: int64 */
             id: number;
             name: string;
@@ -1269,13 +1503,16 @@ export interface components {
             user: components["schemas"]["StaffUserInfo"];
         };
         StaffUserInfo: {
-            /** Format: int64 */
-            academyId: number;
+            /**
+             * Format: int64
+             * @description 운영자(superadmin)는 null — 학원에 속하지 않는다
+             */
+            academyId: number | null;
             /** Format: int64 */
             id: number;
             name: string;
             /** @enum {string} */
-            role: "teacher" | "admin";
+            role: "teacher" | "admin" | "superadmin";
         };
         StudentClassBook: {
             /** @example L2-B1 */
@@ -1631,6 +1868,11 @@ export interface components {
             seq: number;
         };
         TeacherClassItem: {
+            /**
+             * @description 반 가입 코드(영숫자 8자). 입장 링크·QR용. 관리자가 재발급하면 바뀌고 예전 코드로는 들어올 수 없다
+             * @example G7KM2XP4
+             */
+            accessCode: string;
             book: components["schemas"]["TeacherClassBook"];
             /** @description 오늘 회차. 개강 전이면 null */
             current: components["schemas"]["TeacherClassCurrent"] | null;
@@ -2150,6 +2392,35 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["DashboardResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    licenses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LicenseListResponse"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
@@ -2737,6 +3008,135 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["LessonWordsResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listAcademies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AcademyListResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    createAcademy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcademyCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AcademyCreatedResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getAcademy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AcademyDetailResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    setLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                bookCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LicenseSetRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LicenseItem"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
