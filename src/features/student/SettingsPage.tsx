@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, CircleAlert, Share } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
+import { ApiError } from '../../api/errors'
 import { logout, meQuery } from '../../api/session'
 import { levelEnglish } from '../../shared/level'
 import { ActionRow } from '../../shared/ui/ActionRow'
@@ -14,11 +15,13 @@ import styles from './SettingsPage.module.css'
 
 // S-07 설정 v0.2(지시문 §6.5): 내 정보 · 홈 화면에 추가(줄을 누르면 아래에 펼침) · 맨 아래 로그아웃. 탭 바 없음.
 // 로그아웃은 확인 없이 바로 → S-02(기기에 기억한 가입 코드는 남는다). 실패하면 화면 그대로 두고 다시 누르게.
-// 홈 응답을 받는 동안은 아무것도 그리지 않고, 못 받으면 내 정보만 빼고 보인다
+// 홈 응답을 받는 동안은 아무것도 그리지 않고(내 정보가 뒤늦게 끼어들지 않게), 못 받거나 오프라인이라
+// 요청이 멈췄으면(paused) 내 정보만 빼고 보인다 — 로그아웃은 언제나 누를 수 있게
 export function SettingsPage() {
   const home = useQuery(homeQuery)
   const me = useQuery(meQuery)
   const klass = home.data?.class
+  const waiting = home.isPending && home.fetchStatus !== 'paused'
 
   return (
     <StudentLayout levelCode={klass?.level.code}>
@@ -29,7 +32,7 @@ export function SettingsPage() {
         <h1 className={styles.title}>설정</h1>
       </header>
 
-      {!home.isPending && (
+      {!waiting && (
         <>
           <div className={styles.body}>
             {klass && (
@@ -124,13 +127,24 @@ function HomeScreenGroup() {
 function LogoutFooter() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [state, setState] = useState<'idle' | 'pending' | 'failed'>('idle')
+  const [state, setState] = useState<'idle' | 'pending' | 'offline' | 'failed'>('idle')
 
   async function onLogout() {
     setState('pending')
     try {
       await logout()
-    } catch {
+    } catch (error) {
+      // 연결 실패(fetch TypeError)만 "인터넷 연결" 안내. 서버 오류는 잠시 뒤 다시 — 원인은 기록에
+      if (error instanceof TypeError) {
+        setState('offline')
+        return
+      }
+      console.error(
+        '[logout]',
+        error instanceof ApiError
+          ? { status: error.status, code: error.code, requestId: error.requestId }
+          : error,
+      )
       setState('failed')
       return
     }
@@ -148,10 +162,12 @@ function LogoutFooter() {
       >
         {state === 'pending' ? '나가는 중' : '로그아웃'}
       </Button>
-      {state === 'failed' && (
+      {(state === 'offline' || state === 'failed') && (
         <p className={styles.error} role="alert">
           <CircleAlert size={18} strokeWidth={2} aria-hidden />
-          로그아웃하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요
+          {state === 'offline'
+            ? '로그아웃하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요'
+            : '로그아웃하지 못했어요. 잠시 후 다시 눌러 주세요'}
         </p>
       )}
     </div>

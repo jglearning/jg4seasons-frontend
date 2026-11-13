@@ -15,6 +15,8 @@ type HeardBarProps = {
   /** 완료 기준(0~1, 서버 completion.threshold). 없으면 눈금 없음 */
   threshold?: number
   onSeek?: (ms: number) => void
+  /** 끄는 위치가 바뀔 때(손을 떼거나 취소하면 null) — 바 밖의 시간 글자가 따라가게 */
+  onDragChange?: (ms: number | null) => void
   disabled?: boolean
 }
 
@@ -24,13 +26,18 @@ export function HeardBar({
   durationMs,
   threshold,
   onSeek,
+  onDragChange,
   disabled = false,
 }: HeardBarProps) {
   const total = Math.max(durationMs, 1)
   const clamp = (ms: number) => Math.min(Math.max(ms, 0), total)
   const percent = (ms: number) => `${(clamp(ms) / total) * 100}%`
   /** 끄는 중인 위치(ms) — 손을 떼기 전까지 화면에만 */
-  const [dragMs, setDragMs] = useState<number | null>(null)
+  const [dragMs, setDragState] = useState<number | null>(null)
+  const setDragMs = (ms: number | null) => {
+    setDragState(ms)
+    onDragChange?.(ms)
+  }
   const seekable = onSeek !== undefined && !disabled && durationMs > 0
   const shownMs = dragMs ?? positionMs
   const skipped = gapsBefore(listened, positionMs)

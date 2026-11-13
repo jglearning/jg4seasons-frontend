@@ -100,14 +100,13 @@ function bareFirstWord() {
 }
 
 describe('S-06 단어 카드', () => {
-  it('첫 카드: 출처·품사·단어, 발음 1회 자동 재생(표시는 없음, v0.2), 진행 1 / 57 — 뜻은 종이 아래, 예문은 없다', async () => {
+  it('첫 카드: 출처·품사·단어, 발음 1회 자동 재생, 진행 1 / 57 — 뜻은 종이 아래, 예문은 없다', async () => {
     renderWords()
     await counter(`1 / ${WORD_MOCK.total}`)
 
     expect(card()).toHaveTextContent('어휘책')
     expect(card()).toHaveTextContent('동사')
     expect(card()).toHaveTextContent(WORD_MOCK.english(1))
-    expect(screen.queryByText('발음 자동 재생')).not.toBeInTheDocument()
     // 회차 코드 L2-B1-05 → 레벨 green(단어 응답에는 레벨이 없다)
     expect(document.documentElement).toHaveAttribute('data-level', 'green')
     expectDown(WORD_MOCK.english(1), WORD_MOCK.korean(1))
@@ -140,13 +139,12 @@ describe('S-06 단어 카드', () => {
     expect(document.documentElement).toHaveAttribute('data-level', 'black')
   })
 
-  it('음원 없는 단어(BE #38): 자동 재생 표시·재생 없이, 듣기 버튼은 누를 수 없다, 새 품사 표기', async () => {
+  it('음원 없는 단어(BE #38): 자동 재생 없이, 듣기 버튼은 누를 수 없다, 새 품사 표기', async () => {
     bareFirstWord()
     renderWords()
     await counter(`1 / ${WORD_MOCK.total}`)
 
     expect(card()).toHaveTextContent('대명사')
-    expect(card()).not.toHaveTextContent('발음 자동 재생')
     expect(play).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: '단어 듣기' })).toBeDisabled()
   })
@@ -281,7 +279,6 @@ describe('S-06 단어 카드', () => {
     const user = userEvent.setup()
     renderWords()
     const listen = await screen.findByRole('button', { name: '눌러서 듣기' })
-    expect(card()).not.toHaveTextContent('발음 자동 재생')
 
     await user.click(listen)
 

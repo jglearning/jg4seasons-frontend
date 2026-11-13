@@ -317,10 +317,23 @@ describe('듣기 카드 · 복습 줄(v0.2)', () => {
     expect(screen.queryByText(/복습은 지문/)).not.toBeInTheDocument()
     expect(screen.queryAllByRole('button', { name: /^문장 \d+( ·|,)/ })).toHaveLength(0)
 
-    await user.click(screen.getByRole('button', { name: '복습하기 · 본문 보며 듣기' }))
+    const toggle = screen.getByRole('button', { name: '복습하기 · 본문 보며 듣기' })
+    // 펼치는 버튼: 스크린 리더가 접힘·펼침과 펼칠 곳(본문)을 안다
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    const controls = toggle.getAttribute('aria-controls')
+    expect(controls).toBeTruthy()
+
+    await user.click(toggle)
     expect(sentences()).toHaveLength(9)
-    await user.click(screen.getByRole('button', { name: '복습 닫기' }))
+    const close = screen.getByRole('button', { name: '복습 닫기' })
+    expect(close).toHaveAttribute('aria-expanded', 'true')
+    expect(document.getElementById(controls!)).toBe(screen.getByRole('list', { name: '지문 본문' }))
+    await user.click(close)
     expect(screen.queryAllByRole('button', { name: /^문장 \d+( ·|,)/ })).toHaveLength(0)
+    expect(screen.getByRole('button', { name: '복습하기 · 본문 보며 듣기' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
   })
 
   it('뒤로: 들어온 화면으로, 바로 들어왔으면 회차 목록으로', async () => {
@@ -630,6 +643,27 @@ describe('들은 구간 바로 위치 옮기기(STU-05 — 11/9 실기기 요청
 
     pointer(area, 'pointerup', 20 + 350 * 0.5)
     expect(audio().currentTime).toBe(Math.round(duration * 0.5) / 1000)
+  })
+
+  it('끄는 동안 바 아래 시간 글자도 끄는 위치를 따라가고, 취소하면 지금 위치로 돌아온다', async () => {
+    renderLesson()
+    await heading()
+    act(() => {
+      within(player()).getByRole('button', { name: '재생' }).click()
+    })
+    metadata(seconds(5))
+    const area = layout()
+    const duration = LESSON_MOCK.durationMs(5, 'us_w')
+    const half = clockOf(duration * 0.5)
+    expect(within(player()).queryByText(half)).not.toBeInTheDocument()
+
+    pointer(area, 'pointerdown', 20 + 350 * 0.25)
+    pointer(area, 'pointermove', 20 + 350 * 0.5)
+    expect(within(player()).getByText(half)).toBeInTheDocument()
+
+    pointer(area, 'pointercancel', 20 + 350 * 0.5)
+    expect(within(player()).queryByText(half)).not.toBeInTheDocument()
+    expect(within(player()).getByText('0:00')).toBeInTheDocument()
   })
 
   it('바 밖으로 끌면 처음·끝에서 멈추고, 취소(pointercancel)되면 옮기지 않는다', async () => {

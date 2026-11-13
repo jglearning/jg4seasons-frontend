@@ -78,6 +78,9 @@ export function LessonPage() {
 
 type Nudge = 'next' | 'words'
 
+/** 복습 본문 — 펼치는 버튼의 aria-controls(접혀 있으면 그리지 않는다) */
+const REVIEW_ID = 'review-sentences'
+
 function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   const player = usePlayer()
   const navigate = useNavigate()
@@ -89,6 +92,8 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   const [nudge, setNudge] = useState<Nudge | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [reviewShown, setReviewShown] = useState(false)
+  /** 들은 구간 바를 끄는 중인 위치 — 손을 떼기 전까지 시간 글자만 따라간다 */
+  const [dragMs, setDragMs] = useState<number | null>(null)
   // 복습은 회차의 지문을 다 들었을 때만(서버 값 — 클라이언트가 세지 않는다)
   const reviewOpen =
     data.completion.passagesTotal > 0 &&
@@ -274,10 +279,11 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
               durationMs={durationMs}
               threshold={threshold}
               onSeek={player.seekTo}
+              onDragChange={setDragMs}
               disabled={player.source === null}
             />
             <div className={styles.times}>
-              <span>{clock(positionMs)}</span>
+              <span>{clock(dragMs ?? positionMs)}</span>
               <button
                 type="button"
                 className={styles.fromStart}
@@ -293,7 +299,13 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
 
         {reviewOpen ? (
           <div className={styles.reviewRow}>
-            <Button variant="secondary" block onClick={() => setReviewShown((v) => !v)}>
+            <Button
+              variant="secondary"
+              block
+              aria-expanded={reviewShown}
+              aria-controls={REVIEW_ID}
+              onClick={() => setReviewShown((v) => !v)}
+            >
               {reviewShown ? '복습 닫기' : '복습하기 · 본문 보며 듣기'}
             </Button>
           </div>
@@ -306,7 +318,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
         )}
 
         {reviewOpen && reviewShown && (
-          <ol ref={listRef} className={styles.sentences} aria-label="지문 본문">
+          <ol ref={listRef} id={REVIEW_ID} className={styles.sentences} aria-label="지문 본문">
             {passage.sentences.map((sentence, i) => (
               <SentenceRow
                 key={sentence.no}
