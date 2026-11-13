@@ -1,7 +1,8 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import QRCode from 'qrcode'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { resetAdminMock } from '../../mocks/adminData'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
@@ -139,6 +140,101 @@ function pill(label: string) {
   const sr = screen.getByText(label)
   return sr.parentElement as HTMLElement
 }
+
+// 반 입장 QR·링크(#71, BE #52·#53) — 교실 화면에 크게 띄우거나 단톡방에 링크를 올린다. 주소는 # 뒤 가입 코드만
+describe('T-02 반 입장 QR·링크', () => {
+  function qrPath(text: string): string {
+    const modules = QRCode.create(text, { errorCorrectionLevel: 'M' }).modules
+    let d = ''
+    for (let row = 0; row < modules.size; row++)
+      for (let col = 0; col < modules.size; col++)
+        if (modules.get(row, col)) d += `M${col + 2},${row + 2}h1v1h-1z`
+    return d
+  }
+  const joinUrl = (code: string) => `${window.location.origin}/join#c=${code}`
+
+  it('"입장 QR" → 전체 화면 창: 반 이름·그 반 가입 코드 QR·코드 글자(이름 없이)·안내, 포커스는 닫기', async () => {
+    renderAt('/teacher')
+    const user = userEvent.setup()
+    const a = await card('겨울 그린 A반')
+
+    await user.click(within(a).getByRole('button', { name: '겨울 그린 A반 입장 QR' }))
+
+    const dialog = screen.getByRole('dialog', { name: '겨울 그린 A반 입장 QR' })
+    const qr = await within(dialog).findByRole('img', { name: '겨울 그린 A반 입장 QR 코드' })
+    expect(qr.querySelector('path')?.getAttribute('d')).toBe(qrPath(joinUrl('G7KM2XP4')))
+    // 간단하게 "가입 코드" 이름은 빼고 코드 글자만 — QR을 못 읽으면 보고 친다(동섭 11/14)
+    expect(dialog).not.toHaveTextContent('가입 코드')
+    expect(within(dialog).getByText('G7KM 2XP4')).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('폰 카메라로 찍고 개인 코드 4자리를 입력해요')
+    expect(within(dialog).getByRole('button', { name: '닫기' })).toHaveFocus()
+  })
+
+  it('반마다 그 반 가입 코드로', async () => {
+    renderAt('/teacher')
+    const user = userEvent.setup()
+    const b = await card('겨울 그린 B반')
+
+    await user.click(within(b).getByRole('button', { name: '겨울 그린 B반 입장 QR' }))
+
+    const qr = await screen.findByRole('img', { name: '겨울 그린 B반 입장 QR 코드' })
+    expect(qr.querySelector('path')?.getAttribute('d')).toBe(qrPath(joinUrl('H4PN8RT2')))
+  })
+
+  it('Esc·닫기로 닫히고 포커스는 연 버튼으로 돌아간다', async () => {
+    renderAt('/teacher')
+    const user = userEvent.setup()
+    const a = await card('겨울 그린 A반')
+    const open = within(a).getByRole('button', { name: '겨울 그린 A반 입장 QR' })
+
+    await user.click(open)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(open).toHaveFocus()
+
+    await user.click(open)
+    await user.click(screen.getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(open).toHaveFocus()
+  })
+
+  it('Tab은 창 안에서만 돈다', async () => {
+    renderAt('/teacher')
+    const user = userEvent.setup()
+    const a = await card('겨울 그린 A반')
+    await user.click(within(a).getByRole('button', { name: '겨울 그린 A반 입장 QR' }))
+    const close = screen.getByRole('button', { name: '닫기' })
+
+    await user.tab()
+    expect(close).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(close).toHaveFocus()
+  })
+
+  it('"입장 링크 복사" → 클립보드에 # 뒤 가입 코드만 실은 주소, "링크를 복사함"', async () => {
+    renderAt('/teacher')
+    const user = userEvent.setup()
+    const a = await card('겨울 그린 A반')
+
+    await user.click(within(a).getByRole('button', { name: '겨울 그린 A반 입장 링크 복사' }))
+
+    expect(await navigator.clipboard.readText()).toBe(joinUrl('G7KM2XP4'))
+    expect(within(a).getByRole('status')).toHaveTextContent('링크를 복사함')
+  })
+
+  it('복사하지 못하면 링크를 글자로 보여 준다(직접 복사)', async () => {
+    renderAt('/teacher')
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'))
+    const a = await card('겨울 그린 A반')
+
+    await user.click(within(a).getByRole('button', { name: '겨울 그린 A반 입장 링크 복사' }))
+
+    expect(await within(a).findByRole('status')).toHaveTextContent(
+      `복사하지 못함 — ${joinUrl('G7KM2XP4')}`,
+    )
+  })
+})
 
 describe('T-03 청취 현황 매트릭스', () => {
   it('처음에는 범위 없이 요청하고, 서버가 고른 묶음(겨울 1)을 보인다', async () => {

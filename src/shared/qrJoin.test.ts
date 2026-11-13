@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { qrJoinUrl, readQrJoinHash } from './qrJoin'
+import { qrClassJoinUrl, qrJoinUrl, readQrJoinHash } from './qrJoin'
+
+describe('반 QR·입장 링크 주소(#71)', () => {
+  it('가입 코드만 # 뒤에 싣는다 — 읽으면 반 QR', () => {
+    const url = new URL(qrClassJoinUrl('https://www.jg4seasons.com', 'G7KM2XP4'))
+
+    expect(url.toString()).toBe('https://www.jg4seasons.com/join#c=G7KM2XP4')
+    expect(url.search).toBe('')
+    expect(readQrJoinHash(url.hash)).toEqual({
+      joinCode: 'G7KM2XP4',
+      personalCode: undefined,
+      dropped: false,
+    })
+  })
+})
 
 describe('카드 QR 주소(#38)', () => {
   it('두 코드는 # 뒤에만 싣고, 읽으면 그대로 돌아온다', () => {

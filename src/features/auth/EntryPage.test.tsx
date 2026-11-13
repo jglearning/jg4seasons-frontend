@@ -1,8 +1,8 @@
 import { focusManager, onlineManager } from '@tanstack/react-query'
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { AUTH_MOCK, resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
@@ -665,14 +665,28 @@ describe('로그인된 기기에서 QR', () => {
 
   let logoutCalls: number
   let meCalls: number
+  // 응답을 오래 붙잡는 목(PR #103 CI) — 끝나지 않는 Promise로 두면 그 요청이 다음 테스트까지 남아, 다음 테스트의
+  // /me가 목에 잡히지 않고 실제 네트워크로 나가는 일이 CI에서 두 번 났다(추정 원인). 테스트가 끝날 때 모두 503으로 푼다
+  let hung: Array<() => void>
+  const hang = () =>
+    new Promise<Response>((resolve) =>
+      hung.push(() => resolve(HttpResponse.json({}, { status: 503 }))),
+    )
   beforeEach(() => {
     logoutCalls = 0
     meCalls = 0
+    hung = []
     server.events.on('request:start', ({ request }) => {
       const path = new URL(request.url).pathname
       if (path.endsWith('/auth/logout')) logoutCalls++
       if (path.endsWith('/api/v1/me')) meCalls++
     })
+  })
+  afterEach(() => {
+    // 화면을 먼저 내린 뒤 푼다 — 늦은 503이 화면 state를 바꾸지 않게(전역 afterEach의 cleanup은 이보다 늦다)
+    vi.useRealTimers()
+    cleanup()
+    hung.splice(0).forEach((release) => release())
   })
 
   it('학생이 들어와 있으면 이름과 함께 묻고, 칸은 감춘다. 로그인은 부르지 않는다', async () => {
@@ -868,7 +882,7 @@ describe('로그인된 기기에서 QR', () => {
 
   it('/me가 10초 안에 오지 않으면 확인 실패 화면 — 갇히지 않는다', async () => {
     setMockSession('student')
-    server.use(http.get('*/api/v1/me', () => new Promise<never>(() => {})))
+    server.use(http.get('*/api/v1/me', () => hang()))
     vi.useFakeTimers()
     renderAt(cardQr)
 
@@ -880,17 +894,15 @@ describe('로그인된 기기에서 QR', () => {
 
   it('"다시 확인하기"가 걸려 있어도 "그래도 이 QR로 들어가기"는 눌린다 → ②', async () => {
     setMockSession('student')
-    let hang = false
+    let stuck = false
     server.use(
-      http.get('*/api/v1/me', () =>
-        hang ? new Promise<never>(() => {}) : HttpResponse.json({}, { status: 503 }),
-      ),
+      http.get('*/api/v1/me', () => (stuck ? hang() : HttpResponse.json({}, { status: 503 }))),
     )
     renderAt(cardQr)
     const user = userEvent.setup()
     await failedText()
 
-    hang = true
+    stuck = true
     await user.click(screen.getByRole('button', { name: '다시 확인하기' }))
     expect(screen.getByRole('button', { name: '확인하는 중' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '그래도 이 QR로 들어가기' }))
@@ -898,22 +910,19 @@ describe('로그인된 기기에서 QR', () => {
     expect(await classCard()).toBeInTheDocument()
   })
 
+  // 가짜 타이머로 1초를 정확히 넘긴다. 응답은 오지 않게 둔다(붙잡았다 기본 목으로 넘기는 방식은 CI에서
+  // 목에 잡히지 않고 실제 네트워크로 나가 흔들렸다 — PR #103, 11/14). 응답이 온 뒤 묻는 것은 다른 테스트가 본다
   it('확인이 1초를 넘으면 "확인하는 중"', async () => {
     setMockSession('student')
-    let release: () => void = () => {}
-    const gate = new Promise<void>((resolve) => (release = resolve))
-    // once로 두지 않는다 — 앞 테스트에서 남은 재시도 요청이 먼저 가져갈 수 있다
-    server.use(
-      http.get('*/api/v1/me', async () => {
-        await gate
-        return undefined
-      }),
-    )
+    server.use(http.get('*/api/v1/me', () => hang()))
+    vi.useFakeTimers()
     renderAt(cardQr)
 
-    expect(await screen.findByText('확인하는 중', undefined, { timeout: 2000 })).toBeInTheDocument()
-    release()
-    expect(await askText()).toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(999))
+    expect(screen.queryByText('확인하는 중')).not.toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(screen.getByText('확인하는 중')).toBeInTheDocument()
+    expect(screen.queryByText('지금 누가 들어와 있는지 확인하지 못했어요.')).not.toBeInTheDocument()
   })
 
   it('묻는 화면에서 창을 오가도 다시 조회하지 않는다(화면이 뒤바뀌지 않게)', async () => {
@@ -990,7 +999,7 @@ describe('로그인된 기기에서 QR', () => {
 
   it('로그아웃이 10초 안에 오지 않으면 연결 확인 문구 — 두 버튼이 다시 눌린다', async () => {
     setMockSession('student')
-    server.use(http.post('*/api/v1/auth/logout', () => new Promise<never>(() => {})))
+    server.use(http.post('*/api/v1/auth/logout', () => hang()))
     renderAt(cardQr)
     await askText()
     vi.useFakeTimers()
