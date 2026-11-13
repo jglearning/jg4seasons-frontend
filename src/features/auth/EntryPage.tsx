@@ -1,15 +1,22 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../api/errors'
+import { isStaffRole, logout, meQuery } from '../../api/session'
 import { errorMessage, NETWORK_MESSAGE, type Copy } from '../../shared/errorMessage'
 import { levelEnglish } from '../../shared/level'
 import { readQrJoinHash } from '../../shared/qrJoin'
 import { Button } from '../../shared/ui/Button'
 import { CodeBoxes } from '../../shared/ui/CodeBoxes'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
-import { isTimeout, loginStudent, verifyJoinCode } from './authApi'
+import {
+  ENTRY_TIMEOUT_MS,
+  fetchMeForEntry,
+  isTimeout,
+  loginStudent,
+  verifyJoinCode,
+} from './authApi'
 import { entryReason } from './entry'
 import { JOIN_CODE_LENGTH, clearJoinCode, readJoinCode, saveJoinCode } from './joinCode'
 import { STUDENT_COPY } from './studentCopy'
@@ -25,7 +32,11 @@ import styles from './EntryPage.module.css'
 // 시작: 주소에 QR 가입 코드 → ②, 기기에 저장된 가입 코드 → ②(다시 들어오기), 그 밖 → ①.
 // 아이폰은 사용자 동작 밖의 focus()로 키보드를 띄우지 않는다 → 8번째 글자 입력 이벤트 안에서 개인 코드 입력으로 포커스를 옮긴다.
 // 그래서 두 입력은 늘 DOM에 있고, 지금 단계가 아닌 쪽은 화면 밖(투명·탭 정지 없음)에 둔다. ②가 나타나기 전 숫자는 받지 않는다.
-// 개인 코드는 이 화면의 지역 state에만 두고 로그인 요청 직후 비운다
+// 개인 코드는 이 화면의 지역 state에만 두고 로그인 요청 직후 비운다.
+// QR(#70): 모양이 틀린 값은 버리고 "QR을 끝까지 읽지 못했어요", QR 값으로 실패하면 QR 전용 문구.
+// 이미 누가 들어와 있는 기기에서 QR을 열면(/me) 칸 대신 "다른 학생으로 들어갈까요?"를 먼저 — 그냥 바꾸면 다른 학생의 청취가
+// 지금 학생 기록으로 쌓인다. 확인하면 로그아웃 뒤 QR 값으로 ②, "그대로 있기"면 QR 값을 버리고 그 사람의 첫 화면으로.
+// 들은 구간은 S-05를 떠날 때 이미 보낸다(#91)
 
 type ClassInfo = Awaited<ReturnType<typeof verifyJoinCode>>['class']
 type ClassResult =
@@ -49,20 +60,56 @@ const WRONG_PIN = '개인 코드가 달라요. 다시 눌러요'
 const CLASS_UNKNOWN = '지금은 반을 확인하지 못했어요. 그대로 들어가도 돼요'
 const SESSION_EXPIRED = '로그인이 끝났어요. 다시 들어와 주세요.'
 const CHECKING = '확인하는 중'
+const QR_INCOMPLETE = 'QR을 끝까지 읽지 못했어요. 직접 입력해 주세요'
+const CARD_OLD = '카드가 예전 것일 수 있어요. 새 카드를 받아 주세요'
+const CLASS_QR_CHANGED = '반 QR이 바뀌었어요. 새 QR을 받아 주세요'
+const LOGOUT_OFFLINE = '로그아웃하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요'
+const LOGOUT_FAILED = '로그아웃하지 못했어요. 잠시 후 다시 눌러 주세요'
 
-type Start = { stage: Stage; joinCode: string; pin: string; cardPin: boolean; fromSaved: boolean }
+/** QR로 채운 가입 코드와 어느 QR인지 — 그 코드로 실패하면 QR 전용 문구 */
+type QrSource = { joinCode: string; kind: 'card' | 'class' }
+
+type Start = {
+  stage: Stage
+  joinCode: string
+  pin: string
+  cardPin: boolean
+  fromSaved: boolean
+  qr: QrSource | undefined
+  qrDropped: boolean
+}
 
 function startFrom(hash: string): Start {
   const qr = readQrJoinHash(hash)
+  const qrDropped = qr?.dropped ?? false
   if (qr?.joinCode !== undefined) {
     const pin = qr.personalCode ?? ''
-    return { stage: 'pin', joinCode: qr.joinCode, pin, cardPin: pin !== '', fromSaved: false }
+    // 가입 코드가 맞는데 버린 값이 있으면 개인 코드가 잘린 카드 QR이다
+    const kind = pin !== '' || qr.dropped ? 'card' : 'class'
+    return {
+      stage: 'pin',
+      joinCode: qr.joinCode,
+      pin,
+      cardPin: pin !== '',
+      fromSaved: false,
+      qr: { joinCode: qr.joinCode, kind },
+      qrDropped,
+    }
   }
   const saved = readJoinCode()
   if (saved !== undefined) {
-    return { stage: 'pin', joinCode: saved, pin: '', cardPin: false, fromSaved: true }
+    return {
+      stage: 'pin',
+      joinCode: saved,
+      pin: '',
+      cardPin: false,
+      fromSaved: true,
+      qr: undefined,
+      qrDropped,
+    }
   }
-  return { stage: 'join', joinCode: '', pin: '', cardPin: false, fromSaved: false }
+  const empty = { joinCode: '', pin: '', cardPin: false, fromSaved: false, qr: undefined }
+  return { stage: 'join', ...empty, qrDropped }
 }
 
 export function EntryPage() {
@@ -79,6 +126,15 @@ export function EntryPage() {
   const [cardPin, setCardPin] = useState(() => startFrom(location.hash).cardPin)
   // 저장된 코드로 시작한 ②에서 그 코드가 무효면 ①로 보내며 안내
   const [fromSaved, setFromSaved] = useState(() => startFrom(location.hash).fromSaved)
+  const [qr, setQr] = useState(() => startFrom(location.hash).qr)
+  const [qrDropped, setQrDropped] = useState(() => startFrom(location.hash).qrDropped)
+  // QR로 열었을 때만 누가 들어와 있는지 묻는다(그냥 /join은 묻지 않는다). 값의 모양이 틀려도 QR로 연 것이다
+  const [checkSession, setCheckSession] = useState(
+    () => readQrJoinHash(location.hash) !== undefined,
+  )
+  // 같은 탭에 QR이 다시 들어오면 /me를 다시 확인한다(창 포커스로는 다시 부르지 않으므로)
+  const [recheck, setRecheck] = useState(0)
+  const [logoutState, setLogoutState] = useState<'idle' | 'pending' | 'offline' | 'failed'>('idle')
   // 직접 친 8번째 글자 — 그 코드의 확인이 끝나면 ②로 넘어간다
   const [advanceFor, setAdvanceFor] = useState<string>()
   const [results, setResults] = useState<Record<string, ClassResult>>({})
@@ -98,22 +154,59 @@ export function EntryPage() {
   const pinRef = useRef<HTMLInputElement>(null)
   const inflight = useRef(new Set<string>())
   const sending = useRef(false)
+  // 로그아웃 요청 번호 — 같은 렌더 안 두 번 누름을 막고, 같은 탭에 새 QR이 들어온 뒤 도착한 이전 결과는 화면에 쓰지 않는다
+  const logoutRun = useRef(0)
+  const loggingOut = useRef(false)
 
   const complete = joinCode.length === JOIN_CODE_LENGTH
   const result = complete ? results[joinCode] : undefined
+
+  // 들어와 있는 사람(11/14 리뷰). 묻는 동안·확인 중·확인 실패면 칸을 감추고 입력을 받지 않는다.
+  // - 401만 "아무도 없음" — 5xx·네트워크 오류·10초 넘김을 아무도 없는 것으로 보면 서버가 흔들릴 때 묻지 않고 학생이 바뀐다.
+  //   실패는 다시 보내지 않고 바로 "확인 실패"(다시 확인하기는 학생이 누른다)
+  // - 열려 있던 화면이 오프라인이 되면 쿼리가 멈춘다(paused) → 붙잡지 않는다. 로그인도 네트워크 오류로 끝나 학생이 바뀌지 않는다.
+  //   연결이 돌아오면 라이브러리가 멈춘 확인을 이어서 보내고, 그 결과로 묻는 화면이 뜰 수 있다(일부러 둔다 — 막으면 묻지 않고 바뀐다).
+  //   처음 열 때는 라이브러리가 온라인으로 가정해 멈추지 않고 네트워크 오류 → "확인 실패"
+  // - 창 포커스로는 다시 부르지 않는다 — 학생이 카메라 앱을 오가는 사이 묻는 화면과 칸이 뒤바뀌지 않게
+  const me = useQuery({
+    ...meQuery,
+    queryFn: ({ signal }) => fetchMeForEntry(signal),
+    enabled: checkSession,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })
+  const signedIn = checkSession ? me.data : undefined
+  const noSession = me.error instanceof ApiError && me.error.status === 401
+  const offline = me.fetchStatus === 'paused' && me.data === undefined
+  // "다시 확인하기" 중 — 한 번도 성공하지 않은 쿼리는 다시 부르면 오류가 아니라 대기로 돌아간다.
+  // 그동안에도 확인 실패 화면(그래도 들어가기 버튼)을 둔다 — 버튼 없는 "확인하는 중"에 갇히지 않게
+  const [retryingCheck, setRetryingCheck] = useState(false)
+  if (retryingCheck && me.fetchStatus === 'idle') setRetryingCheck(false)
+  const checkFailed =
+    checkSession && !signedIn && !noSession && !offline && (me.isError || retryingCheck)
+  const checkingSession = checkSession && !signedIn && !me.isError && !offline && !retryingCheck
+  const hold = signedIn !== undefined || checkFailed || checkingSession
+  const refetchMe = me.refetch
 
   // 이 화면이 이미 열린 탭에 QR 주소가 다시 들어오면(같은 문서 안 # 이동) 그리는 중에 처음부터 다시 시작한다
   const [seenKey, setSeenKey] = useState(location.key)
   if (location.key !== seenKey) {
     setSeenKey(location.key)
     const qr = readQrJoinHash(location.hash)
-    if (qr?.joinCode !== undefined && !submitting) {
+    if (qr !== undefined && !submitting) {
       const next = startFrom(location.hash)
       setStage(next.stage)
       setJoinCode(next.joinCode)
       setPin(next.pin)
       setCardPin(next.cardPin)
-      setFromSaved(false)
+      setFromSaved(next.fromSaved)
+      setQr(next.qr)
+      setQrDropped(next.qrDropped)
+      setCheckSession(true)
+      setRecheck((n) => n + 1)
+      setLogoutState('idle')
+      setTouched(false)
       setAdvanceFor(undefined)
       setJoinMessage(undefined)
       setPinError(undefined)
@@ -201,17 +294,48 @@ export function EntryPage() {
     return () => clearTimeout(timer)
   }, [checking, joinCode])
 
+  // 같은 탭에 QR이 다시 들어왔다 — 진행 중이던 로그아웃 결과는 버리고 /me를 새로 확인
+  useEffect(() => {
+    if (recheck === 0) return
+    logoutRun.current += 1
+    loggingOut.current = false
+    void refetchMe()
+  }, [recheck, refetchMe])
+
+  // 확인 실패는 기록에 남긴다(상태·code·requestId만 — 응답 본문의 이름은 남기지 않는다)
+  const meError = checkFailed ? me.error : null
+  useEffect(() => {
+    if (meError === null) return
+    console.error(
+      '[me]',
+      meError instanceof ApiError
+        ? { status: meError.status, code: meError.code, requestId: meError.requestId }
+        : meError,
+    )
+  }, [meError])
+
+  // 누가 들어와 있는지 확인이 1초를 넘으면 "확인하는 중"
+  const [checkSlow, setCheckSlow] = useState(false)
+  useEffect(() => {
+    if (!checkingSession) return
+    const timer = setTimeout(() => setCheckSlow(true), SLOW_CHECK_MS)
+    return () => {
+      clearTimeout(timer)
+      setCheckSlow(false)
+    }
+  }, [checkingSession])
+
   // 포커스: 없는 코드면 가입 코드로 되돌리고, ②가 사용자 동작 없이 나타났으면(다시 들어오기·QR) 개인 코드로
   const pinReady = stage === 'pin' && result !== undefined && result.status !== 'invalid'
   useEffect(() => {
-    if (stage === 'join' && result?.status === 'invalid') joinRef.current?.focus()
-  }, [stage, result])
+    if (stage === 'join' && result?.status === 'invalid' && !hold) joinRef.current?.focus()
+  }, [stage, result, hold])
   useEffect(() => {
-    if (pinReady && document.activeElement !== pinRef.current) pinRef.current?.focus()
-  }, [pinReady])
+    if (pinReady && !hold && document.activeElement !== pinRef.current) pinRef.current?.focus()
+  }, [pinReady, hold])
 
   function changeJoinCode(next: string) {
-    if (submitting || stage !== 'join' || leaving || next === joinCode) return
+    if (hold || submitting || stage !== 'join' || leaving || next === joinCode) return
     setTouched(true)
     setJoinCode(next)
     setJoinMessage(undefined)
@@ -225,7 +349,7 @@ export function EntryPage() {
   }
 
   function changePin(next: string) {
-    if (submitting || !pinReady) return
+    if (hold || submitting || !pinReady) return
     setTouched(true)
     setPinError(undefined)
     if (cardPin || next.length < PIN_LENGTH) {
@@ -240,6 +364,7 @@ export function EntryPage() {
     if (sending.current || personal.length !== PIN_LENGTH) return
     sending.current = true
     const code = joinCode
+    const fromCard = cardPin
     const request = loginStudent(code, personal)
     // 개인 코드는 요청 직후 비운다
     setPin('')
@@ -249,13 +374,17 @@ export function EntryPage() {
       await request
     } catch (error) {
       sending.current = false
-      setPinError(isTimeout(error) ? NETWORK_MESSAGE : errorMessage(error, loginCopy(result)))
+      setPinError(
+        isTimeout(error) ? NETWORK_MESSAGE : errorMessage(error, loginCopy(result, fromCard)),
+      )
       setSubmitting(false)
       // 카드 QR "들어가기"를 누른 경우 버튼이 사라져 포커스를 잃는다 — 이제 직접 칠 개인 코드 입력으로
       pinRef.current?.focus()
       return
     }
     saveJoinCode(code)
+    // 누가 들어와 있는지 묻기는 끈다 — 캐시를 비운 뒤 이 화면이 /me를 다시 불러 묻는 화면이 잠깐 뜨지 않게
+    setCheckSession(false)
     // 같은 기기를 다른 학생이 쓸 수 있다 — 이전 사용자의 캐시를 남기지 않는다
     queryClient.clear()
     // 응답을 기다리는 동안 링크로 다른 화면에 갔으면 끌고 오지 않는다
@@ -277,32 +406,92 @@ export function EntryPage() {
     joinRef.current?.focus()
   }
 
+  // "다른 학생으로 들어가기": 로그아웃(서버가 refresh를 끊는다) → 이전 사람의 캐시를 비우고 QR 값으로 계속.
+  // 응답이 10초 안에 오지 않으면 연결 문구 — 두 버튼이 "나가는 중"에 갇히지 않게
+  async function switchUser() {
+    // 같은 렌더 안의 두 번째 누름도 막는다 — state는 다음 렌더에야 바뀐다
+    if (loggingOut.current) return
+    loggingOut.current = true
+    const run = ++logoutRun.current
+    setLogoutState('pending')
+    try {
+      await withDeadline(logout(), ENTRY_TIMEOUT_MS)
+    } catch (error) {
+      if (run !== logoutRun.current) return
+      loggingOut.current = false
+      if (!mounted.current) return
+      if (error instanceof TypeError || isTimeout(error)) {
+        setLogoutState('offline')
+        return
+      }
+      console.error(
+        '[logout]',
+        error instanceof ApiError
+          ? { status: error.status, code: error.code, requestId: error.requestId }
+          : error,
+      )
+      setLogoutState('failed')
+      return
+    }
+    // 서버는 로그아웃했다 — 화면을 떠났어도 이전 사람의 캐시는 비운다(쿼리 클라이언트는 앱에 하나)
+    queryClient.clear()
+    if (run !== logoutRun.current) return
+    loggingOut.current = false
+    if (!mounted.current) return
+    // 묻기를 끄는 것은 다음 렌더에 반영된다 — 그 렌더에서 쿼리가 꺼져 있어 /me를 다시 부르지 않는다
+    setCheckSession(false)
+    setLogoutState('idle')
+  }
+
+  // "그대로 있기": QR 값을 버리고(화면을 떠나면 지역 state와 함께 사라진다) 들어와 있는 사람의 첫 화면으로
+  function stay(role: NonNullable<typeof signedIn>['role']) {
+    void navigate(isStaffRole(role) ? '/teacher' : '/', { replace: true })
+  }
+
   const sessionNotice: Message | undefined =
     entryReason(location.state) === 'sessionExpired' && !touched
       ? { tone: 'muted', text: SESSION_EXPIRED }
       : undefined
 
+  // 버린 QR 값이 있으면 칸을 치기 시작할 때까지
+  const qrNotice: Message | undefined =
+    qrDropped && !touched ? { tone: 'error', text: QR_INCOMPLETE } : undefined
+  // QR이 준 가입 코드 그대로 없는 코드면 QR 전용 문구(고쳐 친 코드는 원래 문구)
+  const notFound =
+    qr !== undefined && qr.joinCode === joinCode
+      ? qr.kind === 'card'
+        ? CARD_OLD
+        : CLASS_QR_CHANGED
+      : NOT_FOUND
+
   const slow = checking && slowFor === joinCode
-  let joinLine: Message | undefined = joinMessage ?? sessionNotice
-  if (stage === 'join' && result?.status === 'invalid')
-    joinLine = { tone: 'error', text: NOT_FOUND }
+  let joinLine: Message | undefined = joinMessage ?? qrNotice ?? sessionNotice
+  if (stage === 'join' && result?.status === 'invalid') joinLine = { tone: 'error', text: notFound }
   else if (stage === 'join' && slow) joinLine = { tone: 'muted', text: CHECKING }
 
   let pinLine: Message | undefined
   if (pinError !== undefined) pinLine = { tone: 'error', text: pinError }
   else if (submitting) pinLine = { tone: 'muted', text: '들어가는 중' }
+  else if (qrNotice) pinLine = qrNotice
   else if (result?.status === 'unknown') pinLine = { tone: 'muted', text: CLASS_UNKNOWN }
   else pinLine = sessionNotice
 
-  const klass = stage === 'pin' && result?.status === 'ok' ? result.klass : undefined
-  const pinHidden = !pinReady
+  const klass = stage === 'pin' && result?.status === 'ok' && !hold ? result.klass : undefined
+  const pinHidden = !pinReady || hold
+  const joinHidden = stage !== 'join' || hold
+  const logoutError =
+    logoutState === 'offline'
+      ? LOGOUT_OFFLINE
+      : logoutState === 'failed'
+        ? LOGOUT_FAILED
+        : undefined
 
   return (
     <StudentLayout levelCode={klass?.level.code}>
       <div
         className={styles.screen}
         style={{ top: viewport.top, height: viewport.height }}
-        data-stage={stage}
+        data-stage={hold ? 'ask' : stage}
         data-moved={moved ? '' : undefined}
       >
         {logo !== 'missing' && (
@@ -316,7 +505,7 @@ export function EntryPage() {
             onError={() => setLogo('missing')}
           />
         )}
-        {stage === 'join' && (
+        {stage === 'join' && !hold && (
           <Link to="/teacher/login" className={styles.teacher}>
             교사
           </Link>
@@ -331,18 +520,47 @@ export function EntryPage() {
             </span>
             <h1 className={styles.title}>4 Seasons</h1>
           </div>
-          {stage === 'pin' && !pinReady && (
+          {stage === 'pin' && !pinReady && !hold && (
             <MessageLine
               id="wait-line"
               message={slow ? { tone: 'muted', text: CHECKING } : undefined}
             />
           )}
+          {checkingSession && (
+            <MessageLine
+              id="session-line"
+              message={checkSlow ? { tone: 'muted', text: CHECKING } : undefined}
+            />
+          )}
+          {checkFailed && (
+            <CheckFailed
+              retrying={me.isFetching}
+              onRetry={() => {
+                setRetryingCheck(true)
+                void refetchMe()
+              }}
+              onContinue={() => {
+                // 걸려 있는 확인은 끊는다 — 뒤늦은 응답으로 화면이 바뀌지 않게
+                setCheckSession(false)
+                void queryClient.cancelQueries({ queryKey: meQuery.queryKey })
+              }}
+            />
+          )}
+          {signedIn && (
+            <SwitchAsk
+              name={signedIn.name}
+              pending={logoutState === 'pending'}
+              error={logoutError}
+              onSwitch={() => void switchUser()}
+              onStay={() => stay(signedIn.role)}
+            />
+          )}
 
           <section
-            className={[styles.step, stage !== 'join' && styles.offstage, leaving && styles.leaving]
+            className={[styles.step, joinHidden && styles.offstage, leaving && styles.leaving]
               .filter(Boolean)
               .join(' ')}
-            aria-hidden={stage === 'join' ? undefined : true}
+            aria-hidden={joinHidden ? true : undefined}
             data-step="join"
           >
             <CodeBoxes
@@ -351,12 +569,12 @@ export function EntryPage() {
               ariaLabel="가입 코드 8자리"
               value={joinCode}
               onChange={changeJoinCode}
-              invalid={stage === 'join' && joinLine?.tone === 'error'}
+              invalid={!joinHidden && joinLine?.tone === 'error' && joinLine !== qrNotice}
               describedBy="join-line"
               inputRef={joinRef}
-              inactive={stage !== 'join'}
+              inactive={joinHidden}
             />
-            <MessageLine id="join-line" message={stage === 'join' ? joinLine : undefined} />
+            <MessageLine id="join-line" message={joinHidden ? undefined : joinLine} />
           </section>
 
           <section
@@ -364,10 +582,11 @@ export function EntryPage() {
             aria-hidden={pinHidden ? true : undefined}
             data-step="pin"
           >
-            {stage === 'pin' && result?.status === 'ok' && (
+            {/* 묻는 동안(hold)은 그리지 않는다 — 감춘 묶음의 버튼에 키보드 포커스가 닿지 않게 */}
+            {stage === 'pin' && !hold && result?.status === 'ok' && (
               <ClassCard klass={result.klass} onChange={changeClass} />
             )}
-            {stage === 'pin' && result?.status === 'unknown' && (
+            {stage === 'pin' && !hold && result?.status === 'unknown' && (
               <CodeCard code={joinCode} onChange={changeClass} />
             )}
             <div className={styles.pinField}>
@@ -377,14 +596,14 @@ export function EntryPage() {
                 ariaLabel="개인 코드 숫자 4자리"
                 value={pin}
                 onChange={changePin}
-                invalid={pinLine?.tone === 'error'}
+                invalid={pinLine?.tone === 'error' && pinLine !== qrNotice}
                 describedBy="pin-line"
                 inputRef={pinRef}
                 inactive={pinHidden}
               />
               <MessageLine id="pin-line" message={pinHidden ? undefined : pinLine} />
             </div>
-            {cardPin && pinReady && (
+            {cardPin && pinReady && !hold && (
               <Button
                 block
                 className={styles.enter}
@@ -401,10 +620,100 @@ export function EntryPage() {
   )
 }
 
-/** 로그인 실패 문구 — 반을 확인했으면 틀린 쪽은 개인 코드뿐이다(서버는 어느 쪽인지 알려 주지 않는다) */
-function loginCopy(result: ClassResult | undefined): Copy {
+/**
+ * 로그인 실패 문구 — 반을 확인했으면 틀린 쪽은 개인 코드뿐이다(서버는 어느 쪽인지 알려 주지 않는다).
+ * 카드 QR이 채운 값이면 카드가 예전 것(개인 코드·가입 코드 재발급)일 수 있다(#70)
+ */
+function loginCopy(result: ClassResult | undefined, fromCard: boolean): Copy {
+  if (fromCard) {
+    return { ...STUDENT_COPY, codes: { ...STUDENT_COPY.codes, INVALID_CREDENTIALS: CARD_OLD } }
+  }
   if (result?.status !== 'ok') return STUDENT_COPY
   return { ...STUDENT_COPY, codes: { ...STUDENT_COPY.codes, INVALID_CREDENTIALS: WRONG_PIN } }
+}
+
+/**
+ * 응답이 ms 안에 오지 않으면 TimeoutError로 끝낸다(요청 자체는 끊지 못한다 — logout은 signal을 받지 않는다).
+ * 전역 setTimeout — 테스트의 가짜 타이머로 시간을 넘길 수 있게
+ */
+function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new DOMException('응답이 늦어요', 'TimeoutError')), ms)
+  })
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer))
+}
+
+/** "김민준으로"·"이하나로"·"김하늘로"(ㄹ 받침) — 한글이 아니면 "(으)로" */
+function withRo(name: string): string {
+  const last = name.charCodeAt(name.length - 1)
+  if (last < 0xac00 || last > 0xd7a3) return `${name}(으)로`
+  const final = (last - 0xac00) % 28
+  return `${name}${final === 0 || final === 8 ? '로' : '으로'}`
+}
+
+/**
+ * 누가 들어와 있는지 확인하지 못했을 때(/me 5xx·네트워크 오류, 11/14 리뷰) — 묻지 않고 넘어가지 않는다.
+ * "그래도 이 QR로 들어가기"는 학생이 고른 경우에만
+ */
+function CheckFailed({
+  retrying,
+  onRetry,
+  onContinue,
+}: {
+  retrying: boolean
+  onRetry: () => void
+  onContinue: () => void
+}) {
+  return (
+    <section className={styles.ask} aria-labelledby="check-failed-text">
+      <div id="check-failed-text" className={styles.askText}>
+        <p>지금 누가 들어와 있는지 확인하지 못했어요.</p>
+      </div>
+      <div className={styles.askActions}>
+        <Button block onClick={onRetry} disabled={retrying}>
+          {retrying ? '확인하는 중' : '다시 확인하기'}
+        </Button>
+        {/* 다시 확인하는 중에도 누를 수 있다 — 확인이 걸려도 갇히지 않게 */}
+        <Button variant="secondary" block onClick={onContinue}>
+          그래도 이 QR로 들어가기
+        </Button>
+      </div>
+    </section>
+  )
+}
+
+/** 이미 들어와 있는 기기에서 QR을 열었을 때 — 바꿀지 먼저 묻는다(#70). 이름은 화면에만 */
+function SwitchAsk({
+  name,
+  pending,
+  error,
+  onSwitch,
+  onStay,
+}: {
+  name: string
+  pending: boolean
+  error: string | undefined
+  onSwitch: () => void
+  onStay: () => void
+}) {
+  return (
+    <section className={styles.ask} aria-labelledby="ask-text">
+      <div id="ask-text" className={styles.askText}>
+        <p>지금 {withRo(name)} 들어와 있어요.</p>
+        <p>다른 학생으로 들어갈까요?</p>
+      </div>
+      <div className={styles.askActions}>
+        <Button block onClick={onSwitch} disabled={pending}>
+          {pending ? '나가는 중' : '다른 학생으로 들어가기'}
+        </Button>
+        <Button variant="secondary" block onClick={onStay} disabled={pending}>
+          그대로 있기
+        </Button>
+      </div>
+      <MessageLine id="ask-line" message={error ? { tone: 'error', text: error } : undefined} />
+    </section>
+  )
 }
 
 /**

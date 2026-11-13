@@ -1,9 +1,10 @@
+import { focusManager, onlineManager } from '@tanstack/react-query'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
-import { AUTH_MOCK, resetAuthMock } from '../../mocks/handlers'
+import { AUTH_MOCK, resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
 import { buildHome } from '../../mocks/studentData'
 import { renderRoutes } from '../../test/render'
@@ -557,27 +558,55 @@ describe('QR로 열기', () => {
     await alertSays(FIVE_XX)
   })
 
-  it('카드 QR 개인 코드가 틀리면 칸을 비우고 오류 — 버튼은 사라지고 이제 직접 4자리를 친다', async () => {
+  it('카드 QR 개인 코드가 틀리면 칸을 비우고 "카드가 예전 것" 안내 — 버튼은 사라지고 이제 직접 4자리를 친다(#70)', async () => {
     renderAt(qr(`c=${AUTH_MOCK.joinCode}&p=1111`))
     const user = userEvent.setup()
     await classCard()
 
     await user.click(screen.getByRole('button', { name: '들어가기' }))
 
-    await alertSays('개인 코드가 달라요. 다시 눌러요')
+    await alertSays('카드가 예전 것일 수 있어요. 새 카드를 받아 주세요')
     expect(pinDots()).toBe(0)
     expect(screen.queryByRole('button', { name: '들어가기' })).not.toBeInTheDocument()
+    // 직접 친 값이 틀리면 원래 문구
+    await user.type(pinInput(), '2222')
+    await alertSays('개인 코드가 달라요. 다시 눌러요')
     await user.type(pinInput(), AUTH_MOCK.personalCode)
     expect(await home()).toBeInTheDocument()
   })
 
-  it('QR 가입 코드가 없는 코드면 ③ — 8칸에 그 코드를 남기고 오류', async () => {
+  it('카드 QR 가입 코드가 없는 코드면 ③ — 8칸에 그 코드를 남기고 "카드가 예전 것" 안내(#70)', async () => {
     renderAt(qr(`c=AAAABBBB&p=${AUTH_MOCK.personalCode}`))
 
-    await alertSays('없는 코드예요. 선생님께 물어봐요')
+    await alertSays('카드가 예전 것일 수 있어요. 새 카드를 받아 주세요')
     expect(joinInput()).toHaveValue('AAAABBBB')
     expect(pinInput()).toHaveValue('')
     expect(loginCalls).toBe(0)
+  })
+
+  it('반 QR 가입 코드가 없는 코드면 ③ "반 QR이 바뀌었어요" — 직접 고쳐 치면 원래 문구(#70)', async () => {
+    renderAt(qr('c=AAAABBBB'))
+    const user = userEvent.setup()
+
+    await alertSays('반 QR이 바뀌었어요. 새 QR을 받아 주세요')
+    await user.clear(joinInput())
+    await user.type(joinInput(), 'AAAACCCC')
+    await alertSays('없는 코드예요. 선생님께 물어봐요')
+  })
+
+  it('개인 코드가 잘린 카드 QR은 가입 코드만 채우고 ②에 "QR을 끝까지 읽지 못했어요"(#70)', async () => {
+    const { router } = renderAt(qr(`c=${AUTH_MOCK.joinCode}&p=38`))
+    const user = userEvent.setup()
+
+    expect(await classCard()).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.hash).toBe(''))
+    await alertSays('QR을 끝까지 읽지 못했어요. 직접 입력해 주세요')
+    // 안내일 뿐 틀린 값이 아니다 — 칸은 오류 모양이 아니다
+    expect(pinInput()).not.toHaveAttribute('aria-invalid')
+    expect(pinDots()).toBe(0)
+    expect(screen.queryByRole('button', { name: '들어가기' })).not.toBeInTheDocument()
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+    expect(await home()).toBeInTheDocument()
   })
 
   it('QR 가입 코드는 기기에 저장된 반보다 우선한다(저장값은 로그인 성공 뒤에만 바뀐다)', async () => {
@@ -600,14 +629,396 @@ describe('QR로 열기', () => {
     expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
   })
 
-  it('모양이 틀린 # 뒤 값은 채우지 않고 주소에서만 지운다(①에 남는다)', async () => {
+  it('모양이 틀린 # 뒤 값은 채우지 않고 주소에서 지운다. ①에 "QR을 끝까지 읽지 못했어요", 치기 시작하면 사라진다(#70)', async () => {
     const { router } = renderAt(qr('c=G7KM&p=12345'))
+    const user = userEvent.setup()
 
     await waitFor(() => expect(router.state.location.hash).toBe(''))
     expect(joinInput()).toHaveValue('')
-    expect(joinStep()).not.toHaveAttribute('aria-hidden')
+    // QR로 열었으니 누가 들어와 있는지 먼저 확인한다(아무도 없으면 ①)
+    await waitFor(() => expect(joinStep()).not.toHaveAttribute('aria-hidden'))
+    await alertSays('QR을 끝까지 읽지 못했어요. 직접 입력해 주세요')
+    expect(joinInput()).not.toHaveAttribute('aria-invalid')
     await settle()
     expect(verifyCount).toBe(0)
+
+    await user.type(joinInput(), 'G')
+    expect(screen.getByRole('alert').textContent).toBe('')
+  })
+
+  it('c·p가 없는 # 뒤 값(모르는 키)은 QR로 보지 않는다 — 안내 없음', async () => {
+    const { router } = renderAt(qr('utm=abc'))
+
+    await waitFor(() => expect(router.state.location.hash).toBe(''))
+    await settle()
+    expect(screen.getByRole('alert').textContent).toBe('')
+  })
+})
+
+// 이미 로그인된 기기로 QR을 찍으면 그냥 바꾸지 않고 먼저 묻는다(#70) — 다른 학생의 청취가 지금 학생 기록으로 쌓이지 않게
+describe('로그인된 기기에서 QR', () => {
+  const qr = (hash: string) => `/join#${hash}`
+  const cardQr = qr(`c=${AUTH_MOCK.joinCode}&p=${AUTH_MOCK.personalCode}`)
+  const askText = () => screen.findByText('지금 김민준으로 들어와 있어요.')
+  const switchButton = () => screen.getByRole('button', { name: '다른 학생으로 들어가기' })
+  const stayButton = () => screen.getByRole('button', { name: '그대로 있기' })
+
+  let logoutCalls: number
+  let meCalls: number
+  beforeEach(() => {
+    logoutCalls = 0
+    meCalls = 0
+    server.events.on('request:start', ({ request }) => {
+      const path = new URL(request.url).pathname
+      if (path.endsWith('/auth/logout')) logoutCalls++
+      if (path.endsWith('/api/v1/me')) meCalls++
+    })
+  })
+
+  it('학생이 들어와 있으면 이름과 함께 묻고, 칸은 감춘다. 로그인은 부르지 않는다', async () => {
+    setMockSession('student')
+    const { router, client } = renderAt(cardQr)
+
+    expect(await askText()).toBeInTheDocument()
+    expect(screen.getByText('다른 학생으로 들어갈까요?')).toBeInTheDocument()
+    expect(joinStep()).toHaveAttribute('aria-hidden', 'true')
+    expect(pinStep()).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.queryByRole('button', { name: '들어가기' })).not.toBeInTheDocument()
+    // 감춘 칸 쪽의 버튼("바꾸기"·"들어가기")은 키보드로도 닿지 않게 그리지 않는다(반 확인이 끝난 뒤에도)
+    await settle()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(pinStep().querySelectorAll('button')).toHaveLength(0)
+    expect(joinStep().querySelectorAll('button')).toHaveLength(0)
+    await waitFor(() => expect(router.state.location.hash).toBe(''))
+    expect(loginCalls).toBe(0)
+    expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
+  })
+
+  it('"다른 학생으로 들어가기" → 로그아웃 → 카드 QR 값으로 ② → "들어가기" → 새 학생 홈', async () => {
+    setMockSession('student')
+    renderAt(cardQr)
+    const user = userEvent.setup()
+    await askText()
+
+    await user.click(switchButton())
+
+    expect(await classCard()).toBeInTheDocument()
+    expect(logoutCalls).toBe(1)
+    expect(pinDots()).toBe(4)
+    expect(screen.queryByText('다른 학생으로 들어갈까요?')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '들어가기' }))
+    expect(await home()).toBeInTheDocument()
+  })
+
+  it('"그대로 있기" → QR 값을 버리고 홈으로. 로그아웃하지 않는다', async () => {
+    setMockSession('student')
+    const { router, client } = renderAt(cardQr)
+    const user = userEvent.setup()
+    await askText()
+
+    await user.click(stayButton())
+
+    expect(await home()).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
+    expect(logoutCalls).toBe(0)
+    expect(loginCalls).toBe(0)
+    expectSecretNowhere(AUTH_MOCK.personalCode, { client, router })
+  })
+
+  it('로그아웃이 실패하면 묻는 화면에 남아 문구를 보이고 다시 누를 수 있다', async () => {
+    setMockSession('student')
+    server.use(
+      http.post('*/api/v1/auth/logout', () => HttpResponse.json({}, { status: 500 }), {
+        once: true,
+      }),
+    )
+    renderAt(cardQr)
+    const user = userEvent.setup()
+    await askText()
+
+    await user.click(switchButton())
+
+    await alertSays('로그아웃하지 못했어요. 잠시 후 다시 눌러 주세요')
+    expect(screen.getByText('다른 학생으로 들어갈까요?')).toBeInTheDocument()
+    await user.click(switchButton())
+    expect(await classCard()).toBeInTheDocument()
+  })
+
+  it('교사가 들어와 있으면 같은 질문, "그대로 있기"는 교사 첫 화면으로', async () => {
+    setMockSession('teacher')
+    const { router } = renderAt(qr(`c=${AUTH_MOCK.joinCode}`))
+    const user = userEvent.setup()
+
+    expect(await screen.findByText('지금 이선생으로 들어와 있어요.')).toBeInTheDocument()
+    await user.click(stayButton())
+    await waitFor(() => expect(router.state.location.pathname).toBe('/teacher'))
+  })
+
+  it.each([
+    ['이하나', '지금 이하나로 들어와 있어요.'],
+    ['김하늘', '지금 김하늘로 들어와 있어요.'],
+    ['Alex', '지금 Alex(으)로 들어와 있어요.'],
+  ])('이름 끝 받침에 맞춰 "로"·"으로" — %s', async (name, text) => {
+    server.use(
+      http.get('*/api/v1/me', () =>
+        HttpResponse.json({
+          id: 302,
+          name,
+          role: 'student',
+          academy: { id: 1, name: AUTH_MOCK.academyName },
+        }),
+      ),
+    )
+    renderAt(cardQr)
+
+    expect(await screen.findByText(text)).toBeInTheDocument()
+  })
+
+  it('들어와 있지 않으면 묻지 않고 바로 ②', async () => {
+    renderAt(cardQr)
+
+    expect(await classCard()).toBeInTheDocument()
+    expect(screen.queryByText('다른 학생으로 들어갈까요?')).not.toBeInTheDocument()
+  })
+
+  it('QR 없이 열면 들어와 있는지 묻지 않는다(/me 요청 없음)', async () => {
+    setMockSession('student')
+    renderAt()
+    await settle()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(meCalls).toBe(0)
+    expect(joinStep()).not.toHaveAttribute('aria-hidden')
+  })
+
+  // 11/14 리뷰 — /me가 401이 아닌 이유로 실패하면 "아무도 없음"으로 보지 않는다
+  const failedText = () =>
+    screen.findByText('지금 누가 들어와 있는지 확인하지 못했어요.', undefined, { timeout: 4000 })
+
+  it('/me가 5xx면 확인 실패 화면 — 칸·감춘 버튼 없음, 로그인 안 부름, 상태만 기록', async () => {
+    setMockSession('student')
+    server.use(http.get('*/api/v1/me', () => HttpResponse.json({}, { status: 503 })))
+    renderAt(cardQr)
+
+    expect(await failedText()).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '다시 확인하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '그래도 이 QR로 들어가기' })).toBeInTheDocument()
+    expect(pinStep().querySelectorAll('button')).toHaveLength(0)
+    expect(joinStep()).toHaveAttribute('aria-hidden', 'true')
+    expect(loginCalls).toBe(0)
+    expect(console.error).toHaveBeenCalledWith('[me]', expect.objectContaining({ status: 503 }))
+  })
+
+  it('/me가 네트워크 오류여도 확인 실패 화면', async () => {
+    setMockSession('student')
+    server.use(http.get('*/api/v1/me', () => HttpResponse.error()))
+    renderAt(cardQr)
+
+    expect(await failedText()).toBeInTheDocument()
+  })
+
+  it('확인 실패 → "다시 확인하기"가 성공하면 이름과 함께 묻는다', async () => {
+    setMockSession('student')
+    let fail = true
+    server.use(
+      http.get('*/api/v1/me', () => (fail ? HttpResponse.json({}, { status: 503 }) : undefined)),
+    )
+    renderAt(cardQr)
+    const user = userEvent.setup()
+    await failedText()
+
+    fail = false
+    await user.click(screen.getByRole('button', { name: '다시 확인하기' }))
+
+    expect(await askText()).toBeInTheDocument()
+  })
+
+  it('확인 실패 → "그래도 이 QR로 들어가기"면 묻지 않고 ②, 들어가기로 홈', async () => {
+    setMockSession('student')
+    server.use(
+      http.get('*/api/v1/me', () => HttpResponse.json({}, { status: 503 }), { once: true }),
+      http.get('*/api/v1/me', () => HttpResponse.json({}, { status: 503 }), { once: true }),
+    )
+    renderAt(cardQr)
+    const user = userEvent.setup()
+    await failedText()
+
+    await user.click(screen.getByRole('button', { name: '그래도 이 QR로 들어가기' }))
+
+    expect(await classCard()).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '들어가기' }))
+    expect(await home()).toBeInTheDocument()
+  })
+
+  it('오프라인이면(쿼리가 멈춤) 붙잡지 않고 바로 ② — 빈 화면에 머물지 않는다', async () => {
+    setMockSession('student')
+    onlineManager.setOnline(false)
+    let unmount = () => {}
+    try {
+      ;({ unmount } = renderAt(cardQr))
+      expect(await classCard()).toBeInTheDocument()
+      expect(screen.queryByText('다른 학생으로 들어갈까요?')).not.toBeInTheDocument()
+      expect(meCalls).toBe(0)
+    } finally {
+      // 화면을 먼저 닫는다 — 온라인으로 돌리면 멈춰 있던 /me가 이어서 나가 다음 테스트로 샌다
+      unmount()
+      onlineManager.setOnline(true)
+    }
+  })
+
+  it('/me가 10초 안에 오지 않으면 확인 실패 화면 — 갇히지 않는다', async () => {
+    setMockSession('student')
+    server.use(http.get('*/api/v1/me', () => new Promise<never>(() => {})))
+    vi.useFakeTimers()
+    renderAt(cardQr)
+
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+
+    expect(screen.getByText('지금 누가 들어와 있는지 확인하지 못했어요.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '그래도 이 QR로 들어가기' })).toBeEnabled()
+  })
+
+  it('"다시 확인하기"가 걸려 있어도 "그래도 이 QR로 들어가기"는 눌린다 → ②', async () => {
+    setMockSession('student')
+    let hang = false
+    server.use(
+      http.get('*/api/v1/me', () =>
+        hang ? new Promise<never>(() => {}) : HttpResponse.json({}, { status: 503 }),
+      ),
+    )
+    renderAt(cardQr)
+    const user = userEvent.setup()
+    await failedText()
+
+    hang = true
+    await user.click(screen.getByRole('button', { name: '다시 확인하기' }))
+    expect(screen.getByRole('button', { name: '확인하는 중' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '그래도 이 QR로 들어가기' }))
+
+    expect(await classCard()).toBeInTheDocument()
+  })
+
+  it('확인이 1초를 넘으면 "확인하는 중"', async () => {
+    setMockSession('student')
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    // once로 두지 않는다 — 앞 테스트에서 남은 재시도 요청이 먼저 가져갈 수 있다
+    server.use(
+      http.get('*/api/v1/me', async () => {
+        await gate
+        return undefined
+      }),
+    )
+    renderAt(cardQr)
+
+    expect(await screen.findByText('확인하는 중', undefined, { timeout: 2000 })).toBeInTheDocument()
+    release()
+    expect(await askText()).toBeInTheDocument()
+  })
+
+  it('묻는 화면에서 창을 오가도 다시 조회하지 않는다(화면이 뒤바뀌지 않게)', async () => {
+    setMockSession('student')
+    renderAt(cardQr)
+    await askText()
+    const before = meCalls
+
+    try {
+      act(() => {
+        focusManager.setFocused(false)
+        focusManager.setFocused(true)
+      })
+      await settle()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      expect(meCalls).toBe(before)
+    } finally {
+      focusManager.setFocused(undefined)
+    }
+  })
+
+  it('가입 코드가 잘린 QR로 열어도 들어와 있는지 묻는다', async () => {
+    setMockSession('student')
+    renderAt(qr('c=G7KM&p=3817'))
+
+    expect(await askText()).toBeInTheDocument()
+  })
+
+  it('바꾸면 이전 사람의 캐시를 비우고 /me를 다시 부르지 않는다', async () => {
+    setMockSession('student')
+    const { client } = renderAt(cardQr)
+    const user = userEvent.setup()
+    await askText()
+    client.setQueryData(['student', 'home'], { previous: true })
+    const before = meCalls
+
+    await user.click(switchButton())
+    await classCard()
+    await settle()
+
+    expect(client.getQueryData(['me'])).toBeUndefined()
+    expect(client.getQueryData(['student', 'home'])).toBeUndefined()
+    expect(meCalls).toBe(before)
+  })
+
+  it('로그아웃 중에 화면을 떠나도 성공하면 캐시를 비운다', async () => {
+    setMockSession('student')
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    server.use(
+      http.post(
+        '*/api/v1/auth/logout',
+        async () => {
+          await gate
+          return undefined
+        },
+        { once: true },
+      ),
+    )
+    const { router, client } = renderAt(cardQr)
+    const user = userEvent.setup()
+    await askText()
+
+    await user.click(switchButton())
+    await act(() => router.navigate('/teacher/login'))
+    release()
+    await waitFor(() => expect(logoutCalls).toBe(1))
+    await settle()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(client.getQueryData(['me'])).toBeUndefined()
+  })
+
+  it('로그아웃이 10초 안에 오지 않으면 연결 확인 문구 — 두 버튼이 다시 눌린다', async () => {
+    setMockSession('student')
+    server.use(http.post('*/api/v1/auth/logout', () => new Promise<never>(() => {})))
+    renderAt(cardQr)
+    await askText()
+    vi.useFakeTimers()
+
+    act(() => switchButton().click())
+    expect(screen.getByRole('button', { name: '나가는 중' })).toBeDisabled()
+    expect(stayButton()).toBeDisabled()
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '로그아웃하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요',
+    )
+    expect(switchButton()).toBeEnabled()
+    expect(stayButton()).toBeEnabled()
+  })
+
+  it('"다른 학생으로 들어가기"를 같은 렌더에서 두 번 눌러도 로그아웃은 한 번', async () => {
+    setMockSession('student')
+    renderAt(cardQr)
+    await askText()
+
+    act(() => {
+      switchButton().click()
+      switchButton().click()
+    })
+    await classCard()
+
+    expect(logoutCalls).toBe(1)
   })
 })
 
@@ -691,7 +1102,7 @@ describe('리뷰 보강', () => {
     saveJoinCode(AUTH_MOCK.joinCode)
     renderAt(qr('c=AAAABBBB'))
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('없는 코드예요'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('반 QR이 바뀌었어요'))
     expect(readJoinCode()).toBe(AUTH_MOCK.joinCode)
   })
 
@@ -796,7 +1207,7 @@ describe('리뷰 보강', () => {
     await classCard()
 
     await user.click(screen.getByRole('button', { name: '들어가기' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('개인 코드가 달라요'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('카드가 예전 것'))
     expect(pinInput()).toHaveFocus()
   })
 
