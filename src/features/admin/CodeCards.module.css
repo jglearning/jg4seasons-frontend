@@ -108,11 +108,14 @@
     fill: var(--ink);
   }
 
+  /* QR 폭(25mm) 안에서 두 줄까지 */
   .qrNote {
     margin: 4px 0 0;
     font-size: 12px;
+    line-height: 1.35;
     color: var(--muted);
-    white-space: nowrap;
+    text-align: center;
+    word-break: keep-all;
   }
 
   .top {
@@ -185,5 +188,13 @@
     margin: 6px 0 0;
     font-size: 12px;
     color: var(--muted);
+  }
+
+  /* 카드 사진 주의(#72) — 흑백 인쇄에서도 읽히게 ink 굵게 */
+  .warn {
+    margin: 2px 0 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
   }
 }

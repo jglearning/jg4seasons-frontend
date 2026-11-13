@@ -114,6 +114,8 @@ export function CodeCards({ title, klass, items }: CodeCardsProps) {
                     </div>
                   </dl>
                   <p className={styles.site}>{SITE}</p>
+                  {/* 카드 사진이 곧 두 코드다(ADR 0033) — 퍼뜨리지 않게(#72) */}
+                  <p className={styles.warn}>카드 사진은 남에게 보내지 마세요</p>
                 </div>
                 {qr.status === 'ready' && (
                   <div className={styles.qr}>
@@ -121,7 +123,8 @@ export function CodeCards({ title, klass, items }: CodeCardsProps) {
                       create={qr.create}
                       text={qrJoinUrl(window.location.origin, klass.accessCode, s.personalCode)}
                     />
-                    <p className={styles.qrNote}>폰 카메라로 찍어요</p>
+                    {/* 카드 QR은 자동으로 들어가지 않는다 — 찍은 뒤 "들어가기"를 한 번(ADR 0033, #72) */}
+                    <p className={styles.qrNote}>찍고 &apos;들어가기&apos;를 눌러요</p>
                   </div>
                 )}
               </div>
