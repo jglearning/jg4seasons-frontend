@@ -1,0 +1,113 @@
+/* S-08 회차 완료(지시문 §6.6) — S-05 위 전체 화면. 바탕은 흰 면, 위쪽은 표지 색 면(CoverHeader) */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow-y: auto;
+  background: var(--white);
+}
+
+/* 학생 화면 틀과 같은 단일 컬럼(최대 520, 좌우 여백) — CoverHeader가 여백을 넘어 폭 전체로 칠한다 */
+.sheet {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--student-max-width);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 0 var(--gutter-student) calc(var(--space-6) + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+
+/* 와이어프레임 390×844에서 표지 면 558. 낮은 폰에서는 아래 내용(통계·버튼 약 286px)이 한 화면에 들어오게
+   남는 높이만큼만 — 390×667에서 381 */
+.cover {
+  height: 558px;
+  height: clamp(300px, calc(100svh - 286px), 558px);
+  display: flex;
+}
+
+/* CoverHeader의 글자 칸을 면 가운데로(요소 선택자로 부품 기본 여백보다 앞서게) */
+.cover > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--gutter-student);
+}
+
+.check {
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--L-deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: pop 260ms ease-out both;
+}
+
+.title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--L-on);
+}
+
+.title:focus {
+  outline: none;
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--L-on);
+  outline-offset: 4px;
+}
+
+.stats {
+  margin-top: var(--space-6);
+  display: grid;
+  gap: var(--space-3);
+  animation: rise 220ms ease-out 340ms both;
+}
+
+.actions {
+  margin-top: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* 체크 동그라미가 0.8 → 1, 통계는 그 뒤 80ms(지시문 §6.6). transform·opacity만 */
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 움직임 줄이기: 바로 보인다 */
+@media (prefers-reduced-motion: reduce) {
+  .check,
+  .stats {
+    animation: none;
+  }
+}

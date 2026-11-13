@@ -1,0 +1,28 @@
+/* 통계 칸(지시문 §6.6) — 레벨 옅은 면, 반경 16, 턱·테두리 없음(정보 표시) */
+.tile {
+  margin: 0;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: var(--space-4) var(--space-4) var(--space-5);
+  border-radius: var(--radius-card-student);
+  background: var(--L-tint);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.value {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}

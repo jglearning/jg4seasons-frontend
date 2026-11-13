@@ -30,6 +30,7 @@ import {
   type Source,
   type Variant,
 } from './player'
+import { LessonComplete } from './LessonComplete'
 import { PlayerProvider } from './PlayerProvider'
 import { heardSentences } from './sentenceSync'
 import { useSentenceSync } from './useSentenceSync'
@@ -46,10 +47,28 @@ export function LessonPage() {
   const { code = '' } = useParams()
   const lesson = useQuery(lessonQuery(code))
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const location = useLocation()
+  // S-08은 주소 없이 이 화면 위에 덮는다 — 같은 주소에 state를 실은 한 칸을 쌓아 뒤로 가기 = 닫기
+  const completeShown = (location.state as CompleteState | null)?.lessonComplete === true
+  // 응답이 늦게 와 이미 떠난 뒤라면 완료 화면으로 되돌리지 않는다
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   const onTrackResult = useCallback(
-    (result: FlushResult) => applyFlushResult(queryClient, code, result),
-    [queryClient, code],
+    (result: FlushResult) => {
+      const completedNow = applyFlushResult(queryClient, code, result)
+      if (completedNow && mounted.current) {
+        const state: CompleteState = { lessonComplete: true }
+        void navigate(`/lessons/${code}`, { state })
+      }
+    },
+    [queryClient, code, navigate],
   )
 
   // 떠날 때 남은 구간은 sendBeacon으로 가서 응답(완료)을 받지 못한다 — 홈·회차 목록은 다음에 다시 받게
@@ -69,12 +88,27 @@ export function LessonPage() {
     )
   }
 
+  const data = lesson.data
   return (
-    <PlayerProvider lessonTitle={lesson.data.lesson.title} onTrackResult={onTrackResult}>
-      <LessonBody code={code} data={lesson.data} />
+    <PlayerProvider lessonTitle={data.lesson.title} onTrackResult={onTrackResult}>
+      {/* 완료 화면이 덮은 동안 뒤의 S-05는 누르거나 읽히지 않게 */}
+      <div inert={completeShown}>
+        <LessonBody code={code} data={data} />
+      </div>
+      {completeShown && (
+        <LessonComplete
+          title={data.lesson.title}
+          passagesDone={data.completion.passagesDone}
+          passagesTotal={data.completion.passagesTotal}
+          wordsTotal={data.words.total}
+          wordsTo={`/lessons/${code}/words`}
+        />
+      )}
     </PlayerProvider>
   )
 }
+
+type CompleteState = { lessonComplete?: boolean }
 
 type Nudge = 'next' | 'words'
 
@@ -539,9 +573,14 @@ function passageSource(passage: Passage, speed: Voice): Source {
 
 // ── 응답을 캐시에 반영(다시 받지 않고 서버가 준 값으로) ──
 
-function applyFlushResult(queryClient: QueryClient, code: string, result: FlushResult) {
-  if (result.lesson.code !== code) return
+/** 응답을 캐시에 반영한다. 이 응답으로 회차가 처음 완료됐으면(서버 상태: 완료 아님 → completed) true */
+function applyFlushResult(queryClient: QueryClient, code: string, result: FlushResult): boolean {
+  if (result.lesson.code !== code) return false
   const before = queryClient.getQueryData<LessonDetail>(lessonQuery(code).queryKey)
+  const completedNow =
+    before !== undefined &&
+    before.completion.status !== 'completed' &&
+    result.lesson.status === 'completed'
   // 회차 상태(진행 중 → 완료)가 바뀌면 홈·회차 목록도 다시 받는다(밀림·완료 표시)
   if (before !== undefined && before.completion.status !== result.lesson.status) {
     void queryClient.invalidateQueries({ queryKey: ['student', 'home'] })
@@ -567,4 +606,5 @@ function applyFlushResult(queryClient: QueryClient, code: string, result: FlushR
       })),
     }
   })
+  return completedNow
 }
