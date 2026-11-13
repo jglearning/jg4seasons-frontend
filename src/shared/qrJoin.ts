@@ -12,17 +12,23 @@ export function qrJoinUrl(origin: string, joinCode: string, personalCode: string
   return `${origin}${JOIN_PATH}#${hash}`
 }
 
-export type QrJoinCodes = { joinCode?: string; personalCode?: string }
+/** dropped: `c`·`p` 중 모양이 틀려 버린 값이 있다(QR을 끝까지 읽지 못함 — 화면이 직접 입력을 안내한다) */
+export type QrJoinCodes = { joinCode?: string; personalCode?: string; dropped: boolean }
 
-/** `#c=…&p=…`에서 모양이 맞는 코드만 꺼낸다. 하나도 없으면 undefined */
+/**
+ * `#c=…&p=…`에서 모양이 맞는 코드만 꺼낸다. `c`·`p`가 둘 다 없으면 QR 주소가 아니다(undefined, 모르는 키는 무시).
+ * 가입 코드는 공백을 지우고 대문자로 본다. 개인 코드는 가입 코드도 맞을 때만 쓴다(#70)
+ */
 export function readQrJoinHash(hash: string): QrJoinCodes | undefined {
   if (!hash.startsWith('#')) return undefined
   const params = new URLSearchParams(hash.slice(1))
-  const c = params.get('c')?.toUpperCase()
+  const c = params.get('c')
   const p = params.get('p')
-  const codes: QrJoinCodes = {
-    joinCode: c !== undefined && JOIN_CODE.test(c) ? c : undefined,
-    personalCode: p !== null && PERSONAL_CODE.test(p) ? p : undefined,
-  }
-  return codes.joinCode || codes.personalCode ? codes : undefined
+  if (c === null && p === null) return undefined
+  const cleaned = c?.replace(/\s/g, '').toUpperCase()
+  const joinCode = cleaned !== undefined && JOIN_CODE.test(cleaned) ? cleaned : undefined
+  const personalCode = joinCode !== undefined && p !== null && PERSONAL_CODE.test(p) ? p : undefined
+  const dropped =
+    (c !== null && joinCode === undefined) || (p !== null && personalCode === undefined)
+  return { joinCode, personalCode, dropped }
 }

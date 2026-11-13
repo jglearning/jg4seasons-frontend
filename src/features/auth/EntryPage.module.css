@@ -284,6 +284,29 @@
   margin-top: 24px;
 }
 
+/* 이미 들어와 있는 기기에서 QR(#70) — "4 Seasons" 아래 56, 글 19/700 두 줄, 버튼 둘(사이 12) */
+.ask {
+  align-self: stretch;
+  margin-top: 56px;
+}
+
+.askText {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.askText p {
+  margin: 0;
+}
+
+.askActions {
+  display: grid;
+  gap: 12px;
+  margin-top: 32px;
+}
+
 /* ① → ② 앞: "가입 코드" 이름표와 8칸이 8px 올라가며 사라짐(160ms).
    "바꾸기" 뒤(data-moved)의 ① 나타나기 규칙보다 앞서도록 선택자를 더 구체적으로 */
 .screen[data-stage] [data-step].leaving {
