@@ -1170,3 +1170,132 @@ describe('소리가 안 날 때 · 잠금화면', () => {
     expect(session.metadata).toMatchObject({ title: 'Reading Day 5 · 지문 5 · 영국 여 · 1.2×' })
   })
 })
+
+// S-08 회차 완료(지시문 §6.6) — 서버 회차 상태가 완료로 바뀌는 순간 한 번, 주소 없이 S-05 위에 덮는다
+describe('S-08 회차 완료', () => {
+  /** 다음 flush 응답이 "회차 완료"(서버 값) */
+  function completeOnFlush() {
+    server.use(
+      http.post('*/api/v1/listening/flush', () =>
+        HttpResponse.json({
+          track: { trackId: LESSON_MOCK.passageTrackId(5, 'us_w'), coverage: 1, completed: true },
+          lesson: {
+            code: LESSON_MOCK.code,
+            status: 'completed',
+            requiredDone: 6,
+            requiredTotal: 6,
+          },
+          dropped: 0,
+        }),
+      ),
+    )
+  }
+  /** 듣다가 멈춤 → 화면이 보이는 끝이라 fetch(final)로 보내 응답을 받는다 */
+  function listenAndPause() {
+    listen(0, 3)
+    const element = audio()
+    element.paused = true
+    fire(element, 'pause')
+  }
+  const dialog = () => screen.findByRole('dialog', { name: 'Reading Day 5 완료' })
+
+  it('처음으로 다 완료한 순간 S-05 위에 뜬다 — 제목에 포커스, 지문 6 / 6, 단어·홈 버튼, 들은 시간 칸 없음', async () => {
+    completeOnFlush()
+    const { router } = renderLesson()
+    await heading()
+
+    listenAndPause()
+
+    const complete = await dialog()
+    expect(within(complete).getByRole('heading', { name: 'Reading Day 5 완료' })).toHaveFocus()
+    expect(within(complete).getByText('지문')).toBeInTheDocument()
+    expect(within(complete).getByText('6 / 6')).toBeInTheDocument()
+    expect(within(complete).queryByText('들은 시간')).not.toBeInTheDocument()
+    expect(within(complete).getByRole('link', { name: '오늘 단어 57개 보기' })).toHaveAttribute(
+      'href',
+      `/lessons/${LESSON_MOCK.code}/words`,
+    )
+    expect(within(complete).getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
+    // 주소는 그대로(S-05 위에 덮음), 뒤의 S-05는 누르거나 읽히지 않는다
+    expect(router.state.location.pathname).toBe(`/lessons/${LESSON_MOCK.code}`)
+    const behind = screen.getByRole('heading', { name: 'Reading Day 5', level: 1, hidden: true })
+    expect(behind.closest('[inert]')).not.toBeNull()
+  })
+
+  it('뒤로 가기는 완료 화면을 닫고 S-05로', async () => {
+    completeOnFlush()
+    const { router } = renderLesson()
+    await heading()
+    listenAndPause()
+    await dialog()
+
+    await act(() => router.navigate(-1))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(router.state.location.pathname).toBe(`/lessons/${LESSON_MOCK.code}`)
+    expect(screen.getByRole('heading', { name: 'Reading Day 5', level: 1 })).toBeInTheDocument()
+  })
+
+  it('이미 완료한 회차를 다시 들으면(완료 → 완료) 뜨지 않는다', async () => {
+    reviewOpenMock()
+    completeOnFlush()
+    const { client } = renderLesson()
+    await heading()
+    const applied = vi.spyOn(client, 'setQueryData')
+
+    listenAndPause()
+
+    await waitFor(() => expect(applied).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('오늘 단어가 없으면 버튼은 "홈으로" 하나(주 버튼)', async () => {
+    server.use(
+      http.get('*/api/v1/student/lessons/:code', () => {
+        const detail = buildLessonDetail(LESSON_MOCK.code)
+        detail.words.total = 0
+        return HttpResponse.json(detail)
+      }),
+    )
+    completeOnFlush()
+    renderLesson()
+    await heading()
+
+    listenAndPause()
+
+    const complete = await dialog()
+    expect(within(complete).getAllByRole('link')).toHaveLength(1)
+    expect(within(complete).getByRole('link', { name: '홈으로' })).toBeInTheDocument()
+  })
+
+  it('응답이 오기 전에 S-05를 떠났으면 완료 화면으로 되돌아오지 않는다', async () => {
+    let answer: () => void = () => {}
+    const answered = new Promise<void>((resolve) => (answer = resolve))
+    server.use(
+      http.post('*/api/v1/listening/flush', async () => {
+        await answered
+        return HttpResponse.json({
+          track: { trackId: LESSON_MOCK.passageTrackId(5, 'us_w'), coverage: 1, completed: true },
+          lesson: {
+            code: LESSON_MOCK.code,
+            status: 'completed',
+            requiredDone: 6,
+            requiredTotal: 6,
+          },
+          dropped: 0,
+        })
+      }),
+    )
+    const { router, client } = renderLesson()
+    await heading()
+    const applied = vi.spyOn(client, 'setQueryData')
+    listenAndPause()
+    await act(() => router.navigate('/lessons'))
+
+    answer()
+
+    await waitFor(() => expect(applied).toHaveBeenCalled())
+    expect(router.state.location.pathname).toBe('/lessons')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
