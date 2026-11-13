@@ -218,6 +218,24 @@ describe('S-04 회차 목록', () => {
     expect(within(last).getByRole('link', { name: 'Reading Day 5 다시 듣기' })).toBeInTheDocument()
   })
 
+  it('개강 전(모든 회차 잠김)이면 맨 위 카드 없이 묶음만 — 잠긴 회차를 카드로 내세우지 않는다', async () => {
+    useLessons((l) => {
+      for (const g of l.groups)
+        for (const lesson of g.lessons)
+          Object.assign(lesson, {
+            state: 'locked',
+            progress: { status: 'not_started', passagesDone: 0, passagesTotal: 6 },
+          })
+    })
+    renderLessons()
+    await group('겨울 1')
+
+    expect(screen.queryByRole('region', { name: /^Reading Day \d+$/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /이어서 듣기|듣기 시작|다시 듣기/ }),
+    ).not.toBeInTheDocument()
+  })
+
   it('뒤로: 앱 안에서 들어왔으면 들어온 화면으로', async () => {
     const { router } = renderRoutes(routes, { initialEntries: ['/settings', '/lessons'] })
     await group('겨울 1')

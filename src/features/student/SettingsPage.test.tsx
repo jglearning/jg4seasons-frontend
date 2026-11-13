@@ -1,3 +1,4 @@
+import { onlineManager } from '@tanstack/react-query'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -6,7 +7,7 @@ import { routes } from '../../app/routes'
 import { AUTH_MOCK, resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
 import { buildHome } from '../../mocks/studentData'
-import { renderRoutes } from '../../test/render'
+import { createTestQueryClient, renderRoutes } from '../../test/render'
 
 // S-07 설정(와이어프레임 S07 v2, 11/9): 내 정보 · 홈 화면에 추가 방법 · 로그아웃(확인 없이 → S-02)
 
@@ -140,6 +141,47 @@ describe('S-07 설정', () => {
     expect(screen.queryByRole('region', { name: '내 정보' })).not.toBeInTheDocument()
   })
 
+  it('오프라인이라 홈 응답을 기다리는 중이어도(요청 멈춤) 앱 묶음과 로그아웃은 보인다', async () => {
+    // 가드(/me)는 이미 받은 상태로, 홈만 오프라인에서 멈추게 한다
+    const client = createTestQueryClient()
+    client.setQueryData(['me'], {
+      id: 301,
+      name: '김민준',
+      role: 'student',
+      academy: { id: 1, name: 'JEY 어학원' },
+    })
+    onlineManager.setOnline(false)
+    try {
+      renderRoutes(routes, { initialEntries: ['/settings'], client })
+      await title()
+
+      expect(await screen.findByRole('button', { name: '로그아웃' })).toBeInTheDocument()
+      expect(homeScreenRow()).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: '내 정보' })).not.toBeInTheDocument()
+    } finally {
+      onlineManager.setOnline(true)
+    }
+  })
+
+  it('홈 응답을 기다리는 중(온라인)에는 아무것도 그리지 않는다 — 내 정보가 뒤늦게 끼어들지 않게', async () => {
+    let answer: () => void = () => {}
+    server.use(
+      http.get(
+        '*/api/v1/student/home',
+        () =>
+          new Promise<Response>((resolve) => {
+            answer = () => resolve(HttpResponse.json(buildHome()))
+          }),
+      ),
+    )
+    renderSettings()
+    await title()
+
+    expect(screen.queryByRole('button', { name: '로그아웃' })).not.toBeInTheDocument()
+    answer()
+    expect(await screen.findByRole('region', { name: '내 정보' })).toBeInTheDocument()
+  })
+
   it('로그아웃: 확인 없이 바로 POST → S-02로, 캐시를 비우고 가입 코드는 기기에 남긴다', async () => {
     localStorage.setItem(JOIN_CODE_KEY, AUTH_MOCK.joinCode)
     const user = userEvent.setup()
@@ -168,6 +210,28 @@ describe('S-07 설정', () => {
     )
     expect(router.state.location.pathname).toBe('/settings')
     expect(logoutButton()).toHaveTextContent('로그아웃')
+    expect(logoutButton()).toBeEnabled()
+  })
+
+  it('로그아웃이 서버 오류(5xx)로 실패하면 연결 문구가 아니라 잠시 후 다시 누르라는 안내', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    server.use(
+      http.post('*/api/v1/auth/logout', () =>
+        HttpResponse.json(
+          { code: 'INTERNAL', title: '문제가 생겼어요', status: 503 },
+          { status: 503 },
+        ),
+      ),
+    )
+    const user = userEvent.setup()
+    renderSettings()
+    await screen.findByRole('region', { name: '내 정보' })
+
+    await user.click(logoutButton())
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('로그아웃하지 못했어요. 잠시 후 다시 눌러 주세요')
+    expect(alert).not.toHaveTextContent('인터넷')
     expect(logoutButton()).toBeEnabled()
   })
 

@@ -418,12 +418,12 @@ describe('S-03 홈', () => {
   })
 })
 
-// #38 홈 화면에 추가 안내(안 B) — 홈 맨 위, 닫으면 이 기기에서 다시 안 보임
+// #38 홈 화면에 추가 안내 — v0.2는 내용 맨 아래, 닫으면 이 기기에서 다시 안 보임
 describe('S-03 홈 화면에 추가 안내', () => {
   const hint = () => screen.queryByRole('region', { name: '홈 화면에 추가' })
 
   it('내용 맨 아래(오늘 단어·다음 수업 뒤)에 보이고, 닫으면 기기에 닫은 표시만 남기고 다시 열어도 안 보인다', async () => {
-    const { container, unmount } = renderHome()
+    const { unmount } = renderHome()
     await heading()
 
     const card = hint()!
@@ -434,7 +434,6 @@ describe('S-03 홈 화면에 추가 안내', () => {
       screen.getByText('다음 수업').compareDocumentPosition(card) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(container.contains(card)).toBe(true)
 
     await userEvent.setup().click(within(card).getByRole('button', { name: '닫기' }))
     expect(hint()).not.toBeInTheDocument()
@@ -464,10 +463,16 @@ describe('S-03 홈 화면에 추가 안내', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('denied', 'SecurityError')
     })
-    renderHome()
+    const { unmount } = renderHome()
     await heading()
 
     await userEvent.setup().click(within(hint()!).getByRole('button', { name: '닫기' }))
     expect(hint()).not.toBeInTheDocument()
+
+    // 닫은 표시를 남기지 못했으니 다시 열면 또 보인다
+    unmount()
+    renderHome()
+    await heading()
+    expect(hint()).toBeInTheDocument()
   })
 })
