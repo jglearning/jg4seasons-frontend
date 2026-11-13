@@ -75,6 +75,10 @@ export class ListeningTracker {
   private open: Open | null = null
   private buffer: Queued[] = []
   private inFlight: Queued[] = []
+  /** sendFinal이 보내는 중이거나 보낼 차례·되돌릴 차례를 기다리는 구간 — stop()의 beacon이 함께 싣는다 */
+  private finalPending: Queued[] = []
+  /** stop()의 beacon이 받아들인 남의(보내는 중이던) 구간 — 그 fetch가 뒤에 실패해도 버림이 아니다 */
+  private beaconedAtStop = new Set<Queued>()
   /** beacon으로 보냈지만 서버에 닿았는지 모르는 구간 — 다음 fetch에 다시 싣는다 */
   private unconfirmed: Queued[] = []
   private listened: Array<[number, number]> = []
@@ -296,7 +300,7 @@ export class ListeningTracker {
     this.inFlight = items
     const kept = await this.trySend(items, false, false)
     this.inFlight = []
-    if (kept) this.buffer.unshift(...items)
+    if (kept) this.requeue(items)
     else if (this.buffer.length > 0) await this.flush()
   }
 
@@ -304,12 +308,28 @@ export class ListeningTracker {
   private async sendFinal(): Promise<void> {
     this.requeueUnconfirmed()
     const queue = this.buffer.splice(0)
+    this.finalPending.push(...queue)
     const failed: Queued[] = []
     while (queue.length > 0) {
       const items = this.takeBatch(queue)
+      // 다시 보낼 묶음은 되돌릴 때까지 finalPending에 둔다 — 그 사이 stop()의 beacon이 싣게
       if (await this.trySend(items, true, true)) failed.push(...items)
+      else this.finalPending = this.finalPending.filter((item) => !items.includes(item))
     }
-    this.buffer.unshift(...failed)
+    this.finalPending = this.finalPending.filter((item) => !failed.includes(item))
+    this.requeue(failed)
+  }
+
+  /** 보내지 못한 구간을 다음 전송 앞에 되돌린다. 이미 떼어 냈으면 다시 보낼 기회가 없다 —
+   * stop()의 beacon에도 못 실린 것만 버린 것으로 기록한다 */
+  private requeue(items: Queued[]) {
+    if (items.length === 0) return
+    if (this.started) {
+      this.buffer.unshift(...items)
+      return
+    }
+    const lost = items.filter((item) => !this.beaconedAtStop.has(item)).length
+    if (lost > 0) this.deps.onDiscard?.('stopped-send-failed', lost)
   }
 
   /** 보낸다. 다시 보내야 하면 true(호출한 쪽이 남긴다), 성공했거나 버렸으면 false */
@@ -336,14 +356,16 @@ export class ListeningTracker {
   /** 보내는 중인 것까지 실어 sendBeacon(final). 큐에 못 넣은 구간은 남기고 그 수를 돌려준다 */
   private beaconAll(): number {
     const pending = this.buffer.splice(0)
-    const queue = [...this.inFlight, ...pending]
+    const queue = [...this.inFlight, ...this.finalPending, ...pending]
     let rejected = 0
     while (queue.length > 0) {
       const batch = this.takeBatch(queue)
-      // 보내는 중이던 것은 그 fetch가 결과를 처리한다(실패하면 flush가 되돌린다)
+      // 보내는 중이던 것은 그 fetch가 결과를 처리한다(실패하면 flush·sendFinal이 되돌린다)
       const own = batch.filter((item) => pending.includes(item))
       if (this.deps.beacon(this.payload(batch, true))) {
         this.unconfirmed.push(...own)
+        if (!this.started)
+          for (const item of batch) if (!own.includes(item)) this.beaconedAtStop.add(item)
       } else {
         this.buffer.push(...own)
         rejected += own.length

@@ -13,4 +13,9 @@ export function setSessionExpiredHandler(handler: () => void): () => void {
   }
 }
 
-export const api = createApiClient<paths>({ onSessionExpired: () => sessionExpiredHandler() })
+/** API 클라이언트 밖에서 세션이 끝난 것을 안 경우(음원 접근 갱신)에 같은 처리로 보낸다 */
+export function notifySessionExpired(): void {
+  sessionExpiredHandler()
+}
+
+export const api = createApiClient<paths>({ onSessionExpired: notifySessionExpired })

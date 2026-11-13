@@ -544,6 +544,166 @@ describe('앱 설정(finalVia fetch): 화면이 보이는 끝은 fetch로 응답
     expect(sent.at(-1)?.clientSessionId).toBe('session-1')
   })
 
+  it('pause의 fetch를 기다리는 사이 stop()(멈춤 직후 홈·뒤로)이면 그 구간도 beacon에 싣는다', async () => {
+    const release = holdNextSend()
+    const tracker = track({ finalVia: 'fetch' })
+    media.play(0)
+    media.advance(6)
+    media.pause()
+    tracker.stop()
+
+    expect(ranges(beacons)).toEqual([[0, 6000]])
+    expect(beacons[0].final).toBe(true)
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('pause의 fetch가 성공한 뒤 stop()이면 이미 보낸 구간을 beacon에 다시 싣지 않는다', async () => {
+    const tracker = track({ finalVia: 'fetch' })
+    media.play(0)
+    media.advance(6)
+    media.pause()
+    await vi.advanceTimersByTimeAsync(0)
+
+    tracker.stop()
+
+    expect(beacon).not.toHaveBeenCalled()
+  })
+
+  it('pause의 fetch가 실패해 되돌린 구간은 stop() beacon에 한 번만 싣는다', async () => {
+    send.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    const tracker = track({ finalVia: 'fetch' })
+    media.play(0)
+    media.advance(6)
+    media.pause()
+    await vi.advanceTimersByTimeAsync(0)
+
+    tracker.stop()
+
+    expect(ranges(beacons)).toEqual([[0, 6000]])
+  })
+
+  it('pause가 두 번 겹쳐 두 fetch가 다 기다리는 중이면 stop() beacon에 두 구간을 모두 싣는다', async () => {
+    holdNextSend()
+    holdNextSend()
+    const tracker = track({ finalVia: 'fetch' })
+    media.play(0)
+    media.advance(4)
+    media.pause()
+    media.play()
+    media.advance(3)
+    media.pause()
+
+    tracker.stop()
+
+    expect(ranges(beacons)).toEqual([
+      [0, 4000],
+      [4000, 7000],
+    ])
+  })
+
+  it('겹친 두 fetch 중 첫 것만 끝났으면 stop() beacon에는 둘째 구간만 싣는다', async () => {
+    const releaseFirst = holdNextSend()
+    holdNextSend()
+    const tracker = track({ finalVia: 'fetch' })
+    media.play(0)
+    media.advance(4)
+    media.pause()
+    media.play()
+    media.advance(3)
+    media.pause()
+    releaseFirst()
+    await vi.advanceTimersByTimeAsync(0)
+
+    tracker.stop()
+
+    expect(ranges(beacons)).toEqual([[4000, 7000]])
+  })
+
+  it('여러 묶음 중 앞 묶음이 실패해 되돌릴 차례를 기다리는 사이 stop()이면 그 묶음도 beacon에 싣는다', async () => {
+    const onDiscard = vi.fn()
+    send.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    const release = holdNextSend()
+    const tracker = track({ finalVia: 'fetch', onDiscard })
+    media.play(0)
+    media.advance(((MAX_SEGMENTS_PER_FLUSH + 1) * MAX_SEGMENT_MS) / 1000)
+    media.pause()
+    await vi.advanceTimersByTimeAsync(0) // 앞 묶음 실패, 뒤 묶음은 기다리는 중
+
+    tracker.stop()
+
+    expect(ranges(beacons)).toHaveLength(MAX_SEGMENTS_PER_FLUSH + 1)
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onDiscard).not.toHaveBeenCalled() // beacon이 받아들였다
+  })
+
+  it('stop() 뒤 그 fetch가 실패하고 beacon도 거절됐으면 버린 것으로 기록한다(다시 보낼 기회가 없다)', async () => {
+    const onDiscard = vi.fn()
+    let fail: (error: Error) => void = () => {}
+    send.mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)))
+    beacon.mockReturnValue(false)
+    const tracker = track({ finalVia: 'fetch', onDiscard })
+    media.play(0)
+    media.advance(6)
+    media.pause()
+    tracker.stop()
+    expect(onDiscard).not.toHaveBeenCalled() // 아직 fetch가 결과를 기다린다
+
+    fail(new TypeError('Failed to fetch'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(onDiscard).toHaveBeenCalledWith('stopped-send-failed', 1)
+  })
+
+  it('stop() 뒤 그 fetch가 실패해도 beacon이 받아들였으면 버림이 아니다', async () => {
+    const onDiscard = vi.fn()
+    let fail: (error: Error) => void = () => {}
+    send.mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)))
+    const tracker = track({ finalVia: 'fetch', onDiscard })
+    media.play(0)
+    media.advance(6)
+    media.pause()
+    tracker.stop()
+
+    fail(new TypeError('Failed to fetch'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(ranges(beacons)).toEqual([[0, 6000]])
+    expect(onDiscard).not.toHaveBeenCalled()
+  })
+
+  it('stop() 뒤 주기 전송(flush)이 실패하고 beacon도 거절됐으면 버린 것으로 기록한다', async () => {
+    const onDiscard = vi.fn()
+    let fail: (error: Error) => void = () => {}
+    send.mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)))
+    beacon.mockReturnValue(false)
+    const tracker = track({ onDiscard })
+    media.play(0)
+    media.advance(8)
+    await vi.advanceTimersByTimeAsync(10_000)
+    tracker.stop()
+
+    fail(new TypeError('Failed to fetch'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(onDiscard).toHaveBeenCalledWith('stopped-send-failed', 1)
+  })
+
+  it('pause의 fetch가 여러 묶음이면 아직 보내지 않은 묶음도 stop() beacon에 싣는다', async () => {
+    const release = holdNextSend()
+    const tracker = track({ finalVia: 'fetch' })
+    // 긴 구간 하나가 MAX_SEGMENT_MS로 나뉘어 묶음 둘 — 첫 묶음을 보내는 중에 둘째 묶음은 기다린다
+    media.play(0)
+    media.advance(((MAX_SEGMENTS_PER_FLUSH + 1) * MAX_SEGMENT_MS) / 1000)
+    media.pause()
+    tracker.stop()
+
+    expect(ranges(beacons)).toHaveLength(MAX_SEGMENTS_PER_FLUSH + 1)
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
   it('ended면 fetch(final:true)로 보내 응답(완료)을 받는다 — sendBeacon이 아니다', async () => {
     track({ finalVia: 'fetch' })
     media.play(0)
