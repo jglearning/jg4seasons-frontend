@@ -52,6 +52,15 @@ export function LessonPage() {
     [queryClient, code],
   )
 
+  // 떠날 때 남은 구간은 sendBeacon으로 가서 응답(완료)을 받지 못한다 — 홈·회차 목록은 다음에 다시 받게
+  useEffect(
+    () => () => {
+      void queryClient.invalidateQueries({ queryKey: ['student', 'home'] })
+      void queryClient.invalidateQueries({ queryKey: ['student', 'lessons'] })
+    },
+    [queryClient],
+  )
+
   if (lesson.data === undefined) {
     return (
       <StudentLayout>

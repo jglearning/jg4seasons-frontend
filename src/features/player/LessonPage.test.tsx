@@ -528,6 +528,49 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     })
   })
 
+  it('음성을 고른 뒤 지문을 옮겨도 그 음성으로 올린다', async () => {
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    await chooseVoice(user, '영국 남성')
+
+    await user.click(screen.getByRole('button', { name: '지문 6 아직 안 들음' }))
+
+    expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(6, 'uk_m')}.wav`)
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 영국 남성')
+  })
+
+  it('멈춘 상태에서 음성을 바꾸면 그 음성을 올리기만 하고 재생하지 않는다', async () => {
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    play.mockClear()
+
+    await chooseVoice(user, '영국 여성')
+
+    expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'uk_w')}.wav`)
+    expect(play).not.toHaveBeenCalled()
+  })
+
+  it('지문 탭을 옮기면 이전 트랙에서 들은 구간을 sendBeacon(final)으로 보내고, 새 지문은 자동 재생하지 않는다', async () => {
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    listen(0, 5)
+    play.mockClear()
+
+    await user.click(screen.getByRole('button', { name: '지문 6 아직 안 들음' }))
+
+    expect(beacon).toHaveBeenCalledTimes(1)
+    expect(await beaconBody(0)).toMatchObject({
+      trackId: LESSON_MOCK.passageTrackId(5, 'us_w'),
+      final: true,
+      segments: [expect.objectContaining({ startMs: 0, endMs: 5000 })],
+    })
+    expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(6, 'us_w')}.wav`)
+    expect(play).not.toHaveBeenCalled()
+  })
+
   it('들은 구간 바는 서버 + 이 화면에서 들은 구간만 채우고 건너뛴 곳은 빗금, 음성을 바꿨다 와도 남는다', async () => {
     const user = userEvent.setup()
     const { container } = renderLesson()
@@ -875,6 +918,22 @@ describe('청취 기록(03 §3.1)', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['student', 'lessons'] })
   })
 
+  it('응답의 회차 상태가 그대로면 홈·회차 목록을 다시 받지 않는다', async () => {
+    const { client } = renderLesson()
+    await heading()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const applied = vi.spyOn(client, 'setQueryData')
+
+    listen(0, 3)
+    const element = audio()
+    element.paused = true
+    fire(element, 'pause')
+
+    // 응답을 캐시에 반영할 때까지 기다린다(상태 비교는 그 직전)
+    await waitFor(() => expect(applied).toHaveBeenCalled())
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
   it('일시정지는 fetch(final)로 한 번 — StrictMode에서도', async () => {
     renderLesson(LESSON_MOCK.code, { strict: true })
     await heading()
@@ -906,6 +965,18 @@ describe('청취 기록(03 §3.1)', () => {
     const body = await beaconBody(0)
     expect(body).toMatchObject({ final: true, trackId: LESSON_MOCK.passageTrackId(5, 'us_w') })
     expect(body.segments).toEqual([expect.objectContaining({ startMs: 0, endMs: 6000 })])
+  })
+
+  it('화면을 떠나면 홈·회차 목록을 다시 받게 한다 — beacon은 응답(완료)을 받지 못한다', async () => {
+    const { router, client } = renderLesson()
+    await heading()
+    listen(0, 4)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+    await act(() => router.navigate('/lessons'))
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['student', 'home'] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['student', 'lessons'] })
   })
 
   it('듣다가 화면을 떠나면 들은 구간을 sendBeacon(final, text/plain)으로 보낸다', async () => {
@@ -955,12 +1026,14 @@ describe('소리가 안 날 때 · 잠금화면', () => {
     expect(refreshes).toBe(1)
   })
 
-  it('음원을 못 불러오고 refresh도 실패하면 안내와 다시 불러오기', async () => {
+  it('음원을 못 불러오고 refresh도 실패하면(5xx) 안내와 다시 불러오기 — 듣던 자리에서 이어 불러온다', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    server.use(http.post('*/api/v1/auth/refresh', () => new HttpResponse(null, { status: 401 })))
+    server.use(http.post('*/api/v1/auth/refresh', () => new HttpResponse(null, { status: 503 })))
     const user = userEvent.setup()
-    renderLesson()
+    const { router } = renderLesson()
     await heading()
+    listen(10, 20)
+    play.mockClear()
 
     fire(audio(), 'error')
 
@@ -968,6 +1041,42 @@ describe('소리가 안 날 때 · 잠금화면', () => {
     await user.click(within(player()).getByRole('button', { name: '다시 불러오기' }))
     expect(play).toHaveBeenCalledTimes(1)
     expect(within(player()).queryByRole('alert')).not.toBeInTheDocument()
+    audio().currentTime = 0 // 새로 불러오면 0초부터 — 음원 정보를 받은 뒤 옮긴다
+    metadata(seconds(5))
+    expect(audio().currentTime).toBe(20)
+    expect(router.state.location.pathname).toBe(`/lessons/${LESSON_MOCK.code}`)
+  })
+
+  it('다시 불러오다 또 오류면 "다시 불러오기"는 가려던 자리(듣던 자리)에서 이어 불러온다', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    server.use(http.post('*/api/v1/auth/refresh', () => new HttpResponse(null, { status: 204 })))
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    listen(10, 20)
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load')
+
+    fire(audio(), 'error')
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1)) // refresh 뒤 20초로 다시 불러오는 중
+    audio().currentTime = 0 // 새로 불러온 음원은 0초 — 음원 정보가 오기 전에 또 오류
+    fire(audio(), 'error')
+
+    expect(within(player()).getByRole('alert')).toHaveTextContent('소리를 불러오지 못했어요')
+    await user.click(within(player()).getByRole('button', { name: '다시 불러오기' }))
+    metadata(seconds(5))
+    expect(audio().currentTime).toBe(20)
+  })
+
+  it('음원 오류 뒤 refresh가 401이면 세션이 끝난 것 — 입장 화면으로(다시 불러오기를 되풀이하지 않는다)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    server.use(http.post('*/api/v1/auth/refresh', () => new HttpResponse(null, { status: 401 })))
+    const { router } = renderLesson()
+    await heading()
+
+    fire(audio(), 'error')
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/join'))
+    expect(router.state.location.state).toEqual({ reason: 'sessionExpired' })
   })
 
   it('브라우저가 재생을 막으면 안내(새 load가 끼어든 AbortError는 무시)', async () => {

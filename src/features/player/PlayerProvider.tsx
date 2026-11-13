@@ -106,10 +106,11 @@ export function PlayerProvider({ children, lessonTitle, onTrackResult }: Provide
         renewTried.current = true
         const atMs = Math.round(element.currentTime * 1000) || pendingAt.current
         const resume = wantPlay.current
-        void renewAudioAccess().then((ok) => {
+        void renewAudioAccess().then((result) => {
           if (sourceRef.current !== current) return
-          if (ok) loadRef.current(current, { atMs, play: resume, keepRenew: true })
-          else setError('load')
+          if (result === 'ok') loadRef.current(current, { atMs, play: resume, keepRenew: true })
+          // 세션이 끝났으면 입장 화면으로 간다 — "다시 불러오기"를 띄우지 않는다
+          else if (result === 'failed') setError('load')
         })
         return
       }
@@ -193,9 +194,13 @@ export function PlayerProvider({ children, lessonTitle, onTrackResult }: Provide
     else pause()
   }, [play, pause])
 
+  /** 다시 불러오기 — 듣던 자리에서 이어 듣는다(불러오다 실패했으면 가려던 자리) */
   const retry = useCallback(() => {
     const current = sourceRef.current
-    if (current !== null) load(current, { play: true })
+    const element = audioRef.current
+    if (current === null || element === null) return
+    const atMs = Math.round(element.currentTime * 1000) || pendingAt.current
+    load(current, { play: true, atMs })
   }, [load])
 
   const seekTo = useCallback((ms: number) => {
