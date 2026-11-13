@@ -23,20 +23,31 @@
   box-shadow: 0 var(--lip) 0 var(--L-lip);
 }
 
+/* 고리는 턱까지 감싼다(DESIGN.md 1.4, #97) — outline은 면 기준이라 아래 간격을 턱이 메워 고리가 아래로 쏠려 보였다.
+   턱 높이만큼 위아래로 늘리고 절반(1.5px) 내려 그린다 */
 .current {
+  position: relative;
   background: var(--cream);
   color: var(--ink);
   border: 1px solid var(--line-strong);
   box-shadow: 0 var(--lip) 0 var(--line-strong);
-  outline: 3px solid var(--L-ring);
-  outline-offset: 3px;
 }
 
+.current::after {
+  content: '';
+  position: absolute;
+  inset: -6px -7.5px -9px;
+  border: 3px solid var(--L-ring);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* 턱은 테두리와 같은 계열 — 회색 턱이면 빨간 고리가 회색 동전 위에 얹힌 모양이 된다(#97) */
 .overdue {
   background: var(--white);
   color: var(--ink);
   border: 2px solid var(--bad);
-  box-shadow: 0 var(--lip) 0 var(--line-strong);
+  box-shadow: 0 var(--lip) 0 var(--bad-deep);
 }
 
 .open {
@@ -70,4 +81,10 @@
 :active > * > .pressable {
   transform: translateY(var(--lip));
   box-shadow: 0 0 0 transparent;
+}
+
+/* 누르는 동안은 턱이 없으니 고리도 면을 고르게 감싼다 */
+:active > .pressable.current::after,
+:active > * > .pressable.current::after {
+  inset: -7.5px;
 }

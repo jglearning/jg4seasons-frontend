@@ -32,6 +32,11 @@
   outline-offset: 8px;
 }
 
+/* 듣는 중 탭은 고리가 턱까지 감싸 아래로 9px 나온다(#97) — 포커스 링이 고리에 닿지 않게 */
+.tab:focus-visible:has([data-state='current']) {
+  outline-offset: 11px;
+}
+
 /* 지문이 완료되는 순간 한 번 커졌다 돌아온다(transform만, 움직임 줄이기면 base.css가 바로 끝낸다) */
 .pop > * {
   animation: pop 220ms ease-out;

@@ -176,3 +176,8 @@
   text-decoration: none;
   cursor: pointer;
 }
+
+/* "오늘" 칸은 고리가 턱까지 감싸 칸 위아래로 7px 나온다(#97) — 포커스 링이 고리에 닿지 않게 바깥으로 */
+.stamp:focus-visible:has([data-state='current']) {
+  outline-offset: 9px;
+}
