@@ -8,11 +8,13 @@
   touch-action: none;
 }
 
-/* 손가락으로 잡기 쉽게 위아래로 넓힌 누르는 자리(보이지 않음) */
+/* 손가락으로 잡기 쉽게 위아래로 넓힌 누르는 자리(보이지 않음, 24 + 12 + 8 = 44px).
+   아래는 8px까지만 — S-05에서 바 아래 8px에 "처음부터 듣기" 버튼이 있어 더 넓히면 그 위쪽을 가로챈다.
+   대신 위로 24px(위의 "앞 문장" 버튼까지는 390×667에서도 49px)(#99) */
 .seek[data-seekable]::before {
   content: '';
   position: absolute;
-  inset: -16px 0;
+  inset: -24px 0 -8px;
 }
 
 .track {
