@@ -898,22 +898,19 @@ describe('로그인된 기기에서 QR', () => {
     expect(await classCard()).toBeInTheDocument()
   })
 
+  // 가짜 타이머로 1초를 정확히 넘긴다. 응답은 오지 않게 둔다(붙잡았다 기본 목으로 넘기는 방식은 CI에서
+  // 목에 잡히지 않고 실제 네트워크로 나가 흔들렸다 — PR #103, 11/14). 응답이 온 뒤 묻는 것은 다른 테스트가 본다
   it('확인이 1초를 넘으면 "확인하는 중"', async () => {
     setMockSession('student')
-    let release: () => void = () => {}
-    const gate = new Promise<void>((resolve) => (release = resolve))
-    // once로 두지 않는다 — 앞 테스트에서 남은 재시도 요청이 먼저 가져갈 수 있다
-    server.use(
-      http.get('*/api/v1/me', async () => {
-        await gate
-        return undefined
-      }),
-    )
+    server.use(http.get('*/api/v1/me', () => new Promise<never>(() => {})))
+    vi.useFakeTimers()
     renderAt(cardQr)
 
-    expect(await screen.findByText('확인하는 중', undefined, { timeout: 2000 })).toBeInTheDocument()
-    release()
-    expect(await askText()).toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(999))
+    expect(screen.queryByText('확인하는 중')).not.toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(screen.getByText('확인하는 중')).toBeInTheDocument()
+    expect(screen.queryByText('지금 누가 들어와 있는지 확인하지 못했어요.')).not.toBeInTheDocument()
   })
 
   it('묻는 화면에서 창을 오가도 다시 조회하지 않는다(화면이 뒤바뀌지 않게)', async () => {
