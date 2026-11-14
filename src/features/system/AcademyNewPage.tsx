@@ -50,7 +50,12 @@ export function AcademyNewPage() {
   // 서버가 칸 오류(400·409)를 주면 첫 오류 칸으로 포커스 — 긴 폼이라 버튼 자리에서는 위쪽 칸이 보이지 않는다
   useEffect(() => {
     if (submit.error === null) return
-    formRef.current?.querySelector<HTMLElement>('input[aria-invalid="true"]')?.focus()
+    // 칸에 붙지 않는 오류면 만들기 버튼으로(보내는 동안 비활성화되어 포커스가 body로 빠진다)
+    const form = formRef.current
+    ;(
+      form?.querySelector<HTMLElement>('input[aria-invalid="true"]') ??
+      form?.querySelector<HTMLElement>('button[type="submit"]')
+    )?.focus()
   }, [submit.error])
 
   async function onSubmit(event: SubmitEvent) {
@@ -76,7 +81,8 @@ export function AcademyNewPage() {
     setAdminPassword('')
     if (created === undefined) return
     void queryClient.invalidateQueries({ queryKey: ['system'] })
-    navigate('/system/academies')
+    // 만든 학원의 O-03으로 — 연계 학원이면 바로 권별 사용권을 지정한다
+    navigate(`/system/academies/${created.id}`)
   }
 
   const generalError = submit.formError(FIELDS, FIELD_CODES)

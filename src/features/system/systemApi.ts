@@ -20,3 +20,26 @@ export type AcademyCreate = Schemas['AcademyCreateRequest']
 export function createAcademy(body: AcademyCreate) {
   return unwrap(api.POST('/api/v1/system/academies', { body }))
 }
+
+// ── 학원 상세·교재 사용권(7.3·7.4) ──
+
+export function academyQuery(id: number) {
+  return queryOptions({
+    queryKey: ['system', 'academies', id],
+    queryFn: () => unwrap(api.GET('/api/v1/system/academies/{id}', { params: { path: { id } } })),
+  })
+}
+
+export type AcademyDetail = Schemas['AcademyDetailResponse']
+export type License = Schemas['LicenseItem']
+export type LicenseSet = Schemas['LicenseSetRequest']
+
+/** 없으면 만들고 있으면 고친다. 응답은 바뀐 줄 하나 */
+export function setLicense(id: number, bookCode: string, body: LicenseSet) {
+  return unwrap(
+    api.PUT('/api/v1/system/academies/{id}/licenses/{bookCode}', {
+      params: { path: { id, bookCode } },
+      body,
+    }),
+  )
+}

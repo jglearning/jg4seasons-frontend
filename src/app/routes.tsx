@@ -20,6 +20,7 @@ import { LessonsPage } from '../features/student/LessonsPage'
 import { SettingsPage } from '../features/student/SettingsPage'
 import { AcademiesPage } from '../features/system/AcademiesPage'
 import { AcademyNewPage } from '../features/system/AcademyNewPage'
+import { AcademyPage } from '../features/system/AcademyPage'
 import { CardsRedirect, WordsPage } from '../features/words/WordsPage'
 import { ClassesPage as TeacherClassesPage } from '../features/teacher/ClassesPage'
 import { LessonPage as TeacherLessonPage } from '../features/teacher/LessonPage'
@@ -94,6 +95,7 @@ export const routes: RouteObject[] = [
             children: [
               { path: '/system/academies', element: <AcademiesPage /> },
               { path: '/system/academies/new', element: <AcademyNewPage /> },
+              { path: '/system/academies/:id', element: <AcademyPage /> },
             ],
           },
         ],

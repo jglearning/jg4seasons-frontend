@@ -51,6 +51,11 @@ describe('O-01 학원 관리', () => {
       ['한빛 영어학원', 'hanbit-english', '직영', 'Asia/Seoul', '운영'],
     ])
     expect(screen.getByText('2개 학원')).toBeInTheDocument()
+    // 학원 이름이 O-03 링크
+    expect(within(table).getByRole('link', { name: '한빛 영어학원' })).toHaveAttribute(
+      'href',
+      '/system/academies/2',
+    )
     expect(screen.getByRole('link', { name: '학원 만들기' })).toHaveAttribute(
       'href',
       '/system/academies/new',
@@ -124,7 +129,7 @@ describe('O-02 학원 만들기', () => {
     expect(license).not.toHaveAttribute('aria-invalid')
   })
 
-  it('보내면 POST 본문(이름·주소 앞뒤 공백 정리, 연계 = licenseEnforced true) → O-01에 새 학원', async () => {
+  it('보내면 POST 본문(이름·주소 앞뒤 공백 정리, 연계 = licenseEnforced true) → 만든 학원의 O-03', async () => {
     const user = userEvent.setup()
     const { router, client } = renderAt('/system/academies/new')
     await screen.findByRole('heading', { name: '학원 만들기', level: 1 })
@@ -132,8 +137,9 @@ describe('O-02 학원 만들기', () => {
     await fillValid(user)
     await user.click(screen.getByRole('button', { name: '만들기' }))
 
-    expect(await screen.findByRole('heading', { name: '학원 관리', level: 1 })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/system/academies')
+    expect(await screen.findByRole('heading', { name: '새봄 영어', level: 1 })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/system/academies/3')
+    expect(screen.getByText('지정된 교재 없음')).toBeInTheDocument()
     expect(sent).toEqual([
       {
         method: 'POST',
@@ -147,8 +153,6 @@ describe('O-02 학원 만들기', () => {
         },
       },
     ])
-    const table = await screen.findByRole('table', { name: '학원 목록' })
-    expect(await within(table).findByRole('cell', { name: '새봄 영어' })).toBeInTheDocument()
     // 첫 관리자 비밀번호는 쿼리·뮤테이션 캐시와 주소·history에 남지 않는다
     const cached = JSON.stringify([
       client
@@ -173,7 +177,7 @@ describe('O-02 학원 만들기', () => {
     await user.clear(screen.getByLabelText('타임존'))
     await user.click(screen.getByRole('button', { name: '만들기' }))
 
-    await screen.findByRole('heading', { name: '학원 관리', level: 1 })
+    await screen.findByRole('heading', { name: '새봄 영어', level: 1 })
     expect(sent[0]?.body).not.toHaveProperty('timezone')
   })
 
@@ -263,7 +267,7 @@ describe('O-02 학원 만들기', () => {
     await user.click(button)
     await user.click(button)
 
-    await screen.findByRole('heading', { name: '학원 관리', level: 1 })
+    await screen.findByRole('heading', { name: '새봄 영어', level: 1 })
     expect(sent).toHaveLength(1)
   })
 })

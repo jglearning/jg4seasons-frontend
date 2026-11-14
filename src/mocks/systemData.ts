@@ -46,16 +46,73 @@ const INITIAL: Academy[] = [
   },
 ]
 
+type License = Schemas['LicenseItem']
+
+/** 목의 "오늘"(학원 날짜) — A-05 목과 같은 날 */
+export const MOCK_TODAY = '2026-12-19'
+
+// 권 기준 데이터(백엔드 V2와 같은 17권) — 순서가 곧 레벨·권 순
+const LEVEL_CODES = ['L1', 'L2', 'L3', 'L4', 'K']
+const SEASONS = ['겨울', '봄', '여름', '가을']
+const BOOKS = LEVEL_CODES.flatMap((level) =>
+  (level === 'K' ? SEASONS.slice(0, 1) : SEASONS).map((season, i) => ({
+    code: `${level}-B${i + 1}`,
+    label: `Book ${i + 1}`,
+    season,
+  })),
+)
+
+const INITIAL_LICENSES: Record<number, License[]> = {
+  1: [
+    {
+      book: BOOKS[4]!, // L2-B1
+      startDate: '2026-12-01',
+      endDate: '2027-02-28',
+      status: 'active',
+      daysLeft: 72,
+      seats: 20,
+      usedSeats: 18,
+    },
+    {
+      book: BOOKS[8]!, // L3-B1
+      startDate: '2026-12-01',
+      endDate: '2027-02-28',
+      status: 'active',
+      daysLeft: 72,
+      seats: 20,
+      usedSeats: 22,
+    },
+  ],
+}
+
 let academies: Academy[] = []
+let licenses: Record<number, License[]> = {}
 let adminLoginIds: string[] = []
 let nextId = 3
 
 export function resetSystemMock() {
   academies = INITIAL.map((a) => ({ ...a }))
+  licenses = Object.fromEntries(
+    Object.entries(INITIAL_LICENSES).map(([id, rows]) => [id, rows.map((r) => ({ ...r }))]),
+  )
   adminLoginIds = [SYSTEM_MOCK.takenLoginId, 'teacher01', 'super01']
   nextId = 3
 }
 resetSystemMock()
+
+const DAY = 24 * 60 * 60 * 1000
+const toDay = (date: string) => Date.parse(`${date}T00:00:00Z`) / DAY
+
+/** 백엔드 7.3·7.4 규칙: 시작 전·사용 중·끝남, 남은 일수는 마지막 날이 1. 직영은 늘 active·null */
+function licenseState(academy: Academy, startDate: string, endDate: string) {
+  if (!academy.licenseEnforced) return { status: 'active' as const, daysLeft: null }
+  const today = toDay(MOCK_TODAY)
+  if (today < toDay(startDate)) return { status: 'before_start' as const, daysLeft: null }
+  if (today > toDay(endDate)) return { status: 'expired' as const, daysLeft: null }
+  return { status: 'active' as const, daysLeft: toDay(endDate) - today + 1 }
+}
+
+const bookOrder = (code: string) => BOOKS.findIndex((b) => b.code === code)
 
 /** 테스트에서 목록을 비울 때 */
 export function clearMockAcademies() {
@@ -148,11 +205,69 @@ export function systemHandlers({ problem, readJson, currentUser }: Helpers): Any
         status: 'active',
       }
       academies.push(academy)
+      licenses[academy.id] = []
       adminLoginIds.push(loginId)
       return HttpResponse.json<Schemas['AcademyCreatedResponse']>(
         { ...academy, admin: { id: 1000 + academy.id, loginId, name: adminName } },
         { status: 201 },
       )
+    }),
+
+    // 7.3 학원 상세·사용권 현황(사용권 줄은 레벨·권 순)
+    http.get('*/api/v1/system/academies/:id', async ({ request, params }) => {
+      await delay()
+      const denied = systemOnly(request)
+      if (denied) return denied
+      const academy = academies.find((a) => a.id === Number(params.id))
+      if (!academy) return problem(request, 404, 'NOT_FOUND', '학원을 찾을 수 없습니다')
+      return HttpResponse.json<Schemas['AcademyDetailResponse']>({
+        academy,
+        today: MOCK_TODAY,
+        licenses: [...(licenses[academy.id] ?? [])].sort(
+          (a, b) => bookOrder(a.book.code) - bookOrder(b.book.code),
+        ),
+      })
+    }),
+
+    // 7.4 사용권 지정·변경 — 없으면 만들고 있으면 고친다, 응답은 바뀐 줄 하나
+    http.put('*/api/v1/system/academies/:id/licenses/:bookCode', async ({ request, params }) => {
+      await delay()
+      const denied = systemOnly(request)
+      if (denied) return denied
+      const academy = academies.find((a) => a.id === Number(params.id))
+      const book = BOOKS.find((b) => b.code === params.bookCode)
+      if (!academy || !book) {
+        return problem(request, 404, 'NOT_FOUND', '학원 또는 교재를 찾을 수 없습니다')
+      }
+      const body = await readJson(request)
+      const startDate = str(body.startDate)
+      const endDate = str(body.endDate)
+      const seats = body.seats
+      const DATE = /^\d{4}-\d{2}-\d{2}$/
+      const errors: Array<{ field: string; message: string }> = []
+      if (!DATE.test(startDate))
+        errors.push({ field: 'startDate', message: '날짜를 입력해 주세요' })
+      if (!DATE.test(endDate)) errors.push({ field: 'endDate', message: '날짜를 입력해 주세요' })
+      else if (DATE.test(startDate) && endDate < startDate)
+        errors.push({ field: 'endDate', message: '종료일은 시작일과 같거나 뒤여야 합니다' })
+      if (typeof seats !== 'number' || !Number.isInteger(seats) || seats < 0 || seats > 10000)
+        errors.push({ field: 'seats', message: '0~10000 사이로 입력해 주세요' })
+      if (errors.length > 0) {
+        return problem(request, 400, 'VALIDATION', '입력값을 확인해 주세요', { errors })
+      }
+      const rows = (licenses[academy.id] ??= [])
+      const existing = rows.find((r) => r.book.code === book.code)
+      const row: License = {
+        book,
+        startDate,
+        endDate,
+        seats: seats as number,
+        usedSeats: existing?.usedSeats ?? 0,
+        ...licenseState(academy, startDate, endDate),
+      }
+      if (existing) rows.splice(rows.indexOf(existing), 1, row)
+      else rows.push(row)
+      return HttpResponse.json<Schemas['LicenseItem']>(row)
     }),
   ]
 }
