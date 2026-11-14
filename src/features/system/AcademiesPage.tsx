@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router'
 import { ButtonLink } from '../../shared/ui/Button'
 import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import { Table, type Column } from '../../shared/ui/Table'
@@ -11,7 +12,12 @@ export function AcademiesPage() {
   const academies = useQuery(academiesQuery)
 
   const columns: Column<Academy>[] = [
-    { key: 'name', header: '학원', cell: (a) => a.name },
+    // 학원 이름이 O-03 링크(줄 전체 클릭 대신 — 키보드·스크린 리더로 그대로 따라감)
+    {
+      key: 'name',
+      header: '학원',
+      cell: (a) => <Link to={`/system/academies/${a.id}`}>{a.name}</Link>,
+    },
     {
       key: 'slug',
       header: '학원 주소',

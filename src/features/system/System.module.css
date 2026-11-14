@@ -62,7 +62,72 @@
 
 .actions {
   display: flex;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  flex-wrap: wrap;
+}
+
+/* O-03 학원 정보 — 바꿀 수 없는 값 */
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-5);
+  margin: 0 0 var(--space-6);
+  font-size: 14px;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.section {
+  margin: 0 0 var(--space-8);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.notice {
+  margin: 0 0 var(--space-3);
+  font-size: 14px;
+}
+
+.note {
+  margin: var(--space-3) 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* 한도 넘음 — 아이콘 + 글자(색만으로 구분하지 않음) */
+.over {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.done {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* 보이지 않고 읽히기만(표의 [고치기] 열 머리글) */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .mono {
