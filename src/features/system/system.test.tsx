@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -268,6 +268,32 @@ describe('O-02 학원 만들기', () => {
     await user.click(button)
 
     await screen.findByRole('heading', { name: '새봄 영어', level: 1 })
+    expect(sent).toHaveLength(1)
+  })
+
+  // 요청이 끝나면 화면이 넘어가기 전에 버튼이 잠깐 다시 눌릴 수 있었다(#114) — 그 순간을 붙잡아 누른다
+  it('만든 뒤 화면이 넘어가기 전에 다시 눌러도 두 번 만들지 않는다', async () => {
+    const user = userEvent.setup()
+    renderAt('/system/academies/new')
+    await screen.findByRole('heading', { name: '학원 만들기', level: 1 })
+
+    await fillValid(user)
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: '만들기' })
+    let wasDisabled = false
+    let reclicked = false
+    const observer = new MutationObserver(() => {
+      if (button.disabled) wasDisabled = true
+      else if (wasDisabled && !reclicked && button.isConnected) {
+        // 보내는 중(disabled)이 풀린 바로 그 순간
+        reclicked = true
+        fireEvent.click(button)
+      }
+    })
+    observer.observe(button, { attributes: true, attributeFilter: ['disabled'] })
+    await user.click(button)
+
+    await screen.findByRole('heading', { name: '새봄 영어', level: 1 })
+    observer.disconnect()
     expect(sent).toHaveLength(1)
   })
 })

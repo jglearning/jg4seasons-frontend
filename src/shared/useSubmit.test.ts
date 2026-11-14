@@ -84,4 +84,37 @@ describe('useSubmit — 칸 옆과 폼 아래로 오류 나누기', () => {
     expect(result.current.pending).toBe(false)
     expect(result.current.error).toBeNull()
   })
+
+  it('lockOnSuccess: 성공하면 진행 중을 풀지 않고 다시 보내지 않는다(화면이 넘어가기 전 클릭)', async () => {
+    const { result } = renderHook(() => useSubmit())
+    let value: number | undefined
+    await act(async () => {
+      value = await result.current.run(() => Promise.resolve(7), { lockOnSuccess: true })
+    })
+    expect(value).toBe(7)
+    expect(result.current.pending).toBe(true)
+
+    const again = vi.fn(() => Promise.resolve(1))
+    let second: number | undefined = -1
+    await act(async () => {
+      second = await result.current.run(again, { lockOnSuccess: true })
+    })
+    expect(again).not.toHaveBeenCalled()
+    expect(second).toBeUndefined()
+  })
+
+  it('lockOnSuccess: 실패하면 풀려 다시 보낼 수 있다', async () => {
+    const { result } = renderHook(() => useSubmit())
+    await act(async () => {
+      await result.current.run(() => Promise.reject(new Error('실패')), { lockOnSuccess: true })
+    })
+    expect(result.current.pending).toBe(false)
+    expect(result.current.error).not.toBeNull()
+
+    const again = vi.fn(() => Promise.resolve(1))
+    await act(async () => {
+      expect(await result.current.run(again, { lockOnSuccess: true })).toBe(1)
+    })
+    expect(again).toHaveBeenCalledTimes(1)
+  })
 })

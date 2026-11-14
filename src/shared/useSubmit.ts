@@ -15,21 +15,36 @@ export function useSubmit(copy: Copy = {}) {
   // 그 사이 두 번째 클릭이 같은 요청을 또 보냈다(두 번째 만들기가 409로 돌아와 성공했는데 오류가 보임)
   const running = useRef(false)
 
-  const run = useCallback(async <T>(request: () => Promise<T>): Promise<T | undefined> => {
-    if (running.current) return undefined
-    running.current = true
-    setPending(true)
-    setError(null)
-    try {
-      return await request()
-    } catch (reason) {
-      setError(reason)
-      return undefined
-    } finally {
-      running.current = false
-      setPending(false)
-    }
-  }, [])
+  /**
+   * lockOnSuccess: 성공 뒤 다른 화면으로 가는 폼에 쓴다. 성공하면 잠금과 pending을 풀지 않는다 —
+   * 풀면 화면이 넘어가기 전까지 버튼이 다시 눌려 같은 요청을 또 보냈다(#114). 실패하면 풀어 다시 보낼 수 있다
+   */
+  const run = useCallback(
+    async <T>(
+      request: () => Promise<T>,
+      options: { lockOnSuccess?: boolean } = {},
+    ): Promise<T | undefined> => {
+      if (running.current) return undefined
+      running.current = true
+      setPending(true)
+      setError(null)
+      let keepLocked = false
+      try {
+        const value = await request()
+        keepLocked = options.lockOnSuccess === true
+        return value
+      } catch (reason) {
+        setError(reason)
+        return undefined
+      } finally {
+        if (!keepLocked) {
+          running.current = false
+          setPending(false)
+        }
+      }
+    },
+    [],
+  )
 
   const reset = useCallback(() => setError(null), [])
 

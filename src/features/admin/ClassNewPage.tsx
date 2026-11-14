@@ -29,14 +29,16 @@ export function ClassNewPage() {
 
   async function onSubmit(event: SubmitEvent) {
     event.preventDefault()
-    const created = await submit.run(() =>
-      createClass({
-        name: name.trim(),
-        bookCode,
-        startDate,
-        weekdays: [...weekdays].sort((a, b) => a - b),
-        teacherIds: [...teacherIds].sort((a, b) => a - b),
-      }),
+    const created = await submit.run(
+      () =>
+        createClass({
+          name: name.trim(),
+          bookCode,
+          startDate,
+          weekdays: [...weekdays].sort((a, b) => a - b),
+          teacherIds: [...teacherIds].sort((a, b) => a - b),
+        }),
+      { lockOnSuccess: true },
     )
     if (created === undefined) return
     void queryClient.invalidateQueries({ queryKey: ['admin'] })

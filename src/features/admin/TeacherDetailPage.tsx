@@ -71,7 +71,9 @@ function TeacherForm({ teacher }: { teacher: AdminTeacher }) {
       navigate('/admin/teachers')
       return
     }
-    const updated = await submit.run(() => updateTeacher(teacher.id, body))
+    const updated = await submit.run(() => updateTeacher(teacher.id, body), {
+      lockOnSuccess: true,
+    })
     setPassword('')
     if (updated === undefined) return
     void queryClient.invalidateQueries({ queryKey: ['admin'] })

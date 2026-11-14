@@ -68,15 +68,17 @@ export function AcademyNewPage() {
       return
     }
     const trimmedTimezone = timezone.trim()
-    const created = await submit.run(() =>
-      createAcademy({
-        name: name.trim(),
-        slug: slug.trim(),
-        // 비우면 보내지 않는다 — 서버 기본값 Asia/Seoul
-        timezone: trimmedTimezone === '' ? undefined : trimmedTimezone,
-        licenseEnforced: licenseMode === 'linked',
-        admin: { loginId: adminLoginId.trim(), name: adminName.trim(), password: adminPassword },
-      }),
+    const created = await submit.run(
+      () =>
+        createAcademy({
+          name: name.trim(),
+          slug: slug.trim(),
+          // 비우면 보내지 않는다 — 서버 기본값 Asia/Seoul
+          timezone: trimmedTimezone === '' ? undefined : trimmedTimezone,
+          licenseEnforced: licenseMode === 'linked',
+          admin: { loginId: adminLoginId.trim(), name: adminName.trim(), password: adminPassword },
+        }),
+      { lockOnSuccess: true },
     )
     setAdminPassword('')
     if (created === undefined) return
