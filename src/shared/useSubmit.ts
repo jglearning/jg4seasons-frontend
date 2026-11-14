@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { ApiError } from '../api/errors'
 import { errorMessage, type Copy } from './errorMessage'
 
@@ -11,8 +11,13 @@ import { errorMessage, type Copy } from './errorMessage'
 export function useSubmit(copy: Copy = {}) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  // 진행 중이면 두 번째 보내기를 무시한다. pending(state)·버튼 disabled는 다음 렌더에야 반영되어,
+  // 그 사이 두 번째 클릭이 같은 요청을 또 보냈다(두 번째 만들기가 409로 돌아와 성공했는데 오류가 보임)
+  const running = useRef(false)
 
   const run = useCallback(async <T>(request: () => Promise<T>): Promise<T | undefined> => {
+    if (running.current) return undefined
+    running.current = true
     setPending(true)
     setError(null)
     try {
@@ -21,6 +26,7 @@ export function useSubmit(copy: Copy = {}) {
       setError(reason)
       return undefined
     } finally {
+      running.current = false
       setPending(false)
     }
   }, [])
