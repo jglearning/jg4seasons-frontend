@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { ButtonLink } from '../../shared/ui/Button'
 import { Table, type Column } from '../../shared/ui/Table'
-import { AdminLoadState } from './AdminLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import { classesQuery, type AdminClass } from './adminApi'
-import { bookLabel, classStatusLabel, weekdaysText } from './format'
+import { bookLabel } from '../../shared/books'
+import { classStatusLabel, weekdaysText } from './format'
 import styles from './Admin.module.css'
 
 // A-01 반 관리 — 목록(ADM-01·03). 가입 코드는 학생에게 나눠 주는 값이라 표에 바로 보인다
@@ -54,7 +55,7 @@ export function ClassesPage() {
           empty="만든 반 없음"
         />
       ) : (
-        <AdminLoadState query={classes} />
+        <StaffLoadState query={classes} />
       )}
     </>
   )

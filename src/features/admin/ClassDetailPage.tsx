@@ -6,7 +6,7 @@ import { Button, ButtonLink } from '../../shared/ui/Button'
 import { CheckboxGroup } from '../../shared/ui/CheckboxGroup'
 import { SelectField } from '../../shared/ui/SelectField'
 import { TextField } from '../../shared/ui/TextField'
-import { AdminLoadState } from './AdminLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import {
   classQuery,
   regenerateAccessCode,
@@ -17,14 +17,9 @@ import {
   type ClassUpdate,
 } from './adminApi'
 import { ADMIN_COPY } from './adminCopy'
-import {
-  bookLabel,
-  CLASS_STATUS_OPTIONS,
-  classStatusLabel,
-  koreaDateTime,
-  weekdaysText,
-} from './format'
-import { useSubmit } from './useSubmit'
+import { bookLabel } from '../../shared/books'
+import { CLASS_STATUS_OPTIONS, classStatusLabel, koreaDateTime, weekdaysText } from './format'
+import { useSubmit } from '../../shared/useSubmit'
 import styles from './Admin.module.css'
 
 // A-01 반 상세(GET·PATCH /admin/classes/{id}, 가입 코드 재발급 ADM-03).
@@ -43,7 +38,7 @@ export function ClassDetailPage() {
       {detail.data ? (
         <ClassBody key={detail.data.id} data={detail.data} />
       ) : (
-        <AdminLoadState query={detail} />
+        <StaffLoadState query={detail} />
       )}
     </>
   )
@@ -81,7 +76,7 @@ function ClassBody({ data }: { data: AdminClass }) {
 function AccessCode({ data }: { data: AdminClass }) {
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
-  const submit = useSubmit()
+  const submit = useSubmit(ADMIN_COPY)
 
   async function regenerate() {
     const result = await submit.run(() => regenerateAccessCode(data.id))
@@ -135,7 +130,7 @@ function ClassForm({ data }: { data: AdminClass }) {
   const assigned = data.teachers.map((t) => t.id)
   const [teacherIds, setTeacherIds] = useState<number[]>(assigned)
   const [saved, setSaved] = useState(false)
-  const submit = useSubmit()
+  const submit = useSubmit(ADMIN_COPY)
 
   async function onSubmit(event: SubmitEvent) {
     event.preventDefault()

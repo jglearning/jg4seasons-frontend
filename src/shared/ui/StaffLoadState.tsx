@@ -1,13 +1,13 @@
 import { ApiError } from '../../api/errors'
-import { errorMessage, NETWORK_MESSAGE } from '../../shared/errorMessage'
-import { Button } from '../../shared/ui/Button'
-import styles from './Teacher.module.css'
+import { errorMessage, NETWORK_MESSAGE } from '../errorMessage'
+import { Button } from './Button'
+import styles from './StaffLoadState.module.css'
 
-// 목록·매트릭스를 못 받았을 때. 관리자 화면의 AdminLoadState와 같은 규칙 — 기능 폴더끼리 import하지 않아 따로 둔다.
-// 401은 세션 만료 이동이 처리, 4xx는 다시 해도 같으니 문구만
+// 교사·관리자·운영자 화면에서 목록·상세를 아직 못 받았을 때(불러오는 중·오프라인·실패).
+// 401은 세션 만료 이동이 처리, 4xx는 다시 해도 같으니 문구만, 그 밖은 "다시 시도"
 type LoadQuery = { isError: boolean; error: unknown; fetchStatus: string; refetch: () => unknown }
 
-export function TeacherLoadState({ query }: { query: LoadQuery }) {
+export function StaffLoadState({ query }: { query: LoadQuery }) {
   if (!query.isError) {
     if (query.fetchStatus === 'paused') {
       return (

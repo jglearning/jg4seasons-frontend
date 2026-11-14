@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { TriangleAlert } from 'lucide-react'
 import { Table, type Column } from '../../shared/ui/Table'
-import { AdminLoadState } from './AdminLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import { licensesQuery, type AdminLicense } from './adminApi'
-import { licenseBookLabel, licenseStatusLabel, shortDate } from './format'
+import { licenseBookLabel, licenseStatusLabel } from '../../shared/books'
+import { shortDate } from '../../shared/dates'
 import styles from './Admin.module.css'
 
 // A-05 교재 사용권(#66, BE #48 7.5). 보기만 — 바꾸기는 운영자(O-03).
@@ -49,7 +50,7 @@ export function LicensesPage() {
         </div>
       </div>
       {!data ? (
-        <AdminLoadState query={licenses} />
+        <StaffLoadState query={licenses} />
       ) : !data.licenseEnforced ? (
         <p className={styles.notice}>직영 학원 — 모든 교재 제한 없이 사용</p>
       ) : (

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { ButtonLink } from '../../shared/ui/Button'
 import { Table, type Column } from '../../shared/ui/Table'
-import { AdminLoadState } from './AdminLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import { classesQuery, teachersQuery, type AdminTeacher } from './adminApi'
 import { koreaDateTime, roleLabel, teacherStatusLabel } from './format'
 import styles from './Admin.module.css'
@@ -54,7 +54,7 @@ export function TeachersPage() {
           empty="등록된 교사 없음"
         />
       ) : (
-        <AdminLoadState query={teachers} />
+        <StaffLoadState query={teachers} />
       )}
     </>
   )

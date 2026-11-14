@@ -45,19 +45,6 @@
   font-size: 14px;
 }
 
-.loading {
-  margin: 0;
-  font-size: 14px;
-  color: var(--muted);
-}
-
-.loadError {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
 /* ── T-02 반 카드 ── */
 .cards {
   display: grid;

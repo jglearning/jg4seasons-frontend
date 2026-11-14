@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router'
 import { Button } from '../../shared/ui/Button'
 import { Table, type Column } from '../../shared/ui/Table'
 import { TextField } from '../../shared/ui/TextField'
-import { shortDate } from './format'
+import { shortDate } from '../../shared/dates'
 import {
   cancelSession,
   sessionsQuery,
@@ -12,8 +12,8 @@ import {
   updateSession,
   type SessionItem,
 } from './teacherApi'
-import { TeacherLoadState } from './TeacherLoadState'
-import { useSubmit } from './useSubmit'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
+import { useSubmit } from '../../shared/useSubmit'
 import styles from './Teacher.module.css'
 
 // T-06 진도표(03 §4.5~§4.7, 백엔드 ADR-30). 1차는 날짜 바꾸기(이후 수업도 같이 밀기)·휴강·메모만 —
@@ -145,7 +145,7 @@ export function SessionsPage() {
           mutedRow={(s) => s.status === 'cancelled'}
         />
       ) : (
-        <TeacherLoadState query={sessions} />
+        <StaffLoadState query={sessions} />
       )}
     </>
   )

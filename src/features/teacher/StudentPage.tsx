@@ -15,8 +15,8 @@ import {
   type StudentLesson,
   type StudentTrack,
 } from './teacherApi'
-import { TeacherLoadState } from './TeacherLoadState'
-import { useSubmit } from './useSubmit'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
+import { useSubmit } from '../../shared/useSubmit'
 import styles from './Teacher.module.css'
 
 // T-04 학생 상세(03 §4.3). 열린 회차마다 지문 트랙별 청취(들은 구간·완료·재생 시간/길이·재생 횟수·마지막 청취)와
@@ -63,7 +63,7 @@ export function StudentPage() {
           )}
         </>
       ) : (
-        <TeacherLoadState query={detail} />
+        <StaffLoadState query={detail} />
       )}
     </div>
   )

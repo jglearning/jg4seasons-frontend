@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { Table, type Column } from '../../shared/ui/Table'
-import { AdminLoadState } from './AdminLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import { classesQuery, type AdminClass } from './adminApi'
-import { bookLabel, classStatusLabel } from './format'
+import { bookLabel } from '../../shared/books'
+import { classStatusLabel } from './format'
 import styles from './Admin.module.css'
 
 // A-02 학생 관리 첫 화면 — 반 고르기. 명단 API가 반 단위(03 §5.2)라 반을 먼저 고른다.
@@ -39,7 +40,7 @@ export function StudentsIndexPage() {
           empty="만든 반 없음"
         />
       ) : (
-        <AdminLoadState query={classes} />
+        <StaffLoadState query={classes} />
       )}
     </>
   )

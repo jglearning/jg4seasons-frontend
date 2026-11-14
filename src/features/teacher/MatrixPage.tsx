@@ -8,7 +8,8 @@ import { LevelChip } from '../../shared/ui/LevelChip'
 import { ModeTabs } from '../../shared/ui/ModeTabs'
 import { StatusPill } from '../../shared/ui/StatusPill'
 import { Table, type Column } from '../../shared/ui/Table'
-import { cellLook, GROUP_SIZE, matrixGroups, monthDay, shortDate } from './format'
+import { shortDate } from '../../shared/dates'
+import { cellLook, GROUP_SIZE, matrixGroups, monthDay } from './format'
 import {
   matrixQuery,
   sessionsQuery,
@@ -18,7 +19,7 @@ import {
   type MatrixStudent,
   type SeqRange,
 } from './teacherApi'
-import { TeacherLoadState } from './TeacherLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import styles from './Teacher.module.css'
 import { lessonDayLabel } from '../../shared/lessonLabel'
 
@@ -106,7 +107,7 @@ export function MatrixPage() {
       {matrix.data ? (
         <MatrixTable classId={classId} data={matrix.data} />
       ) : (
-        <TeacherLoadState query={matrix} />
+        <StaffLoadState query={matrix} />
       )}
 
       <Legend />

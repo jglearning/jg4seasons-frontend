@@ -33,19 +33,6 @@
   font-size: 14px;
 }
 
-.loading {
-  margin: 0;
-  font-size: 14px;
-  color: var(--muted);
-}
-
-.loadError {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
 /* 만들기·수정 폼 — 한 줄에 칸 하나, 최대 560 */
 .form {
   display: flex;

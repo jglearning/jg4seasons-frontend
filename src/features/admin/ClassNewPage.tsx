@@ -6,8 +6,10 @@ import { CheckboxGroup } from '../../shared/ui/CheckboxGroup'
 import { SelectField } from '../../shared/ui/SelectField'
 import { TextField } from '../../shared/ui/TextField'
 import { createClass, teachersQuery } from './adminApi'
-import { BOOK_OPTIONS, WEEKDAY_OPTIONS } from './format'
-import { useSubmit } from './useSubmit'
+import { BOOK_OPTIONS } from '../../shared/books'
+import { WEEKDAY_OPTIONS } from './format'
+import { useSubmit } from '../../shared/useSubmit'
+import { ADMIN_COPY } from './adminCopy'
 import styles from './Admin.module.css'
 
 // A-01 반 만들기(ADM-01, POST /admin/classes). 서버가 24회차 진도표와 가입 코드를 만든다.
@@ -23,7 +25,7 @@ export function ClassNewPage() {
   const [startDate, setStartDate] = useState('')
   const [weekdays, setWeekdays] = useState<number[]>([])
   const [teacherIds, setTeacherIds] = useState<number[]>([])
-  const submit = useSubmit()
+  const submit = useSubmit(ADMIN_COPY)
 
   async function onSubmit(event: SubmitEvent) {
     event.preventDefault()
