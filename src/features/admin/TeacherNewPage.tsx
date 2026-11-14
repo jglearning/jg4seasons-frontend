@@ -29,8 +29,9 @@ export function TeacherNewPage() {
 
   async function onSubmit(event: SubmitEvent) {
     event.preventDefault()
-    const created = await submit.run(() =>
-      createTeacher({ name: name.trim(), loginId: loginId.trim(), password, role, classIds }),
+    const created = await submit.run(
+      () => createTeacher({ name: name.trim(), loginId: loginId.trim(), password, role, classIds }),
+      { lockOnSuccess: true },
     )
     setPassword('')
     if (created === undefined) return
