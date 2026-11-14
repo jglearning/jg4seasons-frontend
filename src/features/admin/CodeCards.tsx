@@ -6,7 +6,7 @@ import { QrSvg } from '../../shared/ui/QrCode'
 import { useQrLibrary } from '../../shared/ui/useQrLibrary'
 import { Table, type Column } from '../../shared/ui/Table'
 import type { AdminClass } from './adminApi'
-import { levelSeasonLabel } from './format'
+import { levelSeasonLabel } from '../../shared/books'
 import type { PersonalCodeItem } from './studentsApi'
 import styles from './CodeCards.module.css'
 

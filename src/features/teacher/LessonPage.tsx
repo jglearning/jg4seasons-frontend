@@ -4,7 +4,8 @@ import { Link, useParams } from 'react-router'
 import { levelProps } from '../../shared/level'
 import { StatusPill, type Status } from '../../shared/ui/StatusPill'
 import { Table, type Column } from '../../shared/ui/Table'
-import { groupByPassage, passageCell, percent, shortDate } from './format'
+import { shortDate } from '../../shared/dates'
+import { groupByPassage, passageCell, percent } from './format'
 import { voiceLabel } from '../../shared/lessonLabel'
 import {
   lessonDetailQuery,
@@ -12,7 +13,7 @@ import {
   type LessonDetail,
   type LessonDetailRow,
 } from './teacherApi'
-import { TeacherLoadState } from './TeacherLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import styles from './Teacher.module.css'
 
 // T-05 회차 상세(03 §4.4) — 수업 전에 빠르게 보는 학생 × 지문 표.
@@ -49,7 +50,7 @@ export function LessonPage() {
           <p className={styles.footnote}>필수 속도 파일만 보입니다. 다른 속도는 학생 상세에서</p>
         </>
       ) : (
-        <TeacherLoadState query={detail} />
+        <StaffLoadState query={detail} />
       )}
     </div>
   )

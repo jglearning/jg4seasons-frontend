@@ -5,7 +5,7 @@ import { errorMessage } from '../../shared/errorMessage'
 import { Button, ButtonLink } from '../../shared/ui/Button'
 import { SelectField } from '../../shared/ui/SelectField'
 import { Table, type Column } from '../../shared/ui/Table'
-import { AdminLoadState } from './AdminLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import { classesQuery, classQuery, type AdminClass } from './adminApi'
 import { ADMIN_COPY } from './adminCopy'
 import { CodeCards } from './CodeCards'
@@ -18,7 +18,7 @@ import {
   type AdminStudent,
   type PersonalCodeItem,
 } from './studentsApi'
-import { useSubmit } from './useSubmit'
+import { useSubmit } from '../../shared/useSubmit'
 import styles from './Admin.module.css'
 
 // A-02 학생 명단(03 §5.2): 명단 표, 여러 명 개인 코드 재발급(AUTH-05 묶음), 반 이동·퇴원(ADM-06 최소).
@@ -37,7 +37,7 @@ export function StudentsPage() {
       {klass.data && roster.data ? (
         <Roster klass={klass.data} students={roster.data.items} />
       ) : (
-        <AdminLoadState query={klass.isError ? klass : roster} />
+        <StaffLoadState query={klass.isError ? klass : roster} />
       )}
     </>
   )
@@ -52,7 +52,7 @@ function Roster({ klass, students }: { klass: AdminClass; students: AdminStudent
   const [issued, setIssued] = useState<PersonalCodeItem[] | null>(null)
   const [action, setAction] = useState<RowAction | null>(null)
   const [done, setDone] = useState<string | null>(null)
-  const regen = useSubmit()
+  const regen = useSubmit(ADMIN_COPY)
 
   const active = students.filter((s) => s.status === 'active')
   // 퇴원했거나 다른 반으로 간 학생은 선택에서 뺀다
@@ -250,7 +250,7 @@ function ActionPanel({
     (c) => c.status === 'active' && c.id !== klass.id,
   )
   const [toClassId, setToClassId] = useState('')
-  const submit = useSubmit()
+  const submit = useSubmit(ADMIN_COPY)
 
   async function confirm() {
     if (kind === 'move') {

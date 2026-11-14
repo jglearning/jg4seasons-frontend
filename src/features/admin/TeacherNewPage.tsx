@@ -6,7 +6,8 @@ import { CheckboxGroup } from '../../shared/ui/CheckboxGroup'
 import { SelectField } from '../../shared/ui/SelectField'
 import { TextField } from '../../shared/ui/TextField'
 import { classesQuery, createTeacher, type TeacherCreate } from './adminApi'
-import { useSubmit } from './useSubmit'
+import { useSubmit } from '../../shared/useSubmit'
+import { ADMIN_COPY } from './adminCopy'
 import styles from './Admin.module.css'
 
 // A-03 교사 추가(ADM-04, POST /admin/teachers). 비밀번호는 이 화면의 지역 state에만 두고 보낸 뒤 비운다
@@ -24,7 +25,7 @@ export function TeacherNewPage() {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<TeacherCreate['role']>('teacher')
   const [classIds, setClassIds] = useState<number[]>([])
-  const submit = useSubmit()
+  const submit = useSubmit(ADMIN_COPY)
 
   async function onSubmit(event: SubmitEvent) {
     event.preventDefault()

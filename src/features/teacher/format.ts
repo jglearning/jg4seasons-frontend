@@ -3,9 +3,7 @@ import type { Status } from '../../shared/ui/StatusPill'
 import { voiceLabel } from '../../shared/lessonLabel'
 
 // 교사 화면 글자. 날짜·상태는 서버 값을 글자로만 바꾼다(열림·밀림·완료를 판단하지 않음).
-// 날짜 함수는 학생 화면(features/student/dates.ts)과 같은 방식 — 기능 폴더끼리 import하지 않아 따로 둔다
-
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+// 학원 날짜 "12/19 (토)"는 shared/dates.ts(관리자·운영자 화면과 같이 씀)
 
 /** T-03 매트릭스 묶음 하나 = 진도표 seq 8개 */
 export const GROUP_SIZE = 8
@@ -17,16 +15,6 @@ export const GROUP_SIZE = 8
 export function matrixGroups(lastSeq: number | undefined): number[] {
   const count = Math.max(3, Math.ceil((lastSeq ?? 0) / GROUP_SIZE))
   return Array.from({ length: count }, (_, i) => i + 1)
-}
-
-/** "2026-12-19" → "12/19 (토)". 읽을 수 없으면 받은 글자 그대로 */
-export function shortDate(date: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
-  if (m === null) return date
-  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])]
-  const utc = new Date(Date.UTC(year, month - 1, day))
-  if (utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) return date
-  return `${month}/${day} (${WEEKDAYS[utc.getUTCDay()]})`
 }
 
 /** "2026-12-19" → "12/19" (매트릭스 머리글) */

@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { Table, type Column } from '../../shared/ui/Table'
-import { AdminLoadState } from './AdminLoadState'
-import { shortDate } from './format'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
+import { shortDate } from '../../shared/dates'
 import { dashboardQuery, type Dashboard } from './studentsApi'
 import styles from './Admin.module.css'
 
@@ -53,7 +53,7 @@ export function DashboardPage() {
           empty="운영 중인 반 없음"
         />
       ) : (
-        <AdminLoadState query={dashboard} />
+        <StaffLoadState query={dashboard} />
       )}
     </>
   )

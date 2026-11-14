@@ -5,7 +5,7 @@ import { Button } from '../../shared/ui/Button'
 import { CheckboxGroup } from '../../shared/ui/CheckboxGroup'
 import { SelectField } from '../../shared/ui/SelectField'
 import { TextField } from '../../shared/ui/TextField'
-import { AdminLoadState } from './AdminLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import {
   classesQuery,
   teachersQuery,
@@ -14,7 +14,8 @@ import {
   type TeacherUpdate,
 } from './adminApi'
 import { koreaDateTime, roleLabel } from './format'
-import { useSubmit } from './useSubmit'
+import { useSubmit } from '../../shared/useSubmit'
+import { ADMIN_COPY } from './adminCopy'
 import styles from './Admin.module.css'
 
 // A-03 교사 수정(PATCH /admin/teachers/{id}): 이름·담당 반·상태·비밀번호 재설정. 바뀐 칸만 보낸다.
@@ -43,7 +44,7 @@ export function TeacherDetailPage() {
           교사를 찾을 수 없습니다
         </p>
       ) : (
-        <AdminLoadState query={teachers} />
+        <StaffLoadState query={teachers} />
       )}
     </>
   )
@@ -57,7 +58,7 @@ function TeacherForm({ teacher }: { teacher: AdminTeacher }) {
   const [classIds, setClassIds] = useState<number[]>(teacher.classIds)
   const [status, setStatus] = useState(teacher.status)
   const [password, setPassword] = useState('')
-  const submit = useSubmit()
+  const submit = useSubmit(ADMIN_COPY)
 
   async function onSubmit(event: SubmitEvent) {
     event.preventDefault()

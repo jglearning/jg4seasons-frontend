@@ -5,9 +5,10 @@ import { levelProps } from '../../shared/level'
 import { Card } from '../../shared/ui/Card'
 import { LevelChip } from '../../shared/ui/LevelChip'
 import { ClassJoinActions } from './ClassJoin'
-import { koreaTime, shortDate } from './format'
+import { shortDate } from '../../shared/dates'
+import { koreaTime } from './format'
 import { teacherClassesQuery, type TeacherClass } from './teacherApi'
-import { TeacherLoadState } from './TeacherLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import styles from './Teacher.module.css'
 
 // T-02 반 목록(03 §4.1). 반마다 카드 하나 — 지금 회차의 완료·진행·미시작, 밀린 학생, 로그인 실패 경고, 다음 수업.
@@ -36,7 +37,7 @@ export function ClassesPage() {
           </ul>
         )
       ) : (
-        <TeacherLoadState query={classes} />
+        <StaffLoadState query={classes} />
       )}
     </>
   )

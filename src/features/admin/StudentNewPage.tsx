@@ -3,11 +3,12 @@ import { useRef, useState, type SubmitEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button, ButtonLink } from '../../shared/ui/Button'
 import { TextField } from '../../shared/ui/TextField'
-import { AdminLoadState } from './AdminLoadState'
+import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import { classQuery, type AdminClass } from './adminApi'
 import { CodeCards } from './CodeCards'
 import { createStudents, type NewStudent, type PersonalCodeItem } from './studentsApi'
-import { useSubmit } from './useSubmit'
+import { useSubmit } from '../../shared/useSubmit'
+import { ADMIN_COPY } from './adminCopy'
 import styles from './Admin.module.css'
 
 // A-02 학생 추가(03 §5.2 POST, ADM-02). 한 줄에 학생 하나 — 이름은 필수, 학교·학년은 선택.
@@ -27,7 +28,7 @@ export function StudentNewPage() {
       <Link to={`/admin/classes/${classId}/students`} className={styles.back}>
         ← 학생 명단
       </Link>
-      {klass.data ? <AddStudents klass={klass.data} /> : <AdminLoadState query={klass} />}
+      {klass.data ? <AddStudents klass={klass.data} /> : <StaffLoadState query={klass} />}
     </>
   )
 }
@@ -40,7 +41,7 @@ function AddStudents({ klass }: { klass: AdminClass }) {
   )
   const [empty, setEmpty] = useState(false)
   const [created, setCreated] = useState<PersonalCodeItem[] | null>(null)
-  const submit = useSubmit()
+  const submit = useSubmit(ADMIN_COPY)
 
   function update(key: number, field: keyof Omit<Row, 'key'>, value: string) {
     setRows((before) => before.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
