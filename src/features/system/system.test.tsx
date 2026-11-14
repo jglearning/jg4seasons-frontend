@@ -191,7 +191,7 @@ describe('O-02 학원 만들기', () => {
     await vi.waitFor(() => expect(slug).toHaveAccessibleDescription(/이미 쓰는 학원 주소입니다/))
     expect(slug).toHaveAttribute('aria-invalid', 'true')
     // 긴 폼 — 오류 칸으로 포커스가 간다
-    expect(slug).toHaveFocus()
+    await vi.waitFor(() => expect(slug).toHaveFocus())
     expect(screen.getByLabelText('비밀번호')).toHaveValue('')
     // 칸 옆에 보인 오류는 폼 아래에 다시 보이지 않는다
     expect(screen.getAllByRole('alert')).toHaveLength(1)
