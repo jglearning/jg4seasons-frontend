@@ -9,8 +9,9 @@ import { STAFF_COPY } from './staffCopy'
 import styles from './TeacherLoginPage.module.css'
 import { useMountedRef } from './useMountedRef'
 import { entryReason } from './entry'
+import { homePathFor } from '../../shared/roleHome'
 
-// T-01 교사·관리자 로그인(AUTH-04). 비밀번호는 이 화면 state에만 두고, 실패하면 비운다
+// T-01 교사·관리자·운영자 로그인(AUTH-04). 비밀번호는 이 화면 state에만 두고, 실패하면 비운다
 export function TeacherLoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -30,8 +31,9 @@ export function TeacherLoginPage() {
     const request = loginStaff(loginId.trim(), password)
     setSubmitting(true)
     setLoginError(undefined)
+    let role: Awaited<typeof request>['user']['role']
     try {
-      await request
+      role = (await request).user.role
     } catch (error) {
       setPassword('')
       setLoginError(errorMessage(error, STAFF_COPY))
@@ -41,7 +43,8 @@ export function TeacherLoginPage() {
       return
     }
     queryClient.clear()
-    if (mounted.current) await navigate('/teacher', { replace: true })
+    // 운영자(superadmin, 학원 없음)는 학원 화면 API가 모두 403 — 운영자 화면(O-01)으로(BE #48)
+    if (mounted.current) await navigate(homePathFor(role), { replace: true })
   }
 
   // 제출 중 칸은 disabled 대신 readOnly — 포커스를 잃지 않는다

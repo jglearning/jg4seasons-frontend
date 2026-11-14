@@ -134,12 +134,39 @@ describe('들어온 뒤의 세션', () => {
     }
   })
 
-  it('superadmin도 교사·관리자 쪽으로 보낸다', async () => {
-    setMockSession('superadmin')
-    const { router } = renderRoutes(routes, { initialEntries: ['/'] })
+  // 운영자는 학원이 없어 학원 화면 API가 모두 403(BE #48) — 학원 화면 주소로 와도 운영자 화면(O-01)으로
+  it.each(['/', '/teacher', '/teacher/classes/12', '/admin/classes', '/admin/licenses'])(
+    '운영자(superadmin)가 %s로 오면 운영자 화면(O-01)으로 보낸다',
+    async (path) => {
+      setMockSession('superadmin')
+      const { router } = renderRoutes(routes, { initialEntries: [path] })
+
+      expect(
+        await screen.findByRole('heading', { name: '학원 관리', level: 1 }),
+      ).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/system/academies')
+    },
+  )
+
+  it.each([
+    ['teacher', '/system/academies'],
+    ['admin', '/system/academies/new'],
+  ] as const)('역할 %s이 운영자 화면(%s)으로 오면 교사 첫 화면으로 보낸다', async (role, path) => {
+    setMockSession(role)
+    const { router } = renderRoutes(routes, { initialEntries: [path] })
 
     expect(await screen.findByRole('heading', { name: '반 목록', level: 1 })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/teacher')
+  })
+
+  it('학생이 운영자 화면으로 오면 학생 홈으로 보낸다', async () => {
+    setMockSession('student')
+    const { router } = renderRoutes(routes, { initialEntries: ['/system/academies'] })
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' }),
+    ).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
   })
 })
 

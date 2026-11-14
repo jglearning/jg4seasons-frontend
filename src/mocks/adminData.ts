@@ -323,8 +323,8 @@ export function adminHandlers({ problem, readJson, currentUser }: Helpers): AnyH
   const adminOnly = (request: Request) => {
     const user = currentUser()
     if (!user) return problem(request, 401, 'UNAUTHORIZED', '다시 로그인해 주세요')
-    if (user.role !== 'admin' && user.role !== 'superadmin')
-      return problem(request, 403, 'FORBIDDEN', '권한이 없습니다')
+    // 운영자(superadmin)도 403 — 학원이 없어 학원 화면 API를 쓰지 않는다(BE #48)
+    if (user.role !== 'admin') return problem(request, 403, 'FORBIDDEN', '권한이 없습니다')
     return undefined
   }
   const validation = (request: Request, errors: Array<{ field: string; message: string }>) =>

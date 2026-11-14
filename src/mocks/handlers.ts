@@ -3,6 +3,7 @@ import type { components } from '../api/generated/schema'
 import { adminHandlers } from './adminData'
 import { buildLessonDetail, LESSON_MOCK, recordFlush } from './lessonData'
 import { buildHome, buildLessons, STUDENT_MOCK } from './studentData'
+import { systemHandlers } from './systemData'
 import { teacherHandlers } from './teacherData'
 import { buildWords, recordWordStudy } from './wordData'
 
@@ -136,17 +137,22 @@ const authHandlers: AnyHandler[] = [
       })
     }
     const user = STAFF[loginId]
-    // 교사 로그인 응답은 교사·관리자만(StaffUserInfo)
+    // 교사 로그인 응답은 교사·관리자·운영자(StaffUserInfo). 운영자는 학원이 없어 academyId null(BE #48)
     if (
       user === undefined ||
-      (user.role !== 'teacher' && user.role !== 'admin') ||
+      user.role === 'student' ||
       body.password !== AUTH_MOCK.staffPassword
     ) {
       return problem(request, 401, 'INVALID_CREDENTIALS', '입력한 정보가 맞지 않아요')
     }
     session = user
     return HttpResponse.json<Schemas['StaffLoginResponse']>({
-      user: { id: user.id, name: user.name, role: user.role, academyId: MOCK_ACADEMY_ID },
+      user: {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        academyId: user.role === 'superadmin' ? null : MOCK_ACADEMY_ID,
+      },
     })
   }),
 
@@ -169,7 +175,9 @@ const authHandlers: AnyHandler[] = [
   }),
 ]
 
+// 운영자(superadmin)는 학원이 없다 — /me·refresh의 academy null(BE #48)
 function me(user: MockUser): Schemas['MeResponse'] {
+  if (user.role === 'superadmin') return { ...user, academy: null }
   return { ...user, academy: { id: MOCK_ACADEMY_ID, name: AUTH_MOCK.academyName } }
 }
 
@@ -256,4 +264,5 @@ export const handlers: AnyHandler[] = [
   ...studentHandlers,
   ...adminHandlers({ problem, readJson, currentUser: () => session }),
   ...teacherHandlers({ problem, readJson, currentUser: () => session }),
+  ...systemHandlers({ problem, readJson, currentUser: () => session }),
 ]

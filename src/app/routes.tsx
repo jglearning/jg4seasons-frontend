@@ -18,6 +18,8 @@ import { LessonPage } from '../features/player/LessonPage'
 import { HomePage } from '../features/student/HomePage'
 import { LessonsPage } from '../features/student/LessonsPage'
 import { SettingsPage } from '../features/student/SettingsPage'
+import { AcademiesPage } from '../features/system/AcademiesPage'
+import { AcademyNewPage } from '../features/system/AcademyNewPage'
 import { CardsRedirect, WordsPage } from '../features/words/WordsPage'
 import { ClassesPage as TeacherClassesPage } from '../features/teacher/ClassesPage'
 import { LessonPage as TeacherLessonPage } from '../features/teacher/LessonPage'
@@ -79,6 +81,19 @@ export const routes: RouteObject[] = [
                   { path: '/admin/licenses', element: <LicensesPage /> },
                 ],
               },
+            ],
+          },
+        ],
+      },
+      // 운영자(superadmin, 학원 없음) 화면 — 학원 화면과 같은 틀, 메뉴만 다르다(SYS-07)
+      {
+        element: <RequireSession area="system" />,
+        children: [
+          {
+            element: <StaffShell />,
+            children: [
+              { path: '/system/academies', element: <AcademiesPage /> },
+              { path: '/system/academies/new', element: <AcademyNewPage /> },
             ],
           },
         ],

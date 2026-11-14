@@ -309,7 +309,9 @@ export function teacherHandlers({ problem, readJson, currentUser }: Helpers): An
   const staffOnly = (request: Request) => {
     const user = currentUser()
     if (!user) return problem(request, 401, 'UNAUTHORIZED', '다시 로그인해 주세요')
-    if (user.role === 'student') return problem(request, 403, 'FORBIDDEN', '권한이 없습니다')
+    // 운영자(superadmin)도 403 — 학원이 없다(BE #48)
+    if (user.role === 'student' || user.role === 'superadmin')
+      return problem(request, 403, 'FORBIDDEN', '권한이 없습니다')
     return user
   }
   /** 볼 수 있는 반이면 그 반, 아니면 오류 응답(없음 404, 담당 아님 403) */

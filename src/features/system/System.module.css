@@ -1,0 +1,71 @@
+/* 운영자 화면(O-01~O-03) — 교사 밀도(가이드 §1), 관리자 화면과 같은 값(tokens.css 변수만) */
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+}
+
+.sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: var(--space-3);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* 만들기 폼 — 한 줄에 칸 하나, 최대 560 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 560px;
+}
+
+/* 첫 관리자 칸 묶음 */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.groupTitle {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.formError {
+  margin: 0;
+  font-size: 14px;
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-code);
+}
