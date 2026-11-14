@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/errors'
 import { useSubmit } from './useSubmit'
 
@@ -47,6 +47,31 @@ describe('useSubmit — 칸 옆과 폼 아래로 오류 나누기', () => {
     expect(result.current.formError(['name'])).toBe('관리자만 할 수 있습니다')
     act(() => result.current.reset())
     expect(result.current.formError(['name'])).toBeUndefined()
+  })
+
+  it('진행 중에 다시 부르면 요청을 보내지 않는다(렌더 전에 들어온 두 번째 클릭)', async () => {
+    const { result } = renderHook(() => useSubmit())
+    let finish: (value: number) => void = () => {}
+    const request = vi.fn(() => new Promise<number>((resolve) => (finish = resolve)))
+    let first: Promise<number | undefined> | undefined
+    let second: number | undefined = -1
+    await act(async () => {
+      // 같은 렌더의 run을 두 번 — pending은 아직 false
+      first = result.current.run(request)
+      second = await result.current.run(request)
+    })
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(second).toBeUndefined()
+    await act(async () => {
+      finish(7)
+      expect(await first).toBe(7)
+    })
+    // 끝난 뒤에는 다시 보낼 수 있다
+    const again = vi.fn(() => Promise.resolve(1))
+    await act(async () => {
+      expect(await result.current.run(again)).toBe(1)
+    })
+    expect(again).toHaveBeenCalledTimes(1)
   })
 
   it('성공하면 결과를 돌려주고 진행 중이 풀림', async () => {
