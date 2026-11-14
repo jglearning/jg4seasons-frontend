@@ -13,6 +13,8 @@ const ADMIN_NAV: StaffNavItem[] = [
   { to: '/admin/students', label: '학생 관리' },
   { to: '/admin/teachers', label: '교사 관리' },
   { to: '/admin/dashboard', label: '학원 현황' },
+  // 직영 학원에도 늘 보인다 — 숨기려면 메뉴 전에 사용권 API를 한 번 더 불러야 한다(#66)
+  { to: '/admin/licenses', label: '교재 사용권' },
 ]
 const ROLE_LABEL = {
   teacher: '교사',

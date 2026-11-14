@@ -101,6 +101,18 @@ export function shortDate(date: string): string {
   return `${month}/${day} (${DAY_NAMES[utc.getUTCDay()]})`
 }
 
+const LICENSE_STATUS = { before_start: '시작 전', active: '사용 중', expired: '끝남' } as const
+
+/** 교재 사용권 상태(A-05) — 서버 status 그대로 이름만 */
+export function licenseStatusLabel(status: keyof typeof LICENSE_STATUS): string {
+  return LICENSE_STATUS[status]
+}
+
+/** 사용권의 권 표시 — 권 코드 "L2-B1"의 레벨로 "그린 · 겨울 (L2-B1)"(반 관리와 같은 꼴) */
+export function licenseBookLabel(bookCode: string, season: string): string {
+  return bookLabel(bookCode, bookCode.split('-')[0] ?? bookCode, season)
+}
+
 /** 레벨 칩 글자 — "그린 · 겨울" */
 export function levelSeasonLabel(levelCode: string, season: string): string {
   const level = LEVELS.find((l) => l.code === levelCode)?.name ?? levelCode

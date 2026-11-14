@@ -10,6 +10,7 @@ import { StudentsPage } from '../features/admin/StudentsPage'
 import { TeacherDetailPage } from '../features/admin/TeacherDetailPage'
 import { TeacherNewPage } from '../features/admin/TeacherNewPage'
 import { TeachersPage } from '../features/admin/TeachersPage'
+import { LicensesPage } from '../features/admin/LicensesPage'
 import { EntryPage } from '../features/auth/EntryPage'
 import { RequireSession } from '../features/auth/RequireSession'
 import { TeacherLoginPage } from '../features/auth/TeacherLoginPage'
@@ -75,6 +76,7 @@ export const routes: RouteObject[] = [
                   { path: '/admin/teachers', element: <TeachersPage /> },
                   { path: '/admin/teachers/new', element: <TeacherNewPage /> },
                   { path: '/admin/teachers/:id', element: <TeacherDetailPage /> },
+                  { path: '/admin/licenses', element: <LicensesPage /> },
                 ],
               },
             ],
