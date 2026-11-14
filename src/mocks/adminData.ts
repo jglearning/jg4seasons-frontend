@@ -51,9 +51,68 @@ export const ADMIN_MOCK = {
   takenLoginId: 'teacher01',
 }
 
+// 교재 사용권(7.5, BE #48) — 기본은 연계 학원(화면을 보기 쉽게: 사용 중·한도 넘음·시작 전·끝남 한 줄씩).
+// 직영·지정 전은 테스트에서 setMockLicenses로
+type LicenseList = Schemas['LicenseListResponse']
+const LINKED_LICENSES: LicenseList = {
+  licenseEnforced: true,
+  today: '2026-12-19',
+  items: [
+    {
+      book: { code: 'L1-B1', label: 'Book 1', season: '겨울' },
+      startDate: '2026-09-01',
+      endDate: '2026-11-30',
+      status: 'expired',
+      daysLeft: null,
+      seats: 20,
+      usedSeats: 3,
+    },
+    {
+      book: { code: 'L2-B1', label: 'Book 1', season: '겨울' },
+      startDate: '2026-12-01',
+      endDate: '2027-02-28',
+      status: 'active',
+      daysLeft: 72,
+      seats: 20,
+      usedSeats: 18,
+    },
+    {
+      book: { code: 'L2-B2', label: 'Book 2', season: '봄' },
+      startDate: '2027-03-01',
+      endDate: '2027-05-31',
+      status: 'before_start',
+      daysLeft: null,
+      seats: 20,
+      usedSeats: 0,
+    },
+    {
+      book: { code: 'L3-B1', label: 'Book 1', season: '겨울' },
+      startDate: '2026-12-01',
+      endDate: '2027-02-28',
+      status: 'active',
+      daysLeft: 72,
+      seats: 20,
+      usedSeats: 22,
+    },
+  ],
+}
+let licenses: LicenseList = LINKED_LICENSES
+
+export const MOCK_LICENSES = {
+  linked: LINKED_LICENSES,
+  direct: { licenseEnforced: false, today: '2026-12-19', items: [] } as LicenseList,
+  linkedEmpty: { licenseEnforced: true, today: '2026-12-19', items: [] } as LicenseList,
+}
+
+/** 테스트에서 사용권 응답을 바꿀 때(resetAdminMock이 연계로 되돌린다) */
+export function setMockLicenses(next: LicenseList) {
+  licenses = next
+}
+
 export function resetAdminMock() {
   nextId = 100
   codeSeq = 0
+  licenses = LINKED_LICENSES
   teachers = [
     {
       id: 11,
@@ -272,6 +331,12 @@ export function adminHandlers({ problem, readJson, currentUser }: Helpers): AnyH
     problem(request, 400, 'VALIDATION', '입력값을 확인해 주세요', { errors })
 
   return [
+    // 7.5 교재 사용권(관리자만, 보기만)
+    http.get('*/api/v1/admin/licenses', async ({ request }) => {
+      await delay()
+      return adminOnly(request) ?? HttpResponse.json(licenses)
+    }),
+
     http.get('*/api/v1/admin/teachers', async ({ request }) => {
       await delay()
       return (

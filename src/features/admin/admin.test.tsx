@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { routes } from '../../app/routes'
-import { ADMIN_MOCK, resetAdminMock } from '../../mocks/adminData'
+import { ADMIN_MOCK, MOCK_LICENSES, resetAdminMock, setMockLicenses } from '../../mocks/adminData'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
 import { renderRoutes } from '../../test/render'
@@ -35,7 +35,7 @@ function renderAt(path: string) {
 const menu = () => screen.getByRole('navigation', { name: '관리 메뉴' })
 
 describe('교사·관리자 틀과 관리자만', () => {
-  it('관리자 메뉴: 반 목록·반 관리·학생 관리·교사 관리·학원 현황, 지금 메뉴 표시와 이름·역할', async () => {
+  it('관리자 메뉴: 반 목록·반 관리·학생 관리·교사 관리·학원 현황·교재 사용권, 지금 메뉴 표시와 이름·역할', async () => {
     renderAt('/admin/classes')
     await screen.findByRole('heading', { name: '반 관리' })
 
@@ -46,6 +46,7 @@ describe('교사·관리자 틀과 관리자만', () => {
       '학생 관리',
       '교사 관리',
       '학원 현황',
+      '교재 사용권',
     ])
     expect(within(menu()).getByRole('link', { name: '반 관리' })).toHaveAttribute(
       'aria-current',
@@ -207,6 +208,64 @@ describe('A-01 반 관리', () => {
     expect(sent).toEqual([
       { method: 'POST', path: '/api/v1/admin/classes/12/access-code/regenerate', body: null },
     ])
+  })
+})
+
+// A-05 교재 사용권(#66, BE #48 7.5) — 보기만. 값은 서버 그대로(상태·남은 날·학생 수)
+describe('A-05 교재 사용권', () => {
+  const page = () => screen.findByRole('heading', { name: '교재 사용권', level: 1 })
+
+  it('연계 학원: 권마다 교재·기간·상태·남은 날·학생 수(사용 / 한도), 서버 순서 그대로, 기준일', async () => {
+    renderAt('/admin/licenses')
+    await page()
+
+    const table = await screen.findByRole('table', { name: '교재 사용권' })
+    const rows = within(table).getAllByRole('row').slice(1)
+    expect(rows.map((r) => [...r.querySelectorAll('td')].map((td) => td.textContent))).toEqual([
+      ['민트 · 겨울 (L1-B1)', '2026-09-01 ~ 2026-11-30', '끝남', '—', '3 / 20'],
+      ['그린 · 겨울 (L2-B1)', '2026-12-01 ~ 2027-02-28', '사용 중', '72일', '18 / 20'],
+      ['그린 · 봄 (L2-B2)', '2027-03-01 ~ 2027-05-31', '시작 전', '—', '0 / 20'],
+      ['블루 · 겨울 (L3-B1)', '2026-12-01 ~ 2027-02-28', '사용 중', '72일', '22 / 20 한도 넘음'],
+    ])
+    expect(screen.getByText('기준일 12/19 (토)')).toBeInTheDocument()
+    expect(screen.getByText('사용권 변경은 운영자에게 요청')).toBeInTheDocument()
+  })
+
+  it('한도를 넘은 권이 있으면 무엇이 막히는지 안내(지금 학생은 그대로)', async () => {
+    renderAt('/admin/licenses')
+    await screen.findByRole('table', { name: '교재 사용권' })
+    expect(
+      screen.getByText(
+        '한도를 넘은 교재는 그 교재 반으로 새 등록·반 이동만 막힘(지금 학생은 그대로)',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('한도를 넘은 권이 없으면 그 안내는 없다', async () => {
+    setMockLicenses({
+      ...MOCK_LICENSES.linked,
+      items: MOCK_LICENSES.linked.items.filter((i) => i.usedSeats <= i.seats),
+    })
+    renderAt('/admin/licenses')
+    await screen.findByRole('table', { name: '교재 사용권' })
+    expect(screen.queryByText(/한도를 넘은 교재는/)).not.toBeInTheDocument()
+    expect(screen.queryByText('한도 넘음')).not.toBeInTheDocument()
+  })
+
+  it('직영 학원: 표 대신 "직영 학원 — 모든 교재 제한 없이 사용"', async () => {
+    setMockLicenses(MOCK_LICENSES.direct)
+    renderAt('/admin/licenses')
+    await page()
+
+    expect(await screen.findByText('직영 학원 — 모든 교재 제한 없이 사용')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('연계 학원인데 지정 전이면 "지정된 교재 없음"', async () => {
+    setMockLicenses(MOCK_LICENSES.linkedEmpty)
+    renderAt('/admin/licenses')
+
+    expect(await screen.findByText('지정된 교재 없음')).toBeInTheDocument()
   })
 })
 

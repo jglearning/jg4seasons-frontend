@@ -42,6 +42,15 @@ export function regenerateAccessCode(id: number) {
 export type AdminClass = Awaited<ReturnType<typeof createClass>>
 export type ClassStatus = AdminClass['status']
 
+// ── 교재 사용권(7.5, BE #48) — 보기만. 바꾸기는 운영자(O-03) ──
+
+export const licensesQuery = queryOptions({
+  queryKey: ['admin', 'licenses'],
+  queryFn: () => unwrap(api.GET('/api/v1/admin/licenses')),
+})
+
+export type AdminLicense = Schemas['AcademyLicenseItem']
+
 // ── 교사 ──
 
 export const teachersQuery = queryOptions({

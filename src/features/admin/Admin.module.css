@@ -230,3 +230,18 @@
   gap: var(--space-4);
   max-width: 760px;
 }
+
+/* A-05 학생 수가 한도를 넘은 칸 — 아이콘 + 글자(색만으로 구분하지 않는다) */
+.over {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.licenseNote {
+  margin: var(--space-3) 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
