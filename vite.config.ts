@@ -66,8 +66,9 @@ export default defineConfig({
     restoreMocks: true,
     unstubGlobals: true,
     // 가짜 타이머는 setImmediate를 건드리지 않는다. MSW 3은 소켓을 가로챈 뒤 setImmediate 한 번 안에 요청 바이트가
-    // 오지 않으면 그 연결을 실제 네트워크로 넘긴다. 가짜 setImmediate가 undici의 쓰기보다 먼저 돌면(느린 CI)
-    // 목이 있는 요청이 localhost로 나가 ECONNREFUSED가 났다(EntryPage "확인하는 중", PR #103·#108).
+    // 오지 않으면 그 연결을 실제 네트워크로 넘긴다. 가짜 setImmediate가 undici의 쓰기보다 먼저 돌면 목이 있는
+    // 요청이 localhost로 나간다(src/test/fakeTimers.test.ts가 지킨다).
+    // CI의 EntryPage 흔들림은 이것이 아니라 @mswjs/interceptors 0.45.11 문제였다(src/test/mswRealNetwork.test.ts)
     // Vitest 기본 목록(nextTick·queueMicrotask 제외)에서 setImmediate·clearImmediate만 뺐다. toNotFake로 쓰면
     // 테스트가 vi.useFakeTimers({ toFake })를 넘길 때 "같이 쓸 수 없음"으로 깨진다 — 테스트의 toFake가 이 목록을 대신한다
     fakeTimers: {
