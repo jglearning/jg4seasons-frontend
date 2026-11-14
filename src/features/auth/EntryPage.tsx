@@ -3,7 +3,8 @@ import { CircleAlert } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../api/errors'
-import { isStaffRole, logout, meQuery } from '../../api/session'
+import { logout, meQuery } from '../../api/session'
+import { homePathFor } from '../../shared/roleHome'
 import { errorMessage, NETWORK_MESSAGE, type Copy } from '../../shared/errorMessage'
 import { levelEnglish } from '../../shared/level'
 import { readQrJoinHash } from '../../shared/qrJoin'
@@ -445,7 +446,7 @@ export function EntryPage() {
 
   // "그대로 있기": QR 값을 버리고(화면을 떠나면 지역 state와 함께 사라진다) 들어와 있는 사람의 첫 화면으로
   function stay(role: NonNullable<typeof signedIn>['role']) {
-    void navigate(isStaffRole(role) ? '/teacher' : '/', { replace: true })
+    void navigate(homePathFor(role), { replace: true })
   }
 
   const sessionNotice: Message | undefined =

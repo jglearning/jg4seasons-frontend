@@ -33,6 +33,17 @@ describe('T-01 교사 로그인', () => {
     expectSecretNowhere(AUTH_MOCK.staffPassword, { client, router })
   })
 
+  it('운영자(superadmin)는 운영자 화면(O-01)으로 간다 — 학원 화면 API는 운영자에게 403', async () => {
+    const { router } = renderLogin()
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('아이디'), 'super01')
+    await user.type(screen.getByLabelText('비밀번호'), `${AUTH_MOCK.staffPassword}{Enter}`)
+
+    expect(await screen.findByRole('heading', { name: '학원 관리', level: 1 })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/system/academies')
+  })
+
   it('로그인하면 이전 사용자의 캐시를 비운다(같은 PC를 다른 교사가 쓸 때)', async () => {
     const { client } = renderLogin()
     client.setQueryData(['teacher', 'classes'], { previous: true })

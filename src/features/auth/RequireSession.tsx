@@ -2,26 +2,23 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, Navigate, Outlet, useLocation } from 'react-router'
 import { ApiError } from '../../api/errors'
 import { Button } from '../../shared/ui/Button'
-import { isStaffRole, meQuery } from '../../api/session'
+import { meQuery } from '../../api/session'
 import { entryPathFor } from './entry'
 import { errorMessage, NETWORK_MESSAGE } from '../../shared/errorMessage'
+import { areaFor, homePathFor, type Area } from '../../shared/roleHome'
 import styles from './RequireSession.module.css'
-
-type Area = 'student' | 'staff'
 
 // 로그인한 사람만 들어오는 경로를 감싼다(GET /me, AUTH-03).
 // 세션이 없으면 /me 401 → refresh 1회. refresh가 401·403이면 API 클라이언트가 입장 화면으로 보낸다
 // (규칙은 src/api/authFetch.ts 머리 주석). 5xx·네트워크 오류는 아래 "다시 시도"를 보인다.
-// 역할이 맞지 않는 영역이면 그 역할의 첫 화면으로 보낸다
+// 역할이 맞지 않는 영역이면 그 역할의 첫 화면으로 보낸다(운영자가 학원 화면에 오거나 교사가 운영자 화면에 와도)
 export function RequireSession({ area }: { area: Area }) {
   const me = useQuery(meQuery)
   const { pathname } = useLocation()
 
   // 이미 받은 세션이 있으면 백그라운드 재조회가 실패해도(배포 중 5xx 등) 보던 화면을 그대로 둔다
   if (me.data !== undefined) {
-    const staff = isStaffRole(me.data.role)
-    if (area === 'student' && staff) return <Navigate to="/teacher" replace />
-    if (area === 'staff' && !staff) return <Navigate to="/" replace />
+    if (areaFor(me.data.role) !== area) return <Navigate to={homePathFor(me.data.role)} replace />
     return <Outlet />
   }
   if (!me.isError) {
@@ -55,7 +52,7 @@ export function RequireSession({ area }: { area: Area }) {
       ) : (
         <Button
           variant="secondary"
-          size={area === 'staff' ? 'teacher' : 'student'}
+          size={area === 'student' ? 'student' : 'teacher'}
           onClick={() => void me.refetch()}
           disabled={me.isFetching}
         >

@@ -26,6 +26,19 @@ afterEach(() => {
   server.events.removeAllListeners()
 })
 
+describe('운영자 메뉴', () => {
+  it('운영자는 "학원 관리" 하나만, 이름 옆 역할은 운영자', async () => {
+    setMockSession('superadmin')
+    renderRoutes(routes, { initialEntries: ['/system/academies'] })
+    await screen.findByRole('heading', { name: '학원 관리', level: 1 })
+
+    const menu = screen.getByRole('navigation', { name: '관리 메뉴' })
+    const links = Array.from(menu.querySelectorAll('a')).map((a) => a.textContent)
+    expect(links).toEqual(['학원 관리'])
+    expect(screen.getByText('운영자 · 운영자')).toBeInTheDocument()
+  })
+})
+
 describe('교사·관리자 로그아웃', () => {
   it('이름 아래 로그아웃 → POST /auth/logout → T-01, 캐시를 비운다', async () => {
     const user = userEvent.setup()

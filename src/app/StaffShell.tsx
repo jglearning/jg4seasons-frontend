@@ -4,9 +4,11 @@ import { Outlet, useNavigate } from 'react-router'
 import { logout, meQuery } from '../api/session'
 import { StaffLayout, type StaffNavItem } from '../shared/ui/StaffLayout'
 
-// 교사·관리자 화면 틀. 메뉴는 역할로 고른다(관리 메뉴는 관리자만 — 화면·서버도 따로 막는다).
-// 세션은 바깥 RequireSession(staff)이 이미 확인했다
+// 교사·관리자·운영자 화면 틀. 메뉴는 역할로 고른다(관리 메뉴는 관리자만, 운영자는 학원 관리만 — 화면·서버도 따로 막는다).
+// 세션과 영역은 바깥 RequireSession(staff·system)이 이미 확인했다
 const TEACHER_NAV: StaffNavItem[] = [{ to: '/teacher', label: '반 목록' }]
+// 운영자는 학원에 속하지 않아 학원 화면이 없다(BE #48)
+const SYSTEM_NAV: StaffNavItem[] = [{ to: '/system/academies', label: '학원 관리' }]
 const ADMIN_NAV: StaffNavItem[] = [
   ...TEACHER_NAV,
   { to: '/admin/classes', label: '반 관리' },
@@ -26,7 +28,7 @@ const ROLE_LABEL = {
 export function StaffShell() {
   const me = useQuery(meQuery)
   const role = me.data?.role
-  const admin = role === 'admin' || role === 'superadmin'
+  const nav = role === 'superadmin' ? SYSTEM_NAV : role === 'admin' ? ADMIN_NAV : TEACHER_NAV
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [logoutState, setLogoutState] = useState<'idle' | 'pending' | 'failed'>('idle')
@@ -46,7 +48,7 @@ export function StaffShell() {
 
   return (
     <StaffLayout
-      nav={admin ? ADMIN_NAV : TEACHER_NAV}
+      nav={nav}
       user={me.data ? { name: me.data.name, roleLabel: ROLE_LABEL[me.data.role] } : undefined}
       logout={{
         onLogout: () => void onLogout(),
