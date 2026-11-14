@@ -188,7 +188,7 @@ describe('O-03 학원 상세·교재 사용권', () => {
 
     const end = screen.getByLabelText('종료일')
     await vi.waitFor(() => expect(end).toHaveAccessibleDescription(/종료일은 시작일과 같거나 뒤/))
-    expect(end).toHaveFocus()
+    await vi.waitFor(() => expect(end).toHaveFocus())
     expect(screen.queryByRole('status')).toBeEmptyDOMElement()
   })
 
