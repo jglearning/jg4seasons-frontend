@@ -287,6 +287,92 @@ describe('S-06 단어 카드', () => {
     expect(screen.getByRole('button', { name: '단어 듣기' })).toBeInTheDocument()
   })
 
+  describe('음원을 못 받았을 때(서명 쿠키 만료 403) — refresh 한 번 뒤 다시 재생', () => {
+    /** 브라우저가 음원을 못 받으면 play()가 이 이름으로 거부한다 */
+    const loadFailure = () => Object.assign(new Error('no source'), { name: 'NotSupportedError' })
+    let refreshed: number
+
+    beforeEach(() => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      refreshed = 0
+      server.events.on('request:start', ({ request }) => {
+        if (new URL(request.url).pathname.endsWith('/auth/refresh')) refreshed += 1
+      })
+    })
+
+    it('refresh가 성공하면 같은 단어를 다시 재생한다 — "눌러서 듣기"는 보이지 않는다', async () => {
+      play.mockRejectedValueOnce(loadFailure())
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+
+      await vi.waitFor(() => expect(play).toHaveBeenCalledTimes(2))
+      expect(playedUrls()).toEqual(['/mock-audio/word-900.wav', '/mock-audio/word-900.wav'])
+      expect(refreshed).toBe(1)
+      expect(screen.getByRole('button', { name: '단어 듣기' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '눌러서 듣기' })).not.toBeInTheDocument()
+    })
+
+    it('다시 재생도 실패하면 refresh를 또 보내지 않고 "눌러서 듣기"를 보인다', async () => {
+      play.mockRejectedValueOnce(loadFailure()).mockRejectedValueOnce(loadFailure())
+      renderWords()
+
+      expect(await screen.findByRole('button', { name: '눌러서 듣기' })).toBeInTheDocument()
+      expect(play).toHaveBeenCalledTimes(2)
+      expect(refreshed).toBe(1)
+    })
+
+    it('refresh가 5xx면 "눌러서 듣기"를 보이고, 누르면 다시 들을 수 있다', async () => {
+      server.use(http.post('*/api/v1/auth/refresh', () => new HttpResponse(null, { status: 503 })))
+      play.mockRejectedValueOnce(loadFailure())
+      const user = userEvent.setup()
+      const { router } = renderWords()
+      const listen = await screen.findByRole('button', { name: '눌러서 듣기' })
+      expect(play).toHaveBeenCalledTimes(1)
+      expect(router.state.location.pathname).toBe('/lessons/L2-B1-05/words')
+
+      await user.click(listen)
+
+      expect(play).toHaveBeenCalledTimes(2)
+      expect(await screen.findByRole('button', { name: '단어 듣기' })).toBeInTheDocument()
+    })
+
+    it('refresh가 401이면 세션이 끝난 것 — 들어가기 화면으로 간다(저장된 반 없음)', async () => {
+      server.use(http.post('*/api/v1/auth/refresh', () => new HttpResponse(null, { status: 401 })))
+      play.mockRejectedValueOnce(loadFailure())
+      const { router } = renderWords()
+
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/join'))
+      expect(play).toHaveBeenCalledTimes(1)
+    })
+
+    it('갱신을 기다리는 사이 다음 카드로 넘기면 앞 단어를 다시 틀지 않는다', async () => {
+      // 이 테스트 안에서 풀어 주는 응답(끝나지 않는 Promise가 아니다)
+      let finishRefresh: ((response: Response) => void) | null = null
+      server.use(
+        http.post(
+          '*/api/v1/auth/refresh',
+          () => new Promise<Response>((resolve) => (finishRefresh = resolve)),
+        ),
+      )
+      play.mockRejectedValueOnce(loadFailure())
+      const user = userEvent.setup()
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      await vi.waitFor(() => expect(finishRefresh).not.toBeNull())
+
+      await user.click(screen.getByRole('button', { name: '다음' }))
+      expect(screen.getByText(`2 / ${WORD_MOCK.total}`)).toBeInTheDocument()
+      expect(play).toHaveBeenCalledTimes(2)
+      finishRefresh!(new HttpResponse(null, { status: 200 }))
+      await new Promise((resolve) => setTimeout(resolve, 30))
+
+      // 목 단어는 음원 주소가 모두 같다 — 다시 틀었으면 3번이 된다
+      expect(play).toHaveBeenCalledTimes(2)
+      expect(refreshed).toBe(1)
+      expect(screen.getByRole('button', { name: '단어 듣기' })).toBeInTheDocument()
+    })
+  })
+
   it('옛 카드 학습 주소(/cards)는 단어 카드로 넘긴다', async () => {
     const { router } = renderRoutes(routes, { initialEntries: ['/lessons/L2-B1-05/cards'] })
     await counter(`1 / ${WORD_MOCK.total}`)
