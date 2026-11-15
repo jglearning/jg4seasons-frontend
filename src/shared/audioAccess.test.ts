@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { setSessionExpiredHandler } from '../../api'
-import { server } from '../../mocks/node'
+import { setSessionExpiredHandler } from '../api'
+import { server } from '../mocks/node'
 import { renewAudioAccess } from './audioAccess'
 
 // 음원 403 뒤 refresh 한 번(BE ADR-28). refresh 자체가 401·403이면 세션이 끝난 것 —
