@@ -30,8 +30,10 @@ afterEach(() => {
   }
 })
 
+// server.close()를 부르지 않는다(#116). 닫으면 가로채기가 풀려, 마지막 테스트가 남긴 요청(화면이 내려가며
+// 다시 받는 쿼리, 끝난 뒤 시작된 요청)이 실제 localhost로 나간다 — 테스트는 통과해서 아무도 모른다.
+// 파일마다 새 작업자라 닫지 않아도 다음 파일에 남지 않는다. 지키는 것: realNetworkGuard.ts + lateRequest.test.ts
 afterAll(() => {
-  server.close()
   if (unhandledRequests.length > 0) {
     throw new Error(`목 없는 요청(테스트 종료 뒤 도착): ${unhandledRequests.splice(0).join(', ')}`)
   }
