@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { Play, Volume2 } from 'lucide-react'
+import { ChevronLeft, House, Play, Volume2 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { Button } from '../../shared/ui/Button'
 import { ProgressBar } from '../../shared/ui/ProgressBar'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
@@ -129,8 +129,10 @@ function WordsBody({ code, items }: { code: string; items: Word[] }) {
   )
 }
 
-// 머리: "단어 카드" + 보조 글(코드 · 단어 n개) + 오른쪽 진행 수, 아래 진행 바.
-// 불러오는 중·못 받음·단어 없음에서는 제목과 코드만(진행 수·바 없음)
+// 머리: 뒤로 + "단어 카드" + 보조 글(코드 · 단어 n개) + 오른쪽 진행 수 + 홈으로, 아래 진행 바.
+// 불러오는 중·못 받음·단어 없음에서는 제목과 코드만(진행 수·바 없음) — 뒤로·홈으로는 늘 있다.
+// 와이어프레임 S06_Words에는 뒤로·홈이 없다. 홈 화면 앱에서는 브라우저 뒤로 가기가 없어 나갈 길이
+// 마지막 카드의 "완료"뿐이라 S-05 머리 줄과 같은 버튼을 둔다(#126)
 function WordsHead({
   code,
   sub = code,
@@ -142,14 +144,29 @@ function WordsHead({
   counter?: string
   bar?: ReactNode
 }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // S-05와 같은 규칙: 앱 안에서 온 기록이 있으면 한 칸 뒤로, 주소로 바로 열었으면 회차 목록으로
+  function goBack() {
+    if (location.key !== 'default') navigate(-1)
+    else navigate('/lessons')
+  }
+
   return (
     <div className={styles.head}>
       <header className={styles.header}>
+        <button type="button" className={styles.iconButton} aria-label="뒤로" onClick={goBack}>
+          <ChevronLeft size={24} strokeWidth={2} aria-hidden />
+        </button>
         <div className={styles.headText}>
           <h1 className={styles.title}>단어 카드</h1>
           <p className={styles.sub}>{sub}</p>
         </div>
         {counter !== undefined && <span className={styles.counter}>{counter}</span>}
+        <Link to="/" className={styles.iconButton} aria-label="홈으로">
+          <House size={24} strokeWidth={2} aria-hidden />
+        </Link>
       </header>
       {bar}
     </div>

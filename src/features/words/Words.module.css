@@ -17,14 +17,32 @@
   margin-bottom: var(--space-1);
 }
 
+/* 뒤로 · 제목 · 진행 수 · 홈으로(#126). 아이콘(24)이 카드 좌우 끝과 맞게 버튼 안쪽 여백(12)만큼 밖으로.
+   간격 8 — 포커스 링(2 + 떨어짐 2)이 제목·진행 수 글자에 닿지 않게 */
 .header {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 -12px;
+}
+
+.iconButton {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 .headText {
+  flex: 1;
   min-width: 0;
 }
 
