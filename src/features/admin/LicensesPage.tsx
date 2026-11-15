@@ -25,7 +25,7 @@ export function LicensesPage() {
     },
     {
       key: 'seats',
-      header: '학생 수',
+      header: '학생 수 / 한도',
       cell: (l) =>
         l.usedSeats > l.seats ? (
           // 색만으로 구분하지 않는다 — 아이콘 + 글자

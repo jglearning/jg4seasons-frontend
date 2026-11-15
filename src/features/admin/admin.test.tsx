@@ -220,6 +220,12 @@ describe('A-05 교재 사용권', () => {
     await page()
 
     const table = await screen.findByRole('table', { name: '교재 사용권' })
+    // 마지막 칸은 "지금 학생 수 / 한도" — 어느 쪽이 한도인지 머리글에(#117)
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent),
+    ).toEqual(['교재', '기간', '상태', '남은 날', '학생 수 / 한도'])
     const rows = within(table).getAllByRole('row').slice(1)
     expect(rows.map((r) => [...r.querySelectorAll('td')].map((td) => td.textContent))).toEqual([
       ['민트 · 겨울 (L1-B1)', '2026-09-01 ~ 2026-11-30', '끝남', '—', '3 / 20'],
