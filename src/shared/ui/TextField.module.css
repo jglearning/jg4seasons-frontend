@@ -22,7 +22,7 @@
 
 .input {
   width: 100%;
-  border: var(--border-control) solid var(--line-strong);
+  border: var(--border-control) solid var(--control-line);
   border-radius: var(--radius-control);
   background: var(--white);
   padding: 0 var(--space-4);

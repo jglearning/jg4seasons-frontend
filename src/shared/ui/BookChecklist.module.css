@@ -71,7 +71,7 @@
   gap: 6px;
   min-height: var(--button-h-teacher);
   padding: 0 var(--space-3);
-  border: var(--border-control) solid var(--line-strong);
+  border: var(--border-control) solid var(--control-line);
   border-radius: var(--radius-card-teacher);
   background: var(--white);
   font-size: 14px;
