@@ -15,11 +15,26 @@ const SEASONS = ['겨울', '봄', '여름', '가을'] as const
  * 권 고르기 목록 — 백엔드 기준 데이터(V2__reference_data.sql)와 같은 17권: L1~L4는 시즌 4개, 블랙(K)은 B1 하나.
  * 권 목록 API가 없어 프론트에 둔다(백엔드에 GET /books 요청). 권 제목은 문법 이름이라 보이지 않는다(카피 규칙)
  */
-export const BOOK_OPTIONS: SelectOption[] = LEVELS.flatMap((level) =>
-  (level.code === 'K' ? SEASONS.slice(0, 1) : SEASONS).map((season, i) => {
+export type BookGroup = {
+  /** 레벨 코드 L1~L4·K */
+  level: string
+  /** 레벨 이름 — "그린" */
+  name: string
+  books: Array<{ code: string; season: string; label: string }>
+}
+
+/** 레벨별 권 묶음(레벨·권 순) — 여러 권 고르기(O-03)의 줄 */
+export const BOOK_GROUPS: BookGroup[] = LEVELS.map((level) => ({
+  level: level.code,
+  name: level.name,
+  books: (level.code === 'K' ? SEASONS.slice(0, 1) : SEASONS).map((season, i) => {
     const code = `${level.code}-B${i + 1}`
-    return { value: code, label: `${level.name} · ${season} (${code})` }
+    return { code, season, label: `${level.name} · ${season} (${code})` }
   }),
+}))
+
+export const BOOK_OPTIONS: SelectOption[] = BOOK_GROUPS.flatMap((group) =>
+  group.books.map((book) => ({ value: book.code, label: book.label })),
 )
 
 /** 반 응답의 권 표시 — "그린 · 겨울 (L2-B1)" */
