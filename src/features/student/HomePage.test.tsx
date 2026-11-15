@@ -1,12 +1,13 @@
 import { onlineManager } from '@tanstack/react-query'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { delay, http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
 import { buildHome } from '../../mocks/studentData'
+import { hold } from '../../test/hold'
 import { createTestQueryClient, renderRoutes } from '../../test/render'
 
 beforeEach(() => {
@@ -285,12 +286,8 @@ describe('S-03 홈', () => {
   })
 
   it('받는 중에는 빈 값으로 그리지 않는다("수업 없음"·"밀림 0" 같은 거짓 없음)', async () => {
-    server.use(
-      http.get('*/api/v1/student/home', async () => {
-        await delay('infinite')
-        return HttpResponse.json(buildHome())
-      }),
-    )
+    // 테스트가 끝나면 풀린다(끝나지 않는 요청을 남기지 않게, src/test/hold.ts)
+    server.use(http.get('*/api/v1/student/home', () => hold()))
     renderHome()
     // 가드(/me)를 지나 홈 화면 차례가 될 때까지
     await screen.findByRole('navigation', { name: '주 메뉴' })
