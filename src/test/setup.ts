@@ -33,6 +33,20 @@ afterEach(() => {
 // server.close()를 부르지 않는다(#116). 닫으면 가로채기가 풀려, 마지막 테스트가 남긴 요청(화면이 내려가며
 // 다시 받는 쿼리, 끝난 뒤 시작된 요청)이 실제 localhost로 나간다 — 테스트는 통과해서 아무도 모른다.
 // 파일마다 새 작업자라 닫지 않아도 다음 파일에 남지 않는다. 지키는 것: realNetworkGuard.ts + lateRequest.test.ts
+//
+// 닫지 않으면 jsdom이 내려간 뒤에도 남은 요청의 목 응답이 처리된다. 그때 @mswjs/interceptors의 XHR 쪽이
+// `initiator instanceof XMLHttpRequest`를 보는데, 그 전역은 jsdom과 함께 지워져 ReferenceError로 실행이 실패했다
+// (PR #121 CI 5회 중 1회). 전역 객체의 프로토타입에 같은 이름을 두면 jsdom 것이 지워진 뒤에도 이름이 풀린다
+// (jsdom이 있는 동안에는 jsdom 것이 가린다). 지키는 것: lateRequest.test.ts의 두 번째 테스트
+const globalFallback = Object.getPrototypeOf(globalThis) as object
+if (!Object.hasOwn(globalFallback, 'XMLHttpRequest')) {
+  Object.defineProperty(globalFallback, 'XMLHttpRequest', {
+    value: class XMLHttpRequestAfterTeardown {},
+    configurable: true,
+    writable: true,
+  })
+}
+
 afterAll(() => {
   if (unhandledRequests.length > 0) {
     throw new Error(`목 없는 요청(테스트 종료 뒤 도착): ${unhandledRequests.splice(0).join(', ')}`)
