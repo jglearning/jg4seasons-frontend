@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { renewAudioAccess } from './audioAccess'
+import { renewAudioAccess } from '../../shared/audioAccess'
 import type { FlushResult } from './flushApi'
 import {
   mediaTitle,
