@@ -25,7 +25,7 @@
   gap: var(--space-2);
   min-height: var(--button-h-teacher);
   padding: var(--space-2) var(--space-3);
-  border: var(--border-control) solid var(--line-strong);
+  border: var(--border-control) solid var(--control-line);
   border-radius: var(--radius-card-teacher);
   background: var(--white);
   font-size: 14px;

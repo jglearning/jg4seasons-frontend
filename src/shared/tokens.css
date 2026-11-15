@@ -10,6 +10,9 @@
   --faint: #9f9ea0; /* 14px 이상에서만 */
   --line: #e4e3e4;
   --line-strong: #cdcccd;
+  /* 교사·관리자·운영자 폼의 입력 칸·고르기 칩 테두리 — 흰 바탕 대비 3:1 이상(WCAG 1.4.11).
+     line-strong(1.6:1)은 학생 화면 값이라 그대로 두고 따로 둔다(#119) */
+  --control-line: #8e8d8f;
   --white: #ffffff;
   --cream: #fff1d3;
   --neutral-bg: #f4f4f5; /* 레벨을 모르는 학생 화면(S-01) 바탕 */

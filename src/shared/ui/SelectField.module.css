@@ -1,4 +1,4 @@
-/* TextField와 같은 규격(라벨 13px 500, line-strong 테두리, 포커스 ink 2px) */
+/* TextField와 같은 규격(라벨 13px 500, control-line 테두리, 포커스 ink 2px) */
 .field {
   display: flex;
   flex-direction: column;
@@ -12,7 +12,7 @@
 
 .select {
   width: 100%;
-  border: var(--border-control) solid var(--line-strong);
+  border: var(--border-control) solid var(--control-line);
   border-radius: var(--radius-control);
   background: var(--white);
   color: var(--ink);
