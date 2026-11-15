@@ -137,6 +137,48 @@ describe('S-06 단어 카드', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다음' })).not.toBeInTheDocument()
     expect(document.documentElement).toHaveAttribute('data-level', 'black')
+    // 나갈 길은 늘 있다(#126)
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
+  })
+
+  describe('머리 줄의 뒤로·홈으로(#126)', () => {
+    it('주소로 바로 열었으면 "뒤로"는 회차 목록으로 — 나가면서 본 카드 수를 저장한다', async () => {
+      const user = userEvent.setup()
+      const { router } = renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      await user.click(screen.getByRole('button', { name: '다음' }))
+
+      await user.click(screen.getByRole('button', { name: '뒤로' }))
+
+      expect(router.state.location.pathname).toBe('/lessons')
+      await vi.waitFor(() => expect(saved).toEqual([{ cardsViewed: 2 }]))
+    })
+
+    it('앱 안에서 왔으면 "뒤로"는 온 화면으로(설정 → 단어 카드 → 설정)', async () => {
+      const user = userEvent.setup()
+      const { router } = renderRoutes(routes, { initialEntries: ['/settings'] })
+      await screen.findByRole('heading', { level: 1 })
+      await act(() => router.navigate('/lessons/L2-B1-05/words'))
+      await counter(`1 / ${WORD_MOCK.total}`)
+
+      await user.click(screen.getByRole('button', { name: '뒤로' }))
+
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/settings'))
+    })
+
+    it('"홈으로"는 홈으로 — 나가면서 본 카드 수를 저장한다', async () => {
+      const user = userEvent.setup()
+      const { router } = renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      await user.click(screen.getByRole('button', { name: '다음' }))
+      await user.click(screen.getByRole('button', { name: '다음' }))
+
+      await user.click(screen.getByRole('link', { name: '홈으로' }))
+
+      expect(router.state.location.pathname).toBe('/')
+      await vi.waitFor(() => expect(saved).toEqual([{ cardsViewed: 3 }]))
+    })
   })
 
   it('음원 없는 단어(BE #38): 자동 재생 없이, 듣기 버튼은 누를 수 없다, 새 품사 표기', async () => {
@@ -432,5 +474,7 @@ describe('S-06 단어 카드', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('아직 열리지 않은 회차예요')
     expect(screen.getByRole('link', { name: '회차 목록으로' })).toHaveAttribute('href', '/lessons')
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
   })
 })
