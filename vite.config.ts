@@ -62,6 +62,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // 실행 동안 3000번에서 직접 듣고, 테스트가 실제 네트워크에 닿았으면 실행을 실패시킨다(#116)
+    globalSetup: ['./src/test/realNetworkGuard.ts'],
     globals: false,
     restoreMocks: true,
     unstubGlobals: true,

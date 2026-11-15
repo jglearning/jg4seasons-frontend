@@ -161,6 +161,9 @@ describe('S-07 설정', () => {
     } finally {
       onlineManager.setOnline(true)
     }
+    // 다시 온라인이 되면 멈춰 있던 홈 요청이 나간다. 그 응답까지 받고 끝낸다 —
+    // 남겨 두면 다음 테스트가 건 목(server.use)이 이 요청을 가져간다
+    expect(await screen.findByRole('region', { name: '내 정보' })).toBeInTheDocument()
   })
 
   it('홈 응답을 기다리는 중(온라인)에는 아무것도 그리지 않는다 — 내 정보가 뒤늦게 끼어들지 않게', async () => {

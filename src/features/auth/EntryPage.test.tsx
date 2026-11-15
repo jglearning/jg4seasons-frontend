@@ -7,6 +7,7 @@ import { routes } from '../../app/routes'
 import { AUTH_MOCK, resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
 import { buildHome } from '../../mocks/studentData'
+import { hold } from '../../test/hold'
 import { renderRoutes } from '../../test/render'
 import { readJoinCode, saveJoinCode } from './joinCode'
 import { expectSecretNowhere, watchConsole } from './testUtils'
@@ -914,7 +915,12 @@ describe('로그인된 기기에서 QR', () => {
   // 목에 잡히지 않고 실제 네트워크로 나가 흔들렸다 — PR #103, 11/14). 응답이 온 뒤 묻는 것은 다른 테스트가 본다
   it('확인이 1초를 넘으면 "확인하는 중"', async () => {
     setMockSession('student')
-    server.use(http.get('*/api/v1/me', () => hang()))
+    // 카드 QR이 같이 보내는 반 확인도 붙잡는다 — 기본 목의 지연(setTimeout)이 가짜 타이머에 걸린 채 테스트가 끝나면
+    // 그 요청은 끝나지 않는다
+    server.use(
+      http.get('*/api/v1/me', () => hang()),
+      http.post('*/api/v1/auth/code/verify', () => hold()),
+    )
     vi.useFakeTimers()
     renderAt(cardQr)
 
@@ -1034,7 +1040,8 @@ describe('로그인된 기기에서 QR', () => {
 // 11/13 리뷰 보강 — 옛 JoinPage·RejoinPage 테스트에서 빠졌던 것, 리뷰에서 찾은 빈칸
 describe('리뷰 보강', () => {
   const qr = (hash: string) => `/join#${hash}`
-  const never = () => new Promise<never>(() => {})
+  // 응답이 오지 않는 서버 — 테스트가 끝나면 풀린다(끝나지 않는 요청을 남기지 않게, src/test/hold.ts)
+  const never = () => hold()
 
   it('다시 들어오기에서 개인 코드가 틀려도 저장된 가입 코드는 남는다', async () => {
     saveJoinCode(AUTH_MOCK.joinCode)
