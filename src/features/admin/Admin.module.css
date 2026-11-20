@@ -126,6 +126,14 @@
   font-size: 14px;
 }
 
+/* 확인 글이 두 줄일 때(가입 코드 재발급) — 글이 한 줄을 다 쓰고 버튼은 그 아래 */
+.confirmText {
+  flex-basis: 100%;
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
 .mono {
   font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-code);

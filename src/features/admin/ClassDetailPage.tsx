@@ -98,7 +98,14 @@ function AccessCode({ data }: { data: AdminClass }) {
         <span className={styles.codeMeta}>발급 {koreaDateTime(data.codeIssuedAt)}</span>
         {confirming ? (
           <div className={styles.confirm} role="group" aria-label="재발급 확인">
-            <span>새 코드로 바꾸면 옛 코드로는 들어올 수 없음(이미 들어온 학생은 그대로)</span>
+            {/* 옛 코드는 인쇄물에도 있다 — 카드는 개인 코드를 발급한 직후에만 인쇄되므로 다시 뽑으려면 개인 코드 재발급(#137) */}
+            <p className={styles.confirmText}>
+              <span>새 코드로 바꾸면 옛 코드로는 들어올 수 없음(이미 들어온 학생은 그대로)</span>
+              <span>
+                인쇄한 학생 카드·반 QR도 못 쓰게 됨 — 카드는 학생 명단에서 개인 코드를 재발급해 다시
+                인쇄
+              </span>
+            </p>
             <Button size="teacher" onClick={() => void regenerate()} disabled={submit.pending}>
               {submit.pending ? '재발급 중' : '재발급'}
             </Button>
