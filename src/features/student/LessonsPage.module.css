@@ -54,6 +54,13 @@
   overflow-wrap: break-word;
 }
 
+/* 회차가 하나도 없을 때(#141) — 홈의 빈 상태 글과 같은 모양(16px muted). 판이 좌우로 넓어진 만큼 안으로 들여 머리 줄과 맞춘다 */
+.empty {
+  margin: var(--space-6) calc(var(--gutter-student) - 12px) 0;
+  font-size: 16px;
+  color: var(--muted);
+}
+
 /* 오늘 회차 카드: 흰 면, 반경 20, 1.5px line-strong */
 .featured {
   display: flex;

@@ -387,4 +387,42 @@ describe('S-04 회차 목록', () => {
       'page',
     )
   })
+
+  // 진도표가 아직 없는 반(#141) — 빈 화면이 불러오는 중과 구분되게
+  describe('회차가 하나도 없을 때', () => {
+    const EMPTY = '아직 수업이 없어요'
+
+    it('묶음이 없으면 "아직 수업이 없어요" — 머리 줄(범위 없이 완료·밀림)과 하단 탭은 그대로', async () => {
+      useLessons((lessons) => {
+        lessons.groups = []
+      })
+      renderLessons()
+
+      expect(await screen.findByText(EMPTY)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 1, name: '겨울 · Book 1' })).toBeInTheDocument()
+      expect(screen.getByText('완료 2 · 밀림 2')).toBeInTheDocument()
+      expect(screen.queryByRole('region')).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: '회차, 밀린 수업 2개' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      )
+    })
+
+    it('묶음은 있는데 회차가 하나도 없어도 같은 문구', async () => {
+      useLessons((lessons) => {
+        for (const g of lessons.groups) g.lessons = []
+      })
+      renderLessons()
+
+      expect(await screen.findByText(EMPTY)).toBeInTheDocument()
+    })
+
+    it('회차가 있으면 문구가 없다 — 불러오는 중에도 없다', async () => {
+      renderLessons()
+
+      expect(screen.queryByText(EMPTY)).not.toBeInTheDocument()
+      await group('겨울 1')
+      expect(screen.queryByText(EMPTY)).not.toBeInTheDocument()
+    })
+  })
 })

@@ -67,6 +67,11 @@ function featuredLesson(groups: Group[]): Lesson | undefined {
   )
 }
 
+/** 받은 회차가 하나도 없는가 — 묶음이 없거나 묶음마다 회차가 없다. 서버가 준 개수만 본다 */
+function noLessons(groups: Group[]): boolean {
+  return groups.every((g) => g.lessons.length === 0)
+}
+
 export function LessonsPage() {
   const home = useQuery(homeQuery)
   const classId = home.data?.class.id
@@ -120,10 +125,17 @@ export function LessonsPage() {
         <div className={styles.board}>
           {/* 이 목록 응답의 사용 상태로(홈 응답보다 새 값) */}
           <LicenseNotice status={lessons.data.class.licenseStatus} />
-          {featured !== undefined && <FeaturedCard lesson={featured} />}
-          {lessons.data.groups.map((group) => (
-            <LessonGroup key={group.module} group={group} onLocked={showLocked} />
-          ))}
+          {noLessons(lessons.data.groups) ? (
+            // 진도표가 아직 없는 반 — 빈 화면이 불러오는 중과 구분되게(#141)
+            <p className={styles.empty}>아직 수업이 없어요</p>
+          ) : (
+            <>
+              {featured !== undefined && <FeaturedCard lesson={featured} />}
+              {lessons.data.groups.map((group) => (
+                <LessonGroup key={group.module} group={group} onLocked={showLocked} />
+              ))}
+            </>
+          )}
         </div>
       )}
 
