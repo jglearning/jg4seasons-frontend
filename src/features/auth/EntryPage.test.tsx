@@ -1254,3 +1254,178 @@ describe('리뷰 보강', () => {
     expect(status).toHaveTextContent('')
   })
 })
+
+// 한도(#133, BE #57): 한도가 찬 IP는 맞는 코드로도 반 확인·로그인이 429이고 until(풀리는 시각)이 온다.
+// 남은 초의 계산은 rateLimitWait.test.ts — 여기서는 진짜 시계로 짧게(1.5초) 기다려 화면 동작만 본다
+describe('한도에 걸림(429 + until)', () => {
+  const qr = (hash: string) => `/join#${hash}`
+  const WAIT_MS = 1_500
+  const WAITING = /^\d+초 뒤에 다시 들어갈 수 있어요$/
+  const limited = () =>
+    HttpResponse.json(
+      {
+        type: '/problems/rate-limited',
+        title: '잠시 후 다시 시도해 주세요',
+        status: 429,
+        code: 'RATE_LIMITED',
+        detail: '잠시 후 다시 시도해 주세요',
+        requestId: '0000000000000000',
+        until: new Date(Date.now() + WAIT_MS).toISOString(),
+      },
+      { status: 429, headers: { 'Content-Type': 'application/problem+json' } },
+    )
+  const waitingLine = () => screen.findByText(WAITING)
+  const waitOver = () =>
+    waitFor(() => expect(screen.queryByText(WAITING)).not.toBeInTheDocument(), {
+      timeout: WAIT_MS + 2_000,
+    })
+  /** 대기가 끝난 뒤에야 오는 오류 글 — 기본 1초보다 오래 기다린다 */
+  const alertSaysAfterWait = (text: string) =>
+    waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(text), {
+      timeout: WAIT_MS + 2_000,
+    })
+
+  it('로그인이 429면 남은 초를 보이고 그동안 개인 코드를 받지 않는다 — 풀리면 다시 칠 수 있고 들어간다', async () => {
+    server.use(http.post('*/api/v1/auth/student/login', limited, { once: true }))
+    renderAt()
+    const user = userEvent.setup()
+    await user.type(joinInput(), AUTH_MOCK.joinCode)
+    await classCard()
+
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+
+    // 학생 잘못이 아니다 — 오류(alert)가 아니라 안내(status) 줄, 칸은 빨갛지 않다
+    const line = await waitingLine()
+    expect(line.closest('[role="status"]')).not.toBeNull()
+    expect(screen.getByRole('alert')).toHaveTextContent('')
+    expect(pinInput()).not.toHaveAttribute('aria-invalid', 'true')
+    // 낭독기에는 초가 바뀔 때마다 읽히지 않게: 초가 든 글은 감추고 바뀌지 않는 글을 따로 둔다
+    expect(line).toHaveAttribute('aria-hidden', 'true')
+    expect(
+      within(line.closest('[role="status"]') as HTMLElement).getByText(
+        '잠시 뒤에 다시 들어갈 수 있어요',
+      ),
+    ).toBeInTheDocument()
+    // 반 카드는 그대로
+    expect(screen.getByText('Green 그린')).toBeInTheDocument()
+
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+    expect(pinInput()).toHaveValue('')
+    await settle()
+    expect(loginCalls).toBe(1)
+
+    await waitOver()
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+    expect(await home()).toBeInTheDocument()
+    expect(loginCalls).toBe(2)
+  })
+
+  it('반 확인이 429면 회색 카드 + 남은 초, 로그인을 보내지 않는다 — 풀리면 한 번 다시 확인해 반 카드', async () => {
+    server.use(http.post('*/api/v1/auth/code/verify', limited, { once: true }))
+    renderAt()
+    const user = userEvent.setup()
+
+    await user.type(joinInput(), AUTH_MOCK.joinCode)
+
+    expect(await screen.findByText('G7KM 2XP4')).toBeInTheDocument()
+    expect(await waitingLine()).toBeInTheDocument()
+    expect(
+      screen.queryByText('지금은 반을 확인하지 못했어요. 그대로 들어가도 돼요'),
+    ).not.toBeInTheDocument()
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+    await settle()
+    expect(loginCalls).toBe(0)
+    expect(verifyCount).toBe(1)
+
+    await waitOver()
+    expect(await classCard()).toBeInTheDocument()
+    expect(screen.queryByText('G7KM 2XP4')).not.toBeInTheDocument()
+    expect(verifyCount).toBe(2)
+
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+    expect(await home()).toBeInTheDocument()
+  })
+
+  it('풀린 뒤 다시 확인했더니 없는 코드면 ①로 돌아가 "없는 코드"', async () => {
+    server.use(http.post('*/api/v1/auth/code/verify', limited, { once: true }))
+    renderAt()
+    const user = userEvent.setup()
+
+    await user.type(joinInput(), 'AAAAAAAA')
+    expect(await screen.findByText('AAAA AAAA')).toBeInTheDocument()
+    await waitingLine()
+
+    await alertSaysAfterWait('없는 코드예요. 선생님께 물어봐요')
+    expect(joinInput()).toHaveValue('AAAAAAAA')
+    expect(verifyCount).toBe(2)
+  }, 10_000)
+
+  it('카드 QR로 열었는데 반 확인이 429면 기다리는 동안 "들어가기"가 눌리지 않는다', async () => {
+    server.use(http.post('*/api/v1/auth/code/verify', limited, { once: true }))
+    renderAt(qr(`c=${AUTH_MOCK.joinCode}&p=${AUTH_MOCK.personalCode}`))
+    const user = userEvent.setup()
+
+    await waitingLine()
+    const enter = within(pinStep() as HTMLElement).getByRole('button', { name: '들어가기' })
+    expect(enter).toBeDisabled()
+    await user.click(enter)
+    await settle()
+    expect(loginCalls).toBe(0)
+
+    await waitOver()
+    await classCard()
+    await user.click(within(pinStep() as HTMLElement).getByRole('button', { name: '들어가기' }))
+    expect(await home()).toBeInTheDocument()
+  })
+
+  it('기다리는 동안 다른 가입 코드로 바꿔도 풀릴 때까지 확인을 보내지 않고 ①에 남은 초를 보인다', async () => {
+    server.use(http.post('*/api/v1/auth/student/login', limited, { once: true }))
+    renderAt()
+    const user = userEvent.setup()
+    await user.type(joinInput(), AUTH_MOCK.joinCode)
+    await classCard()
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+    await waitingLine()
+
+    await user.click(screen.getByRole('button', { name: '다른 반 코드로 바꾸기' }))
+    await user.type(joinInput(), 'AAAAAAAA')
+    await settle()
+
+    expect(verifyCount).toBe(1)
+    expect(within(joinStep() as HTMLElement).getByText(WAITING)).toBeInTheDocument()
+
+    await alertSaysAfterWait('없는 코드예요. 선생님께 물어봐요')
+    expect(verifyCount).toBe(2)
+  }, 10_000)
+
+  it('until이 없는 429는 기다리지 않는다 — 서버 문구를 보이고 바로 다시 칠 수 있다', async () => {
+    server.use(
+      http.post(
+        '*/api/v1/auth/student/login',
+        () =>
+          HttpResponse.json(
+            {
+              type: '/problems/rate-limited',
+              title: '잠시 후 다시 시도해 주세요',
+              status: 429,
+              code: 'RATE_LIMITED',
+              requestId: '0000000000000000',
+            },
+            { status: 429, headers: { 'Content-Type': 'application/problem+json' } },
+          ),
+        { once: true },
+      ),
+    )
+    renderAt()
+    const user = userEvent.setup()
+    await user.type(joinInput(), AUTH_MOCK.joinCode)
+    await classCard()
+
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+    await alertSays('잠시 후 다시 시도해 주세요')
+    expect(screen.queryByText(WAITING)).not.toBeInTheDocument()
+
+    await user.type(pinInput(), AUTH_MOCK.personalCode)
+    expect(await home()).toBeInTheDocument()
+  })
+})

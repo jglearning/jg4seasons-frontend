@@ -279,6 +279,19 @@
   color: var(--bad);
 }
 
+/* 낭독기만 읽는 글(한도 대기 — 초가 바뀌는 글 대신) */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* 카드 QR로 채워졌을 때만 — 4칸 아래 24 */
 .enter {
   margin-top: 24px;
