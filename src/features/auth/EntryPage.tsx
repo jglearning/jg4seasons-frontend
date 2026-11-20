@@ -21,6 +21,7 @@ import {
 import { entryReason } from './entry'
 import { JOIN_CODE_LENGTH, clearJoinCode, readJoinCode, saveJoinCode } from './joinCode'
 import { STUDENT_COPY } from './studentCopy'
+import { rateLimitDeadline, secondsLeft } from './rateLimitWait'
 import { useMountedRef } from './useMountedRef'
 import { useVisualViewport } from './useVisualViewport'
 import styles from './EntryPage.module.css'
@@ -28,8 +29,11 @@ import styles from './EntryPage.module.css'
 // 들어가기(S-01·S-02를 화면 하나로, 지시문 §6.1 + 11/13 동섭 답). 한 번에 하나, 설명 글 없음.
 //   ① join  가입 코드 8칸. 8자리가 차면 반을 확인(POST /auth/code/verify)
 //   ② pin   반 카드 + 개인 코드 4칸. 4자리가 차면 바로 로그인(카드 QR로 채워졌을 때만 "들어가기" 버튼 — BE ADR 0033)
-// 반 확인 결과: 맞음 → 반 카드(레벨 색) / 404 INVALID_CODE → ③ "없는 코드" / 429·네트워크·5xx → 회색 카드로 ②(로그인은 된다).
-// 같은 코드로는 확인을 다시 부르지 않는다(IP당 1분 10회 한도 — 교실 공인 IP 하나에서 여럿이 들어온다).
+// 반 확인 결과: 맞음 → 반 카드(레벨 색) / 404 INVALID_CODE → ③ "없는 코드" / 429·네트워크·5xx → 회색 카드로 ②.
+// 같은 코드로는 확인을 다시 부르지 않는다(없는 코드는 IP당 1분 10회까지 — 교실 공인 IP 하나에서 여럿이 들어온다).
+// 한도(#133, BE #57): 한도가 찬 IP는 맞는 코드로도 반 확인·로그인이 429다(회색 카드에서 로그인이 된다고 가정하지 않는다).
+// 응답의 until까지 남은 초를 안내 줄에 보이고 그동안 확인·로그인을 보내지 않는다. 풀리면 429였던 반 확인을 한 번 다시 한다.
+// until이 없는 429는 기다리지 않는다(rateLimitWait.ts).
 // 시작: 주소에 QR 가입 코드 → ②, 기기에 저장된 가입 코드 → ②(다시 들어오기), 그 밖 → ①.
 // 아이폰은 사용자 동작 밖의 focus()로 키보드를 띄우지 않는다 → 8번째 글자 입력 이벤트 안에서 개인 코드 입력으로 포커스를 옮긴다.
 // 그래서 두 입력은 늘 DOM에 있고, 지금 단계가 아닌 쪽은 화면 밖(투명·탭 정지 없음)에 둔다. ②가 나타나기 전 숫자는 받지 않는다.
@@ -41,13 +45,20 @@ import styles from './EntryPage.module.css'
 
 type ClassInfo = Awaited<ReturnType<typeof verifyJoinCode>>['class']
 type ClassResult =
-  { status: 'ok'; klass: ClassInfo } | { status: 'unknown' } | { status: 'invalid' }
+  | { status: 'ok'; klass: ClassInfo }
+  /** waitUntil: 한도(429)로 확인하지 못했을 때 풀리는 시각 — 그때 한 번 다시 확인한다 */
+  | { status: 'unknown'; waitUntil?: number }
+  | { status: 'invalid' }
+/** 한도 대기: 끝 시각(epoch ms)과 화면에 보이는 남은 초 */
+type Wait = { until: number; left: number }
 type Stage = 'join' | 'pin'
 type Message = { tone: 'error' | 'muted'; text: ReactNode }
 
 const PIN_LENGTH = 4
 const SLOW_CHECK_MS = 1000
 const LEAVE_MS = 160
+/** 한도 대기의 남은 초를 다시 재는 간격 */
+const WAIT_TICK_MS = 250
 
 function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function'
@@ -141,6 +152,9 @@ export function EntryPage() {
   const [results, setResults] = useState<Record<string, ClassResult>>({})
   const [joinMessage, setJoinMessage] = useState<Message>()
   const [pinError, setPinError] = useState<ReactNode>()
+  // 한도(429 + until)에 걸려 기다리는 중 — 그동안 확인·로그인을 보내지 않는다
+  const [wait, setWait] = useState<Wait>()
+  const waiting = wait !== undefined
   const [submitting, setSubmitting] = useState(false)
   const [touched, setTouched] = useState(false)
   const [slowFor, setSlowFor] = useState<string>()
@@ -154,6 +168,8 @@ export function EntryPage() {
   const joinRef = useRef<HTMLInputElement>(null)
   const pinRef = useRef<HTMLInputElement>(null)
   const inflight = useRef(new Set<string>())
+  // 한도로 확인하지 못한 가입 코드 — 대기가 끝나면 이 코드만 한 번 다시 확인한다
+  const recheckCode = useRef<string>(undefined)
   const sending = useRef(false)
   // 로그아웃 요청 번호 — 같은 렌더 안 두 번 누름을 막고, 같은 탭에 새 QR이 들어온 뒤 도착한 이전 결과는 화면에 쓰지 않는다
   const logoutRun = useRef(0)
@@ -242,20 +258,26 @@ export function EntryPage() {
     )
   }, [location, navigate])
 
-  // 8자리 코드는 한 번만 확인한다(결과는 이 화면에 남겨 "바꾸기" 뒤 같은 코드를 다시 쳐도 부르지 않는다)
+  // 8자리 코드는 한 번만 확인한다(결과는 이 화면에 남겨 "바꾸기" 뒤 같은 코드를 다시 쳐도 부르지 않는다).
+  // 한도 대기 중에는 보내지 않고, 대기가 끝나면 한도로 확인하지 못한 코드만 한 번 다시 확인한다
   useEffect(() => {
-    if (!complete || results[joinCode] !== undefined || inflight.current.has(joinCode)) return
+    if (!complete || waiting || inflight.current.has(joinCode)) return
+    if (results[joinCode] !== undefined && recheckCode.current !== joinCode) return
+    if (recheckCode.current === joinCode) recheckCode.current = undefined
     const code = joinCode
     inflight.current.add(code)
     verifyJoinCode(code)
       .then(
-        (data) => ({ status: 'ok', klass: data.class }) as const,
-        (error: unknown) => {
+        (data): ClassResult => ({ status: 'ok', klass: data.class }),
+        (error: unknown): ClassResult => {
           if (error instanceof ApiError && error.code === 'INVALID_CODE') {
             // 반이 없어졌거나 가입 코드가 재발급됐다 → 기기의 저장값이면 지운다
             if (readJoinCode() === code) clearJoinCode()
-            return { status: 'invalid' } as const
+            return { status: 'invalid' }
           }
+          // 한도: 풀리는 시각까지 기다렸다가 다시 확인한다(기록할 오류가 아니다)
+          const waitUntil = rateLimitDeadline(error, Date.now())
+          if (waitUntil !== undefined) return { status: 'unknown', waitUntil }
           // 화면은 회색 카드로 넘어가지만, 배포 설정 실수(HTML 200·5xx·없는 라우트)가 묻히지 않게 남긴다. 가입 코드 값은 남기지 않는다
           if (error instanceof ApiError) {
             console.error('[api] verify', {
@@ -266,14 +288,34 @@ export function EntryPage() {
           } else {
             console.error('[api] verify', error)
           }
-          return { status: 'unknown' } as const
+          return { status: 'unknown' }
         },
       )
-      .then((next: ClassResult) => {
+      .then((next) => {
         inflight.current.delete(code)
-        if (mounted.current) setResults((prev) => ({ ...prev, [code]: next }))
+        if (!mounted.current) return
+        setResults((prev) => ({ ...prev, [code]: next }))
+        if (next.status === 'unknown' && next.waitUntil !== undefined) {
+          recheckCode.current = code
+          setWait({ until: next.waitUntil, left: secondsLeft(next.waitUntil, Date.now()) })
+        }
       })
-  }, [complete, joinCode, results, mounted])
+  }, [complete, joinCode, results, mounted, waiting])
+
+  // 한도 대기: 남은 초를 다시 재고, 끝나면 대기를 푼다(위 effect가 한도로 못 한 확인을 다시 보낸다)
+  const waitUntil = wait?.until
+  useEffect(() => {
+    if (waitUntil === undefined) return
+    const timer = setInterval(() => {
+      const left = secondsLeft(waitUntil, Date.now())
+      setWait((prev) => {
+        if (prev === undefined || prev.until !== waitUntil) return prev
+        if (left === 0) return undefined
+        return prev.left === left ? prev : { until: waitUntil, left }
+      })
+    }, WAIT_TICK_MS)
+    return () => clearInterval(timer)
+  }, [waitUntil])
 
   // ① 묶음이 다 사라지면 ②로
   useEffect(() => {
@@ -350,7 +392,7 @@ export function EntryPage() {
   }
 
   function changePin(next: string) {
-    if (hold || submitting || !pinReady) return
+    if (hold || submitting || !pinReady || waiting) return
     setTouched(true)
     setPinError(undefined)
     if (cardPin || next.length < PIN_LENGTH) {
@@ -362,7 +404,7 @@ export function EntryPage() {
 
   async function submit(personal: string) {
     // 같은 렌더 안의 두 번째 누름(버튼 두 번 누르기)도 막는다 — state는 다음 렌더에야 바뀐다
-    if (sending.current || personal.length !== PIN_LENGTH) return
+    if (sending.current || waiting || personal.length !== PIN_LENGTH) return
     sending.current = true
     const code = joinCode
     const fromCard = cardPin
@@ -375,9 +417,16 @@ export function EntryPage() {
       await request
     } catch (error) {
       sending.current = false
-      setPinError(
-        isTimeout(error) ? NETWORK_MESSAGE : errorMessage(error, loginCopy(result, fromCard)),
-      )
+      // 한도면 오류 문구 대신 풀리는 시각까지 남은 초를 보이고 기다린다
+      const until = rateLimitDeadline(error, Date.now())
+      if (until !== undefined) {
+        setPinError(undefined)
+        setWait({ until, left: secondsLeft(until, Date.now()) })
+      } else {
+        setPinError(
+          isTimeout(error) ? NETWORK_MESSAGE : errorMessage(error, loginCopy(result, fromCard)),
+        )
+      }
       setSubmitting(false)
       // 카드 QR "들어가기"를 누른 경우 버튼이 사라져 포커스를 잃는다 — 이제 직접 칠 개인 코드 입력으로
       pinRef.current?.focus()
@@ -467,11 +516,19 @@ export function EntryPage() {
 
   const slow = checking && slowFor === joinCode
   let joinLine: Message | undefined = joinMessage ?? qrNotice ?? sessionNotice
+  // 한도 대기 — 학생 잘못이 아니라 오류가 아닌 안내(muted)로
+  const waitLine: Message | undefined = wait && {
+    tone: 'muted',
+    text: <WaitText left={wait.left} />,
+  }
   if (stage === 'join' && result?.status === 'invalid') joinLine = { tone: 'error', text: notFound }
+  // 기다리는 동안 친 새 가입 코드는 풀린 뒤에 확인한다
+  else if (stage === 'join' && waitLine && complete && result === undefined) joinLine = waitLine
   else if (stage === 'join' && slow) joinLine = { tone: 'muted', text: CHECKING }
 
   let pinLine: Message | undefined
-  if (pinError !== undefined) pinLine = { tone: 'error', text: pinError }
+  if (waitLine) pinLine = waitLine
+  else if (pinError !== undefined) pinLine = { tone: 'error', text: pinError }
   else if (submitting) pinLine = { tone: 'muted', text: '들어가는 중' }
   else if (qrNotice) pinLine = qrNotice
   else if (result?.status === 'unknown') pinLine = { tone: 'muted', text: CLASS_UNKNOWN }
@@ -608,7 +665,7 @@ export function EntryPage() {
               <Button
                 block
                 className={styles.enter}
-                disabled={pin.length !== PIN_LENGTH}
+                disabled={pin.length !== PIN_LENGTH || waiting}
                 onClick={() => void submit(pin)}
               >
                 들어가기
@@ -714,6 +771,19 @@ function SwitchAsk({
       </div>
       <MessageLine id="ask-line" message={error ? { tone: 'error', text: error } : undefined} />
     </section>
+  )
+}
+
+/**
+ * 한도 대기 안내. 초가 든 글은 낭독기에서 감추고 바뀌지 않는 글을 따로 둔다 — status 영역의 글이 1초마다 바뀌면
+ * 낭독기가 매번 읽는다
+ */
+function WaitText({ left }: { left: number }) {
+  return (
+    <>
+      <span aria-hidden="true">{left}초 뒤에 다시 들어갈 수 있어요</span>
+      <span className={styles.srOnly}>잠시 뒤에 다시 들어갈 수 있어요</span>
+    </>
   )
 }
 

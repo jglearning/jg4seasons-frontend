@@ -20,8 +20,15 @@ export const AUTH_MOCK = {
   personalCode: '3817',
   /** 올바른 가입 코드와 함께면 423 LOCKED */
   lockedPersonalCode: '0000',
-  /** 이 가입 코드는 verify 429 */
+  /** 이 가입 코드는 verify 429(until 없음 — 드문 경우) */
   rateLimitedJoinCode: 'ZZZZZZZZ',
+  /**
+   * 한도 창(BE #57): 이 가입 코드를 확인하거나 이 개인 코드로 로그인하면 limitMs 동안 반 확인·학생 로그인이
+   * 코드와 무관하게 429 + until. 창은 값마다 한 번만 열린다 — 풀린 뒤 이 가입 코드는 목 반의 코드처럼 통한다
+   */
+  limitedJoinCode: 'WAIT2222',
+  limitedPersonalCode: '4290',
+  limitMs: 20_000,
   /** 교사·관리자 비밀번호(백엔드 local 시드와 같은 값) */
   staffPassword: 'local-teacher-1234',
   /** 이 아이디는 423 LOCKED(교사 비밀번호 5회 실패) */
@@ -45,10 +52,33 @@ const STAFF: Record<string, MockUser> = {
 const MOCK_ACADEMY_ID = 1
 
 let session: MockUser | null = null
+/** 한도 창이 풀리는 시각(epoch ms)과 이미 창을 연 값 */
+let limitedUntil = 0
+const limitOpened = new Set<string>()
 
 export function resetAuthMock() {
   session = null
+  limitedUntil = 0
+  limitOpened.clear()
 }
+
+function openLimitOnce(trigger: string) {
+  if (limitOpened.has(trigger)) return
+  limitOpened.add(trigger)
+  limitedUntil = Date.now() + AUTH_MOCK.limitMs
+}
+
+/** 한도 창이 열려 있으면 429 + until, 아니면 undefined */
+function limited(request: Request) {
+  if (Date.now() >= limitedUntil) return undefined
+  return problem(request, 429, 'RATE_LIMITED', '잠시 후 다시 시도해 주세요', {
+    detail: '잠시 후 다시 시도해 주세요',
+    until: new Date(limitedUntil).toISOString(),
+  })
+}
+
+const isClassCode = (code: unknown) =>
+  code === AUTH_MOCK.joinCode || code === AUTH_MOCK.limitedJoinCode
 
 /** 테스트에서 로그인한 상태로 시작할 때 */
 export function setMockSession(role: MockRole) {
@@ -91,7 +121,10 @@ const authHandlers: AnyHandler[] = [
         detail: '1분 뒤에 다시 시도해 주세요',
       })
     }
-    if (code !== AUTH_MOCK.joinCode) {
+    if (code === AUTH_MOCK.limitedJoinCode) openLimitOnce('join')
+    const blocked = limited(request)
+    if (blocked) return blocked
+    if (!isClassCode(code)) {
       return problem(request, 404, 'INVALID_CODE', '가입 코드를 찾을 수 없어요')
     }
     return HttpResponse.json<Schemas['CodeVerifyResponse']>({
@@ -109,13 +142,16 @@ const authHandlers: AnyHandler[] = [
   http.post('*/api/v1/auth/student/login', async ({ request }) => {
     await delay()
     const { code, personalCode } = await readJson(request)
+    if (personalCode === AUTH_MOCK.limitedPersonalCode) openLimitOnce('pin')
+    const blocked = limited(request)
+    if (blocked) return blocked
     if (code === AUTH_MOCK.joinCode && personalCode === AUTH_MOCK.lockedPersonalCode) {
       return problem(request, 423, 'LOCKED', AUTH_MOCK.lockedTitle, {
         detail: AUTH_MOCK.lockedDetail,
         until: AUTH_MOCK.lockedUntil,
       })
     }
-    if (code !== AUTH_MOCK.joinCode || personalCode !== AUTH_MOCK.personalCode) {
+    if (!isClassCode(code) || personalCode !== AUTH_MOCK.personalCode) {
       return problem(request, 401, 'INVALID_CREDENTIALS', '가입 코드 또는 개인 코드가 맞지 않아요')
     }
     session = STUDENT
