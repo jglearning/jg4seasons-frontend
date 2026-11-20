@@ -84,7 +84,10 @@ export function LessonPage() {
   if (lesson.data === undefined) {
     return (
       <StudentLayout>
-        <LessonLoadState query={lesson} />
+        <div className={styles.screen}>
+          <LessonHead title={code} />
+          <LessonLoadState query={lesson} />
+        </div>
       </StudentLayout>
     )
   }
@@ -119,8 +122,6 @@ const REVIEW_ID = 'review-sentences'
 
 function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   const player = usePlayer()
-  const navigate = useNavigate()
-  const location = useLocation()
   const studentName = useQuery(meQuery).data?.name
   const [selectedNo, setSelectedNo] = useState(() => firstUnfinished(data))
   const passage = data.passages.find((p) => p.no === selectedNo) ?? data.passages[0]
@@ -200,12 +201,6 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     else setNudge('next')
   }
 
-  /** 들어온 화면으로. 주소로 바로 들어와 돌아갈 곳이 없으면(첫 위치의 key는 "default") 회차 목록 */
-  function goBack() {
-    if (location.key !== 'default') navigate(-1)
-    else navigate('/lessons')
-  }
-
   const wordsTo = `/lessons/${code}/words`
   const durationMs = onThisTrack ? player.durationMs : (speed?.durationMs ?? 0)
   const voiceOptions = VOICE_ORDER.filter((v) => passage.voices.some((p) => p.variant === v)).map(
@@ -216,21 +211,11 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   return (
     <StudentLayout levelCode={data.level.code}>
       <div className={styles.screen}>
-        <header className={styles.header}>
-          <button type="button" className={styles.iconButton} aria-label="뒤로" onClick={goBack}>
-            <ChevronLeft size={24} strokeWidth={2} aria-hidden />
-          </button>
-          <div className={styles.headText}>
-            <h1 className={styles.title}>{data.lesson.title}</h1>
-            <p className={styles.summary}>
-              지문 듣기 {data.completion.passagesDone} / {data.completion.passagesTotal}
-            </p>
-          </div>
-          {studentName && <span className={styles.name}>{studentName}</span>}
-          <Link to="/" className={styles.iconButton} aria-label="홈으로">
-            <House size={24} strokeWidth={2} aria-hidden />
-          </Link>
-        </header>
+        <LessonHead
+          title={data.lesson.title}
+          summary={`지문 듣기 ${data.completion.passagesDone} / ${data.completion.passagesTotal}`}
+          name={studentName}
+        />
 
         <PassageTabs
           tabs={data.passages.map((p) => ({ no: p.no, done: passageDone(p) }))}
@@ -424,6 +409,37 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
         }}
       />
     </StudentLayout>
+  )
+}
+
+/**
+ * 머리 줄: 뒤로 + 제목(+ 보조 글) + 이름 + 홈으로. 회차를 받기 전(불러오는 중·못 받음)에도 그린다 —
+ * 홈 화면 앱에는 브라우저 뒤로 가기가 없어 나갈 길이 없다(#139). 그때 제목 자리는 회차 코드(이름은 서버 값)
+ */
+function LessonHead({ title, summary, name }: { title: string; summary?: string; name?: string }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  /** 들어온 화면으로. 주소로 바로 들어와 돌아갈 곳이 없으면(첫 위치의 key는 "default") 회차 목록 */
+  function goBack() {
+    if (location.key !== 'default') void navigate(-1)
+    else void navigate('/lessons')
+  }
+
+  return (
+    <header className={styles.header}>
+      <button type="button" className={styles.iconButton} aria-label="뒤로" onClick={goBack}>
+        <ChevronLeft size={24} strokeWidth={2} aria-hidden />
+      </button>
+      <div className={styles.headText}>
+        <h1 className={styles.title}>{title}</h1>
+        {summary !== undefined && <p className={styles.summary}>{summary}</p>}
+      </div>
+      {name && <span className={styles.name}>{name}</span>}
+      <Link to="/" className={styles.iconButton} aria-label="홈으로">
+        <House size={24} strokeWidth={2} aria-hidden />
+      </Link>
+    </header>
   )
 }
 

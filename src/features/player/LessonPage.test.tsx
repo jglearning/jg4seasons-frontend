@@ -6,6 +6,7 @@ import { routes } from '../../app/routes'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { buildLessonDetail, LESSON_MOCK, resetLessonMock } from '../../mocks/lessonData'
 import { server } from '../../mocks/node'
+import { hold } from '../../test/hold'
 import { renderRoutes } from '../../test/render'
 import { formatHeardAmount } from './heardAmount'
 
@@ -270,9 +271,62 @@ describe('S-05 화면', () => {
 
     // 5xx는 운영 정책대로 한 번 다시 보낸 뒤 오류를 보인다
     const retry = await screen.findByRole('button', { name: '다시 시도' }, { timeout: 3000 })
+    // 5xx에서도 나갈 길이 있다(#139)
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
     fail = false
     await user.click(retry)
     expect(await heading()).toBeInTheDocument()
+  })
+
+  // 회차를 받기 전에도 나갈 길(#139) — 홈 화면 앱에는 브라우저 뒤로 가기가 없다
+  describe('받기 전의 머리 줄(뒤로·홈)', () => {
+    it('불러오는 중: 뒤로·홈으로와 회차 코드만 — 회차 이름·지문 수·학생 이름은 아직 없다', async () => {
+      server.use(http.get('*/api/v1/student/lessons/:code', () => hold()))
+      renderLesson()
+
+      expect(await screen.findByRole('button', { name: '뒤로' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
+      expect(screen.getByRole('heading', { level: 1, name: LESSON_MOCK.code })).toBeInTheDocument()
+      expect(screen.queryByText(/지문 듣기/)).not.toBeInTheDocument()
+      expect(screen.queryByText('김민준')).not.toBeInTheDocument()
+    })
+
+    it('불러오는 중의 뒤로: 주소로 바로 열었으면 회차 목록으로, 앱 안에서 왔으면 온 화면으로', async () => {
+      server.use(http.get('*/api/v1/student/lessons/:code', () => hold()))
+      const user = userEvent.setup()
+      const direct = renderLesson()
+      await user.click(await screen.findByRole('button', { name: '뒤로' }))
+      expect(direct.router.state.location.pathname).toBe('/lessons')
+      direct.unmount()
+
+      const fromSettings = renderRoutes(routes, {
+        initialEntries: ['/settings', `/lessons/${LESSON_MOCK.code}`],
+      })
+      await user.click(await screen.findByRole('button', { name: '뒤로' }))
+      expect(fromSettings.router.state.location.pathname).toBe('/settings')
+    })
+
+    it('잠긴 회차(423): 서버 문구·"회차 목록으로"와 함께 뒤로·홈으로', async () => {
+      renderLesson('L2-B1-08')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('아직 열리지 않은 회차예요')
+      expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
+      expect(screen.getByRole('heading', { level: 1, name: 'L2-B1-08' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: '회차 목록으로' })).toBeInTheDocument()
+    })
+
+    it('받은 뒤의 머리 줄은 그대로 — 회차 이름·지문 수, 코드는 제목이 아니다', async () => {
+      renderLesson()
+
+      expect(await heading()).toBeInTheDocument()
+      expect(screen.getByText(/지문 듣기 \d+ \/ \d+/)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('heading', { level: 1, name: LESSON_MOCK.code }),
+      ).not.toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: '뒤로' })).toHaveLength(1)
+    })
   })
 })
 
