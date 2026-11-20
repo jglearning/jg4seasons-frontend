@@ -71,3 +71,8 @@ export default defineConfig([
   },
 ])
 ```
+
+## 개발 환경
+
+- Node는 `.nvmrc`의 버전(패치까지 고정)을 쓴다. CI도 같은 파일을 읽는다(`actions/setup-node`의 `node-version-file`).
+- Node를 올릴 때: 로컬에 새 버전 설치 → `.nvmrc` 수정 → PR CI 통과 확인.
