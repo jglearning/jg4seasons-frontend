@@ -42,7 +42,7 @@ const playedUrls = () =>
   play.mock.contexts.map((element: unknown) => (element as HTMLAudioElement).getAttribute('src'))
 const card = () => screen.getByRole('region', { name: '단어 카드' })
 /** 종이(위·아래 자리에 따라 이름이 바뀐다) */
-const sheet = () => screen.getByRole('button', { name: /^(올려서 뜻 보기|내려서 단어 보기)$/ })
+const sheet = () => screen.getByRole('button', { name: /^(눌러서 뜻 보기|눌러서 단어 보기)$/ })
 const meaning = (text: string) => screen.getByText(text)
 const word = (text: string) => screen.getByText(text)
 /** 종이가 아래 자리에서 올라간 거리 */
@@ -71,7 +71,7 @@ function release() {
 
 /** 뜻이 보이는(종이가 위) 상태인가 — 단어는 가려지고 뜻은 읽힌다 */
 function expectUp(english: string, korean: string) {
-  expect(sheet()).toHaveAccessibleName('내려서 단어 보기')
+  expect(sheet()).toHaveAccessibleName('눌러서 단어 보기')
   expect(sheet()).toHaveAttribute('aria-expanded', 'true')
   expect(meaning(korean)).not.toHaveAttribute('aria-hidden')
   expect(word(english).closest('[aria-hidden="true"]')).not.toBeNull()
@@ -79,7 +79,7 @@ function expectUp(english: string, korean: string) {
 
 /** 단어가 보이는(종이가 아래) 상태인가 — 뜻은 가려지고 단어는 읽힌다 */
 function expectDown(english: string, korean: string) {
-  expect(sheet()).toHaveAccessibleName('올려서 뜻 보기')
+  expect(sheet()).toHaveAccessibleName('눌러서 뜻 보기')
   expect(sheet()).toHaveAttribute('aria-expanded', 'false')
   expect(meaning(korean)).toHaveAttribute('aria-hidden', 'true')
   expect(word(english).closest('[aria-hidden="true"]')).toBeNull()
@@ -203,6 +203,101 @@ describe('S-06 단어 카드', () => {
     await user.click(sheet())
     expectDown(WORD_MOCK.english(1), WORD_MOCK.korean(1))
     expect(shift()).toBe('0px')
+  })
+
+  it('종이의 안내 글은 누르기 기준이다 — 아래 자리 "눌러서 뜻 보기", 위 자리 "눌러서 단어 보기"(#128)', async () => {
+    const user = userEvent.setup()
+    renderWords()
+    await counter(`1 / ${WORD_MOCK.total}`)
+
+    // 보이는 글 + 버튼의 읽는 이름
+    expect(screen.getAllByText('눌러서 뜻 보기')).toHaveLength(2)
+    expect(card()).not.toHaveTextContent('올려서')
+
+    await user.click(sheet())
+    expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(2)
+    expect(card()).not.toHaveTextContent('내려서')
+  })
+
+  it('누르다 손가락이 조금(10px 미만) 밀려도 누르기다 — 종이가 넘어간다(#128)', async () => {
+    renderWords()
+    await counter(`1 / ${WORD_MOCK.total}`)
+    sheetHeight()
+
+    drag(9)
+    expect(shift()).toBe('0px')
+    release()
+
+    expectUp(WORD_MOCK.english(1), WORD_MOCK.korean(1))
+    expect(shift()).toBe('100%')
+  })
+
+  it('10px부터는 끌기다 — 가운데선을 못 넘기고 놓으면 돌아간다(#128)', async () => {
+    renderWords()
+    await counter(`1 / ${WORD_MOCK.total}`)
+    sheetHeight()
+
+    drag(10)
+    expect(shift()).toBe('10px')
+    release()
+
+    expectDown(WORD_MOCK.english(1), WORD_MOCK.korean(1))
+  })
+
+  describe('넘어가는 시간(#128) — 누르면 140ms, 끌다 놓으면 200ms', () => {
+    /** 예약된 그리기 콜백. 테스트가 시각을 정해 직접 부른다 */
+    let frames: FrameRequestCallback[]
+
+    beforeEach(() => {
+      frames = []
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+        frames.push(callback)
+        return frames.length
+      })
+      vi.stubGlobal('cancelAnimationFrame', () => {})
+      // 종이가 말리는 그림은 폭·높이가 있어야 그린다
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+        width: 300,
+        height: SHEET_HEIGHT,
+      } as DOMRect)
+    })
+
+    /** 마지막으로 예약된 그리기를 그 시각에 실행 */
+    function frameAt(time: number) {
+      const callback = frames[frames.length - 1]
+      act(() => callback(time))
+    }
+    /** 넘어가는 중이면 종이의 보이는 글이 없다(읽는 이름 하나만 남는다) */
+    const moving = (label: string) => screen.getAllByText(label).length === 1
+
+    it('누르면 140ms에 다 넘어간다', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+
+      const before = performance.now()
+      fireEvent.click(sheet())
+      const after = performance.now()
+
+      frameAt(before + 60)
+      expect(moving('눌러서 단어 보기')).toBe(true)
+      frameAt(after + 140)
+      expect(moving('눌러서 단어 보기')).toBe(false)
+    })
+
+    it('끌다 놓으면 200ms에 다 넘어간다(그대로)', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+
+      drag(260)
+      const before = performance.now()
+      release()
+      const after = performance.now()
+
+      frameAt(before + 199)
+      expect(moving('눌러서 단어 보기')).toBe(true)
+      frameAt(after + 200)
+      expect(moving('눌러서 단어 보기')).toBe(false)
+    })
   })
 
   it('키보드: 종이에서 Enter로 위·아래를 바꾼다', async () => {

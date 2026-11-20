@@ -14,7 +14,8 @@ import styles from './WordCard.module.css'
 // 디자인 가이드 §5 WordCard(11/11 판, #64). 세로로 긴 카드 — 위 절반 영단어·품사, 아래 절반 뜻.
 // 카드 절반 크기의 종이 한 장: 아래 자리면 뜻을 가리고(단어 보기), 위로 넘기면 단어를 덮는다(뜻 보고 단어 떠올리기).
 // 넘길 때는 오른쪽 아래 모서리가 손가락 높이를 따라 올라가며 대각선으로 말린다(pageCurl). 놓으면 모서리가
-// 가운데선을 넘었을 때만 반대쪽으로 넘어가고 아니면 돌아간다. 카드 전체가 <button> — 끌기·누르기·Enter·Space.
+// 가운데선을 넘었을 때만 반대쪽으로 넘어가고 아니면 돌아간다. 카드 전체가 <button> — 누르기·Enter·Space·끌기.
+// 안내 글은 누르기 기준("눌러서 뜻 보기")이고 누르면 끌다 놓았을 때보다 빨리 넘어간다(#128).
 // 카드를 바꾸면 부르는 쪽이 key로 새로 그린다(아래 자리에서 시작)
 type WordCardProps = {
   /** 왼쪽 위 작은 칩(단어 출처 "어휘책"·"추가 단어") */
@@ -24,14 +25,16 @@ type WordCardProps = {
   korean: string
 }
 
-/** 손가락이 이만큼 움직여야 끌기로 본다(그보다 작으면 누르기) */
-const DRAG_SLOP = 4
-/** 놓은 뒤·누른 뒤 넘어가거나 돌아가는 시간(가이드 11/11 예외) */
+/** 손가락이 이만큼 움직여야 끌기로 본다(그보다 작으면 누르기 — 누르다 조금 밀려도 넘어가게, #128) */
+const DRAG_SLOP = 10
+/** 끌다 놓은 뒤 넘어가거나 돌아가는 시간(가이드 11/11 예외) */
 const SETTLE_MS = 200
+/** 눌러서 넘어가는 시간 — 끌다 놓았을 때보다 짧게(#128) */
+const TAP_MS = 140
 
 type Size = { width: number; half: number }
 type Drag = { pointerId: number; startY: number; start: number; size: Size; moved: boolean }
-type Settle = { from: number; to: number }
+type Settle = { from: number; to: number; ms: number }
 
 function reducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
@@ -54,13 +57,13 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
   /** 끌기 뒤에 브라우저가 보내는 click은 무시한다 */
   const dragged = useRef(false)
 
-  // 놓은 뒤: from → to를 SETTLE_MS 동안 ease-out으로
+  // 놓은 뒤·누른 뒤: from → to를 settle.ms 동안 ease-out으로
   useEffect(() => {
     if (settle === null) return
     let frame = 0
     const start = performance.now()
     const step = (now: number) => {
-      const k = Math.min((now - start) / SETTLE_MS, 1)
+      const k = Math.min((now - start) / settle.ms, 1)
       setSettleT(settle.from + (settle.to - settle.from) * (1 - (1 - k) ** 3))
       if (k < 1) frame = requestAnimationFrame(step)
       else {
@@ -80,9 +83,9 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
     return { width: card.width || 0, half }
   }
 
-  function startSettle(from: number, to: number) {
+  function startSettle(from: number, to: number, ms: number = SETTLE_MS) {
     if (from === to || reducedMotion() || typeof requestAnimationFrame !== 'function') return
-    setSettle({ from, to })
+    setSettle({ from, to, ms })
   }
 
   function onPointerDown(event: PointerEvent<HTMLButtonElement>) {
@@ -144,7 +147,7 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
       return
     }
     setSize(measure(event.currentTarget))
-    startSettle(up ? 1 : 0, up ? 0 : 1)
+    startSettle(up ? 1 : 0, up ? 0 : 1, TAP_MS)
     setUp((v) => !v)
   }
 
@@ -181,7 +184,7 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
           ) : (
             <ChevronUp size={24} strokeWidth={2.2} />
           )}
-          <span>{restUp ? '내려서 단어 보기' : '올려서 뜻 보기'}</span>
+          <span>{restUp ? '눌러서 단어 보기' : '눌러서 뜻 보기'}</span>
         </span>
       ) : (
         <>
@@ -228,7 +231,7 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
         onPointerCancel={onPointerCancel}
         onClick={onClick}
       >
-        <span className={styles.srOnly}>{up ? '내려서 단어 보기' : '올려서 뜻 보기'}</span>
+        <span className={styles.srOnly}>{up ? '눌러서 단어 보기' : '눌러서 뜻 보기'}</span>
       </button>
     </section>
   )
