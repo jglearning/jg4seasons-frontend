@@ -101,14 +101,25 @@ describe('O-03 학원 상세·교재 사용권', () => {
     expect(screen.getByRole('button', { name: '저장' })).toBeEnabled()
   })
 
-  it('이미 지정된 권은 체크 칸 옆에 지금 기간·한도', async () => {
+  it('이미 지정된 권은 체크했을 때만 지금 기간·한도를 보인다 — 체크 전·푼 뒤에는 줄이 없다(#135)', async () => {
+    const user = userEvent.setup()
     renderAt('/system/academies/1')
     await ready()
 
+    // 기간·한도는 위 표에 있다 — 체크 목록에는 덮어쓰려는 권에만
+    expect(box('그린 · 겨울 (L2-B1)')).not.toHaveAccessibleDescription()
+    expect(screen.queryByText(/지정됨/)).not.toBeInTheDocument()
+
+    await user.click(box('그린 · 겨울 (L2-B1)'))
     expect(box('그린 · 겨울 (L2-B1)')).toHaveAccessibleDescription(
       '겨울 — 지정됨 2026-12-01 ~ 2027-02-28 · 한도 20',
     )
+    // 지정되지 않은 권은 체크해도 줄이 없다
+    await user.click(box('그린 · 봄 (L2-B2)'))
     expect(box('그린 · 봄 (L2-B2)')).not.toHaveAccessibleDescription()
+
+    await user.click(box('그린 · 겨울 (L2-B1)'))
+    expect(box('그린 · 겨울 (L2-B1)')).not.toHaveAccessibleDescription()
   })
 
   it('[고치기]는 그 권 하나만 체크하고 지금 값을 채운 뒤 그 체크 칸으로 포커스, 덮어쓰기 안내', async () => {
@@ -126,6 +137,11 @@ describe('O-03 학원 상세·교재 사용권', () => {
     expect(screen.getByLabelText(SEATS)).toHaveValue(20)
     expect(screen.getByText('이미 지정된 1권은 기간·한도를 바꿈')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '1권 저장' })).toBeEnabled()
+    // 고치려는 권에만 지금 값(#135)
+    expect(box('블루 · 겨울 (L3-B1)')).toHaveAccessibleDescription(
+      '겨울 — 지정됨 2026-12-01 ~ 2027-02-28 · 한도 20',
+    )
+    expect(box('그린 · 겨울 (L2-B1)')).not.toHaveAccessibleDescription()
   })
 
   it('한 권을 고쳐 저장하면 PUT 하나, 상세를 다시 받아 그 줄이 바뀌고 폼은 비운다', async () => {
@@ -191,7 +207,9 @@ describe('O-03 학원 상세·교재 사용권', () => {
     ])
     // 상세는 끝난 뒤 한 번만 다시 받는다(권마다 받지 않음)
     expect(detailGets()).toBe(2)
-    expect(box('민트 · 겨울 (L1-B1)')).toHaveAccessibleDescription('겨울 — 저장함')
+    // 성공한 권에는 줄을 달지 않는다 — 요약 "4권 저장함" 한 줄만(#135)
+    expect(box('민트 · 겨울 (L1-B1)')).not.toHaveAccessibleDescription()
+    expect(screen.queryByText(/— (저장함|지정됨)/)).not.toBeInTheDocument()
   })
 
   it('전체 17권: 이미 지정된 권 수를 알리고 17권 모두 PUT', async () => {
@@ -209,6 +227,8 @@ describe('O-03 학원 상세·교재 사용권', () => {
     expect(putBooks()[0]).toBe('L1-B1')
     expect(putBooks()[16]).toBe('K-B1')
     await vi.waitFor(() => expect(rowsText()).toHaveLength(17))
+    // 17권이 모두 지정돼도 체크 목록에 권별 줄이 쌓이지 않는다(#135)
+    expect(screen.queryByText(/— (저장함|지정됨)/)).not.toBeInTheDocument()
   })
 
   it('중간에 실패하면 멈추고(뒤 권은 보내지 않음) 남은 권만 체크를 남긴다 — 다시 저장하면 남은 권만', async () => {
@@ -232,7 +252,9 @@ describe('O-03 학원 상세·교재 사용권', () => {
     expect(putBooks()).toEqual(['L1-B1', 'L1-B2', 'L1-B3'])
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(checkedBooks()).toEqual(['L1-B3', 'L1-B4'])
-    expect(box('민트 · 겨울 (L1-B1)')).toHaveAccessibleDescription('겨울 — 저장함')
+    // 저장된 권에는 줄이 없고, 남은 권에만 실패·안 보냄(#135)
+    expect(box('민트 · 겨울 (L1-B1)')).not.toHaveAccessibleDescription()
+    expect(box('민트 · 봄 (L1-B2)')).not.toHaveAccessibleDescription()
     expect(box('민트 · 여름 (L1-B3)')).toHaveAccessibleDescription('여름 — 실패')
     expect(box('민트 · 가을 (L1-B4)')).toHaveAccessibleDescription('가을 — 안 보냄')
     // 넣은 값은 그대로 — 다시 넣지 않게

@@ -25,8 +25,8 @@ type Draft = { startDate: string; endDate: string; seats: string }
 const EMPTY: Draft = { startDate: '', endDate: '', seats: '' }
 
 type Result = 'saved' | 'failed' | 'unsent'
-const RESULT_LABEL: Record<Result, string> = {
-  saved: '저장함',
+// 권 옆에 다는 결과 글 — 성공은 달지 않는다(요약 "n권 저장함" 한 줄로 충분, 17권이면 17줄이 쌓인다 #135)
+const RESULT_LABEL: Record<Exclude<Result, 'saved'>, string> = {
   failed: '실패',
   unsent: '안 보냄',
 }
@@ -202,10 +202,12 @@ function AcademyBody({ id, data }: { id: number; data: AcademyDetail }) {
     },
   ]
 
-  // 권 옆 글자: 방금 저장 결과가 있으면 그것, 없으면 지정된 권의 지금 기간·한도
+  // 권 옆 글자(#135): 방금 저장에서 남은 권이면 실패·안 보냄, 그 밖에는 체크한 권에만 지금 기간·한도
+  // (덮어쓰기 전에 볼 값 — 체크하지 않은 권의 기간·한도는 위 표에 있다)
   function bookNote(code: string) {
     const result = results[code]
-    if (result) return RESULT_LABEL[result]
+    if (result !== undefined && result !== 'saved') return RESULT_LABEL[result]
+    if (!selected.includes(code)) return undefined
     const row = existing(code)
     return row ? `지정됨 ${row.startDate} ~ ${row.endDate} · 한도 ${row.seats}` : undefined
   }
