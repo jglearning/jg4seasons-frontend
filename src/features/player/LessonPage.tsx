@@ -30,6 +30,7 @@ import {
   type Source,
   type Variant,
 } from './player'
+import { heardAmountMs } from './heardAmount'
 import { LessonComplete } from './LessonComplete'
 import { PlayerProvider } from './PlayerProvider'
 import { heardSentences } from './sentenceSync'
@@ -98,6 +99,7 @@ export function LessonPage() {
       {completeShown && (
         <LessonComplete
           title={data.lesson.title}
+          heardMs={heardAmountMs(data.passages)}
           passagesDone={data.completion.passagesDone}
           passagesTotal={data.completion.passagesTotal}
           wordsTotal={data.words.total}
