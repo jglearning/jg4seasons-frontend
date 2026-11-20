@@ -193,8 +193,16 @@ describe('A-01 반 관리', () => {
 
     await user.click(screen.getByRole('button', { name: '재발급' }))
     const confirm = screen.getByRole('group', { name: '재발급 확인' })
+    // 재발급이 무엇을 끊는지: 옛 코드, 그리고 옛 코드가 든 인쇄물 — 카드는 개인 코드를 재발급해야 다시 뽑는다(#137)
+    expect(confirm).toHaveTextContent(
+      '새 코드로 바꾸면 옛 코드로는 들어올 수 없음(이미 들어온 학생은 그대로)',
+    )
+    expect(confirm).toHaveTextContent(
+      '인쇄한 학생 카드·반 QR도 못 쓰게 됨 — 카드는 학생 명단에서 개인 코드를 재발급해 다시 인쇄',
+    )
     await user.click(within(confirm).getByRole('button', { name: '취소' }))
     expect(sent).toEqual([])
+    expect(screen.queryByText(/인쇄한 학생 카드/)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '재발급' }))
     await user.click(
