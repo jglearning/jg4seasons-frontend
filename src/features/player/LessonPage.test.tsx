@@ -7,6 +7,7 @@ import { resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { buildLessonDetail, LESSON_MOCK, resetLessonMock } from '../../mocks/lessonData'
 import { server } from '../../mocks/node'
 import { renderRoutes } from '../../test/render'
+import { formatHeardAmount } from './heardAmount'
 
 // jsdom은 오디오를 재생하지 못한다 — 재생 위치·상태를 요소에 직접 두고 이벤트를 흉내 낸다(브라우저 순서대로)
 type FakeAudio = HTMLAudioElement & {
@@ -1199,7 +1200,7 @@ describe('S-08 회차 완료', () => {
   }
   const dialog = () => screen.findByRole('dialog', { name: 'Reading Day 5 완료' })
 
-  it('처음으로 다 완료한 순간 S-05 위에 뜬다 — 제목에 포커스, 지문 6 / 6, 단어·홈 버튼, 들은 시간 칸 없음', async () => {
+  it('처음으로 다 완료한 순간 S-05 위에 뜬다 — 제목에 포커스, 들은 분량, 지문 6 / 6, 단어·홈 버튼', async () => {
     completeOnFlush()
     const { router } = renderLesson()
     await heading()
@@ -1208,7 +1209,12 @@ describe('S-08 회차 완료', () => {
 
     const complete = await dialog()
     expect(within(complete).getByRole('heading', { name: 'Reading Day 5 완료' })).toHaveFocus()
-    expect(within(complete).getByText('지문')).toBeInTheDocument()
+    // 들은 분량(#130) = 완료한 목소리의 음원 길이 합: 이미 들은 지문 1~4 + 방금 완료된 지문 5(모두 us_w).
+    // 지문 6은 완료한 목소리가 없어 들어가지 않는다. 칸 순서는 들은 분량 → 지문
+    const heardMs = [1, 2, 3, 4, 5].reduce((sum, no) => sum + LESSON_MOCK.durationMs(no, 'us_w'), 0)
+    const terms = within(complete).getAllByRole('term')
+    expect(terms.map((term) => term.textContent)).toEqual(['들은 분량', '지문'])
+    expect(within(complete).getByText(formatHeardAmount(heardMs))).toBeInTheDocument()
     expect(within(complete).getByText('6 / 6')).toBeInTheDocument()
     expect(within(complete).queryByText('들은 시간')).not.toBeInTheDocument()
     expect(within(complete).getByRole('link', { name: '오늘 단어 57개 보기' })).toHaveAttribute(
@@ -1220,6 +1226,46 @@ describe('S-08 회차 완료', () => {
     expect(router.state.location.pathname).toBe(`/lessons/${LESSON_MOCK.code}`)
     const behind = screen.getByRole('heading', { name: 'Reading Day 5', level: 1, hidden: true })
     expect(behind.closest('[inert]')).not.toBeNull()
+  })
+
+  it('완료한 목소리가 하나도 없으면(합 0) 들은 분량 칸 없이 지문 한 칸만(#130)', async () => {
+    server.use(
+      http.get('*/api/v1/student/lessons/:code', () => {
+        const detail = buildLessonDetail(LESSON_MOCK.code)
+        for (const passage of detail.passages) {
+          for (const voice of passage.voices) voice.completed = false
+        }
+        return HttpResponse.json(detail)
+      }),
+      http.post('*/api/v1/listening/flush', () =>
+        HttpResponse.json({
+          track: {
+            trackId: LESSON_MOCK.passageTrackId(5, 'us_w'),
+            coverage: 0.4,
+            completed: false,
+          },
+          lesson: {
+            code: LESSON_MOCK.code,
+            status: 'completed',
+            requiredDone: 6,
+            requiredTotal: 6,
+          },
+          dropped: 0,
+        }),
+      ),
+    )
+    renderLesson()
+    await heading()
+
+    listenAndPause()
+
+    const complete = await dialog()
+    expect(
+      within(complete)
+        .getAllByRole('term')
+        .map((term) => term.textContent),
+    ).toEqual(['지문'])
+    expect(within(complete).queryByText('들은 분량')).not.toBeInTheDocument()
   })
 
   it('뒤로 가기는 완료 화면을 닫고 S-05로', async () => {

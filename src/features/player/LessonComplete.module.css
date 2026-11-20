@@ -72,7 +72,20 @@
   margin-top: var(--space-6);
   display: grid;
   gap: var(--space-3);
+}
+
+/* 들은 분량 + 지문 두 칸(#130) */
+.pair {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* 칸은 체크 뒤 80ms, 그다음 칸은 다시 80ms 뒤 */
+.stats > * {
   animation: rise 220ms ease-out 340ms both;
+}
+
+.stats > :nth-child(2) {
+  animation-delay: 420ms;
 }
 
 .actions {
@@ -107,7 +120,7 @@
 /* 움직임 줄이기: 바로 보인다 */
 @media (prefers-reduced-motion: reduce) {
   .check,
-  .stats {
+  .stats > * {
     animation: none;
   }
 }
