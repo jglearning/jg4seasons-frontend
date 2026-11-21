@@ -83,8 +83,21 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
     return { width: card.width || 0, half }
   }
 
+  /** 지금 그려진 진행(0~1) — 움직이는 중이면 그 값, 아니면 쉬는 자리 */
+  const shownT = settleT ?? (up ? 1 : 0)
+
+  /** 움직임을 멈춘다(앞 움직임이 끝 자리를 덮어쓰지 않게) */
+  function stopSettle() {
+    setSettle(null)
+    setSettleT(null)
+  }
+
   function startSettle(from: number, to: number, ms: number = SETTLE_MS) {
-    if (from === to || reducedMotion() || typeof requestAnimationFrame !== 'function') return
+    if (from === to || reducedMotion() || typeof requestAnimationFrame !== 'function') {
+      // 움직이지 않고 끝나도 앞 움직임은 멈춘다 — 안 그러면 계속 돌다 끝에서 튄다(#153)
+      stopSettle()
+      return
+    }
     // 진행값을 지금 바로 시작 값으로 — 비워 두면 첫 프레임 전 한 번이 바뀐 up의 도착 자리 모양으로 그려져 번쩍인다(#151)
     setSettleT(from)
     setSettle({ from, to, ms })
@@ -104,6 +117,7 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
     drag.current = {
       pointerId: event.pointerId,
       startY: event.clientY,
+      // 넘어가는 중에 잡았으면 끌기가 시작되는 첫 움직임에서 그때 자리로 다시 잡는다(onPointerMove, #153)
       start: up ? s.half * 2 : 0,
       size: s,
       moved: false,
@@ -114,9 +128,13 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
   function onPointerMove(event: PointerEvent<HTMLButtonElement>) {
     const d = drag.current
     if (d === null || event.pointerId !== d.pointerId) return
+    if (!d.moved) {
+      if (Math.abs(d.startY - event.clientY) < DRAG_SLOP) return
+      // 잡은 뒤에도 넘김이 계속 돌았으면 끌기가 시작되는 지금 자리에서 이어 끈다 — 잡았던 자리로 되돌아 튀지 않게(#153)
+      if (settleT !== null) d.start = settleT * d.size.half * 2
+      d.moved = true
+    }
     const delta = d.startY - event.clientY
-    if (!d.moved && Math.abs(delta) < DRAG_SLOP) return
-    d.moved = true
     setTravel(Math.min(Math.max(d.start + delta, 0), d.size.half * 2))
   }
 
@@ -149,12 +167,13 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
       return
     }
     setSize(measure(event.currentTarget))
-    startSettle(up ? 1 : 0, up ? 0 : 1, TAP_MS)
+    // 넘어가는 중에 다시 누르면 지금 그려진 자리에서 되돌아간다(#153)
+    startSettle(shownT, up ? 0 : 1, TAP_MS)
     setUp((v) => !v)
   }
 
   // 그릴 진행: 끄는 중 → 손가락, 놓은 뒤 → 움직임, 그 밖 → 아래(0)·위(1)
-  const t = travel !== null && size.half > 0 ? travel / (size.half * 2) : (settleT ?? (up ? 1 : 0))
+  const t = travel !== null && size.half > 0 ? travel / (size.half * 2) : shownT
   const curl = pageCurl(size.width, size.half, t)
   const resting = curl === null
   const restUp = resting && t >= 1
