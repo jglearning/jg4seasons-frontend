@@ -117,8 +117,8 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
     drag.current = {
       pointerId: event.pointerId,
       startY: event.clientY,
-      // 넘어가는 중에 잡으면 지금 그려진 자리에서 끌기 시작한다(#153)
-      start: shownT * s.half * 2,
+      // 넘어가는 중에 잡았으면 끌기가 시작되는 첫 움직임에서 그때 자리로 다시 잡는다(onPointerMove, #153)
+      start: up ? s.half * 2 : 0,
       size: s,
       moved: false,
     }
@@ -128,9 +128,13 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
   function onPointerMove(event: PointerEvent<HTMLButtonElement>) {
     const d = drag.current
     if (d === null || event.pointerId !== d.pointerId) return
+    if (!d.moved) {
+      if (Math.abs(d.startY - event.clientY) < DRAG_SLOP) return
+      // 잡은 뒤에도 넘김이 계속 돌았으면 끌기가 시작되는 지금 자리에서 이어 끈다 — 잡았던 자리로 되돌아 튀지 않게(#153)
+      if (settleT !== null) d.start = settleT * d.size.half * 2
+      d.moved = true
+    }
     const delta = d.startY - event.clientY
-    if (!d.moved && Math.abs(delta) < DRAG_SLOP) return
-    d.moved = true
     setTravel(Math.min(Math.max(d.start + delta, 0), d.size.half * 2))
   }
 
@@ -169,7 +173,7 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
   }
 
   // 그릴 진행: 끄는 중 → 손가락, 놓은 뒤 → 움직임, 그 밖 → 아래(0)·위(1)
-  const t = travel !== null && size.half > 0 ? travel / (size.half * 2) : (settleT ?? (up ? 1 : 0))
+  const t = travel !== null && size.half > 0 ? travel / (size.half * 2) : shownT
   const curl = pageCurl(size.width, size.half, t)
   const resting = curl === null
   const restUp = resting && t >= 1

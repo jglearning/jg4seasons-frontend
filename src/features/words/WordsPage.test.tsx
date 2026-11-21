@@ -342,48 +342,77 @@ describe('S-06 단어 카드', () => {
     })
 
     // #153: 움직이는 도중에 다시 누르거나 잡으면 지금 그려진 자리에서 이어 가야 한다(끝 자리로 튀지 않음)
+    /** 눌러서 넘기기 시작하고, 시작 뒤 ms만큼 지난 프레임까지 그린다(누른 뒤 시각 기준 — 느려도 진행값이 그만큼은 감) */
+    function tapAndRun(ms: number) {
+      fireEvent.click(sheet())
+      const after = performance.now()
+      frameAt(after + ms)
+      return after
+    }
+    /** 말린 그림(넘어가는 중) — 종이 위 보이는 글이 없어 두 글을 합쳐 읽는 이름 하나만 남는다 */
+    const curled = () => screen.queryAllByText(/^눌러서 (뜻|단어) 보기$/).length === 1
+
     it('넘어가는 도중 다시 누르면 지금 자리에서 되돌아간다 — 첫 프레임 전에도 끝 자리로 튀지 않음', async () => {
       renderWords()
       await counter(`1 / ${WORD_MOCK.total}`)
-      const before = performance.now()
-      fireEvent.click(sheet())
-      frameAt(before + 40)
-      expect(moving('눌러서 단어 보기')).toBe(true)
+      tapAndRun(40)
+      expect(curled()).toBe(true)
 
       fireEvent.click(sheet())
 
-      // 말린 그림이 이어진다 = 종이 위 보이는 글이 없다(끝 자리로 튀면 "눌러서 단어 보기"가 보인다)
+      // 말린 그림이 이어진다(끝 자리로 튀면 "눌러서 단어 보기"가 보인다)
       expect(sheet()).toHaveAccessibleName('눌러서 뜻 보기')
-      expect(moving('눌러서 뜻 보기')).toBe(true)
+      expect(curled()).toBe(true)
       expect(screen.queryByText('눌러서 단어 보기')).toBeNull()
     })
 
     it('넘어가는 도중 잡아 끌면 지금 그려진 자리에서 끌기 시작한다', async () => {
       renderWords()
       await counter(`1 / ${WORD_MOCK.total}`)
-      const before = performance.now()
-      fireEvent.click(sheet())
-      frameAt(before + 40)
+      tapAndRun(40)
 
       drag(20)
 
-      // 끝 자리(종이 높이 2배 = 400px)가 아니라 넘어가던 자리 + 20px
+      // 끝 자리(종이 높이 2배 = 400px)도 0도 아닌, 넘어가던 자리 근처
       const travel = parseFloat(shift())
       expect(travel).toBeGreaterThan(20)
       expect(travel).toBeLessThan(SHEET_HEIGHT * 2)
     })
 
+    it('넘어가는 도중 잡고 머물다 끌면 끌기가 시작될 때의 자리에서 — 잡았던 자리로 되돌아 튀지 않음', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      const after = tapAndRun(40)
+      // 잡기만 하고(끌기 전) 넘김은 계속 — 거의 다 넘어감
+      fireEvent.pointerDown(sheet(), { pointerId: 1, clientY: 500, isPrimary: true })
+      frameAt(after + 130)
+
+      fireEvent.pointerMove(sheet(), { pointerId: 1, clientY: 480, isPrimary: true })
+
+      // 잡았던 순간(진행 약 0.6 = 250px 근처)이 아니라 지금 자리(거의 끝)에서
+      expect(parseFloat(shift())).toBeGreaterThan(SHEET_HEIGHT * 2 * 0.9)
+    })
+
     it('넘어가는 도중 끝까지 끌어 놓으면 그 자리에 멈춘다 — 앞 움직임이 계속 돌지 않음', async () => {
       renderWords()
       await counter(`1 / ${WORD_MOCK.total}`)
-      const before = performance.now()
-      fireEvent.click(sheet())
-      frameAt(before + 40)
+      tapAndRun(40)
 
       drag(SHEET_HEIGHT * 2)
       release()
 
       // 다 넘어간 자리에 쉬는 모양(보이는 글 + 읽는 이름)
+      expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(2)
+    })
+
+    it('넘어가는 도중 끝까지 끌다 취소돼도(pointercancel) 그 자리에 멈춘다', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      tapAndRun(40)
+
+      drag(SHEET_HEIGHT * 2)
+      fireEvent.pointerCancel(sheet(), { pointerId: 1, isPrimary: true })
+
       expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(2)
     })
 
