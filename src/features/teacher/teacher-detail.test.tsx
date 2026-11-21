@@ -88,14 +88,16 @@ describe('T-04 학생 상세', () => {
 
     const table = screen.getByRole('table', { name: 'Reading Day 5 지문 청취' })
     const rows = within(table).getAllByRole('row').slice(1)
-    // 목소리 4개 × 지문 6 = 24 트랙 중 들은 것만: 지문 1(미국 여·영국 남), 지문 2(미국 남·미국 여), 지문 3~6(미국 여)
-    expect(rows).toHaveLength(8)
+    // 목소리 4개 × 지문 6 = 24 트랙 중 들은 것만: 지문 1(미국 여·영국 남), 지문 2(미국 남·미국 여),
+    // 지문 3(섞어 완료 — 미국 여·영국 남 50%씩), 지문 4~6(미국 여)
+    expect(rows).toHaveLength(9)
     expect(rows.map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual([
       '지문 1 · 미국 여',
       '지문 1 · 영국 남',
       '지문 2 · 미국 여',
       '지문 2 · 미국 남',
       '지문 3 · 미국 여',
+      '지문 3 · 영국 남',
       '지문 4 · 미국 여',
       '지문 5 · 미국 여',
       '지문 6 · 미국 여',
@@ -207,11 +209,12 @@ describe('T-05 회차 상세', () => {
     ])
 
     const pill = (label: string) => within(table).getByText(label).parentElement as HTMLElement
-    expect(pill('김민준 지문 1 완료 · 미국 여 91%')).toHaveAttribute('data-status', 'completed')
-    // 어느 목소리로든 완료면 ✓ — 더 많이 들은 다른 목소리가 있어도 완료한 목소리를 보인다
-    expect(pill('박지호 지문 2 완료 · 미국 남 92%')).toHaveAttribute('data-status', 'completed')
-    expect(pill('박지호 지문 3 완료 · 미국 여 93%')).toHaveAttribute('data-status', 'completed')
-    const partial = pill('박지호 지문 4 들은 구간 · 미국 여 40%')
+    // 칸은 서버 지문 요약(rows[].passages, BE #63) — 목소리 이름 없이 지문의 완료·들은 구간
+    expect(pill('김민준 지문 1 완료 · 91%')).toHaveAttribute('data-status', 'completed')
+    expect(pill('박지호 지문 2 완료 · 92%')).toHaveAttribute('data-status', 'completed')
+    // 지문 3은 목소리를 섞어 완료(목 — 어느 목소리도 완료 아님) → 서버 지문 요약대로 ✓
+    expect(pill('박지호 지문 3 완료 · 100%')).toHaveAttribute('data-status', 'completed')
+    const partial = pill('박지호 지문 4 들은 구간 40%')
     expect(partial).toHaveAttribute('data-status', 'in_progress')
     expect(partial).toHaveTextContent('40%')
     expect(pill('박지호 지문 5 안 들음')).toHaveAttribute('data-status', 'open')
@@ -222,6 +225,52 @@ describe('T-05 회차 상세', () => {
       'href',
       '/teacher/classes/12/students/303',
     )
+  })
+
+  it('지문 칸은 서버 passages 그대로 — 목소리를 섞어 완료(byTrack 모두 미완료)해도 ✓, %는 지문 coverage', async () => {
+    const tracks = [1, 2, 3].flatMap((passageNo) =>
+      (['us_w', 'uk_m'] as const).map((variant, i) => ({
+        trackId: 9000 + passageNo * 10 + i,
+        kind: 'passage' as const,
+        passageNo,
+        variant,
+        required: true,
+      })),
+    )
+    server.use(
+      http.get('*/api/v1/teacher/classes/:classId/lessons/:code', () =>
+        HttpResponse.json({
+          lesson: { code: 'L2-B1-05', title: 'Reading Day 5', scheduledDate: '2026-12-19' },
+          tracks,
+          rows: [
+            {
+              student: { id: 301, name: '김민준' },
+              status: 'in_progress',
+              // 지문 1: 두 목소리 50%씩 — 합쳐서 완료 / 지문 2: 기준보다 낮아도 서버가 완료면 완료 / 지문 3: 합쳐 70%
+              byTrack: {
+                '9010': { coverage: 0.5, completed: false },
+                '9011': { coverage: 0.5, completed: false },
+                '9020': { coverage: 0.6, completed: false },
+                '9030': { coverage: 0.4, completed: false },
+                '9031': { coverage: 0.3, completed: false },
+              },
+              passages: [
+                { no: 1, coverage: 1, completed: true },
+                { no: 2, coverage: 0.6, completed: true },
+                { no: 3, coverage: 0.7, completed: false },
+              ],
+            },
+          ],
+        }),
+      ),
+    )
+    renderAt('/teacher/classes/12/lessons/L2-B1-05')
+    const table = await screen.findByRole('table', { name: 'Reading Day 5 학생별 지문 완료' })
+    const pill = (label: string) => within(table).getByText(label).parentElement as HTMLElement
+
+    expect(pill('김민준 지문 1 완료 · 100%')).toHaveAttribute('data-status', 'completed')
+    expect(pill('김민준 지문 2 완료 · 60%')).toHaveAttribute('data-status', 'completed')
+    expect(pill('김민준 지문 3 들은 구간 70%')).toHaveTextContent('70%')
   })
 
   it('수업일이 null이면(진도표에 휴강 행만) 날짜 대신 "수업일 없음"', async () => {

@@ -52,6 +52,8 @@ const GROUP = 8
 const PASSAGES = 6
 /** 지문 트랙 목소리(BE #40 — 모두 필수, 아무 목소리 하나를 끝까지 들으면 지문 완료) */
 const VARIANTS = ['us_w', 'us_m', 'uk_w', 'uk_m'] as const
+/** 목소리를 섞어 완료하는 지문(BE #59·#63) — 끝낸 학생은 미국 여 50% + 영국 남 50%, 지문은 완료 */
+const MIXED_PASSAGE = 3
 
 type MockClass = ReturnType<typeof mockActiveClasses>[number]
 
@@ -238,7 +240,10 @@ function trackResult(p: Progress | undefined, passageNo: number, variant: string
   if (p !== undefined && p.status !== 'not_started') {
     const done = passageNo <= p.requiredDone
     const finisher = passageNo === 2 ? 'us_m' : 'us_w'
-    if (done && variant === finisher) {
+    if (done && passageNo === MIXED_PASSAGE) {
+      // 목소리를 섞어 완료(BE #59): 두 목소리 절반씩, 어느 목소리도 완료 아님 — 지문 완료는 passageSummaries가
+      if (variant === 'us_w' || variant === 'uk_m') coverage = 0.5
+    } else if (done && variant === finisher) {
       coverage = 0.9 + passageNo / 100
       completed = true
     } else if (done && passageNo === 2 && variant === 'us_w') coverage = 0.5
@@ -261,6 +266,14 @@ function trackResult(p: Progress | undefined, passageNo: number, variant: string
 function passageSummaries(p: Progress | undefined): Schemas['TeacherPassageSummary'][] {
   return Array.from({ length: PASSAGES }, (_, i) => i + 1).map((no) => {
     const results = VARIANTS.map((variant) => trackResult(p, no, variant))
+    // 섞어 완료한 지문은 서버가 합친 결과만(목은 구간을 합치지 않는다)
+    if (
+      no === MIXED_PASSAGE &&
+      p !== undefined &&
+      p.status !== 'not_started' &&
+      no <= p.requiredDone
+    )
+      return { no, coverage: 1, completed: true }
     return {
       no,
       coverage: results.reduce((best, r) => Math.max(best, r.coverage), 0),

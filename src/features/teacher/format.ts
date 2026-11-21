@@ -67,21 +67,6 @@ export function groupByPassage<T extends { passageNo: number }>(
   return groups
 }
 
-/**
- * 지문 칸 하나에 보일 목소리(T-05). 서버가 completed로 준 목소리가 있으면 그것, 없으면 가장 많이 들은 목소리.
- * 완료 판정은 서버 값 그대로 — 지문 완료 = 아무 목소리 하나 완료(BE ADR-27)라 여러 목소리를 한 칸에 모아 보일 뿐이다
- */
-export function passageCell<T>(
-  results: ReadonlyArray<{ track: T; completed: boolean; coverage: number }>,
-): { track: T; completed: boolean; coverage: number } | undefined {
-  const done = results.find((r) => r.completed)
-  if (done !== undefined) return done
-  return results.reduce<(typeof results)[number] | undefined>(
-    (best, r) => (r.coverage > 0 && (best === undefined || r.coverage > best.coverage) ? r : best),
-    undefined,
-  )
-}
-
 type LessonStatus = 'not_started' | 'in_progress' | 'completed'
 
 /** 회차 상태 알약(서버 status·requiredDone 그대로) */
