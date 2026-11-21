@@ -29,7 +29,6 @@ import type { FlushResult } from './flushApi'
 import { lessonQuery, type LessonDetail, type Passage, type Voice } from './lessonApi'
 import { mergeRanges } from './listeningTracker'
 import {
-  DEFAULT_VOICE,
   PLAYBACK_RATES,
   usePlayer,
   VOICE_ORDER,
@@ -45,6 +44,7 @@ import { PlayerProvider } from './PlayerProvider'
 import { heardSentences } from './sentenceSync'
 import { useSentenceSync } from './useSentenceSync'
 import { mapPosition, mapRanges } from './voiceMap'
+import { settingsQuery, useVoice } from './voiceSetting'
 import styles from './LessonPage.module.css'
 
 // S-05 회차 듣기(STU-04·05·06·11, v0.2 지시문 §2 · 와이어프레임 S05_Player·S05_VoiceSheet, ADR-26 따라 읽기).
@@ -53,7 +53,7 @@ import styles from './LessonPage.module.css'
 // 음성 4개(us_w·us_m·uk_w·uk_m)는 파일 선택, 속도 0.8·1.0·1.2는 재생 속도(ADR-27). 지문 완료는 서버 판정 —
 // 음성 하나를 기준 이상 들었거나, 여러 음성으로 들은 구간을 합쳐 기준 이상(BE #59). 음성을 바꾸면 같은 조각의
 // 같은 비율 지점으로 옮겨 이어 듣는다(voiceMap — 서버가 구간을 합치는 규칙과 같다).
-// 고른 음성·속도는 이 화면 안에서만 유지한다(저장은 #146). 처음 음성은 미국 여성(A5).
+// 고른 음성은 서버 설정(#146, BE #61 — voiceSetting), 속도는 이 화면 안에서만. 고른 적 없으면 미국 여성(A5).
 // 완료·청취율·완료 기준·문장 시각은 모두 서버 값 — 화면은 보여 주기만 한다("들음" 점·빗금은 표시용, 03 §2.3)
 
 export function LessonPage() {
@@ -93,10 +93,14 @@ export function LessonPage() {
     [queryClient],
   )
 
-  // 고른 음성 — 듣기 화면과 완료 화면(들은 분량)이 같이 쓴다
-  const [variant, setVariant] = useState<Variant>(DEFAULT_VOICE)
+  // 고른 음성(서버 설정, BE #61) — 듣기 화면과 완료 화면(들은 분량)이 같이 쓴다.
+  // 처음 올릴 음원이 저장된 목소리여야 해서 설정이 오거나(실패도) 멈출 때까지 받기 전 화면으로 둔다
+  const settings = useQuery(settingsQuery)
+  const settingsSettled = settings.status !== 'pending' || settings.fetchStatus === 'paused'
+  const [variant, setVariant] = useVoice()
 
-  if (lesson.data === undefined) return <LessonBefore code={code} query={lesson} />
+  if (lesson.data === undefined || !settingsSettled)
+    return <LessonBefore code={code} query={lesson} />
 
   const data = lesson.data
   return (

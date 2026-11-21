@@ -139,7 +139,30 @@ const MIXED_PASSAGE = 4
 type TrackInfo = { durationMs: number; ranges: Array<[number, number]> }
 const tracks = new Map<number, TrackInfo>()
 
+// ── 학생 설정(BE #61 — GET·PATCH /me/settings) ──
+type Settings = Schemas['StudentSettingsResponse']
+let settings: Settings = { voice: null }
+const VOICES: ReadonlyArray<Settings['voice']> = ['us_w', 'us_m', 'uk_w', 'uk_m', null]
+
+export function mockSettings(): Settings {
+  return { ...settings }
+}
+
+/** 서버처럼 보낸 칸만 바꾸고 설정 전체를 돌려준다. 모르는 칸·네 목소리 밖의 값이면 undefined(400) */
+export function patchMockSettings(body: unknown): Settings | undefined {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return undefined
+  const entries = Object.entries(body)
+  if (entries.some(([key]) => key !== 'voice')) return undefined
+  if ('voice' in body) {
+    const voice = (body as { voice: unknown }).voice
+    if (!VOICES.includes(voice as Settings['voice'])) return undefined
+    settings = { ...settings, voice: voice as Settings['voice'] }
+  }
+  return mockSettings()
+}
+
 export function resetLessonMock() {
+  settings = { voice: null }
   tracks.clear()
   PASSAGES.forEach((_, p) => {
     const no = p + 1

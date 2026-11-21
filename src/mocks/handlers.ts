@@ -1,7 +1,13 @@
 import { delay, http, HttpResponse, type AnyHandler } from 'msw'
 import type { components } from '../api/generated/schema'
 import { adminHandlers } from './adminData'
-import { buildLessonDetail, LESSON_MOCK, recordFlush } from './lessonData'
+import {
+  buildLessonDetail,
+  LESSON_MOCK,
+  mockSettings,
+  patchMockSettings,
+  recordFlush,
+} from './lessonData'
 import { buildHome, buildLessons, STUDENT_MOCK } from './studentData'
 import { systemHandlers } from './systemData'
 import { teacherHandlers } from './teacherData'
@@ -277,6 +283,20 @@ const studentHandlers: AnyHandler[] = [
     const denied = studentOnly(request)
     if (denied) return denied
     return HttpResponse.json(recordWordStudy(await readJson(request)))
+  }),
+
+  // 학생 설정(BE #61) — 고른 목소리. PATCH는 보낸 칸만 바꾸고 늘 설정 전체를 돌려준다
+  http.get('*/api/v1/me/settings', async ({ request }) => {
+    await delay()
+    return studentOnly(request) ?? HttpResponse.json(mockSettings())
+  }),
+  http.patch('*/api/v1/me/settings', async ({ request }) => {
+    const denied = studentOnly(request)
+    if (denied) return denied
+    const result = patchMockSettings(await readJson(request))
+    return result === undefined
+      ? problem(request, 400, 'VALIDATION', '요청 형식이 맞지 않아요')
+      : HttpResponse.json(result)
   }),
 
   // 청취 flush(3.1) — fetch(application/json)와 sendBeacon(text/plain, 바디 csrf) 둘 다

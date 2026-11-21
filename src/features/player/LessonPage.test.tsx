@@ -1,7 +1,7 @@
 import { onlineManager } from '@tanstack/react-query'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../app/routes'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
@@ -1157,6 +1157,112 @@ describe('BE #59 목소리를 섞어 들은 지문', () => {
     expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'uk_m')}.wav`)
     expect(audio().currentTime).toBe(startOf(5, 4, 'uk_m'))
     expect(play).toHaveBeenCalledTimes(1)
+  })
+})
+
+// BE #61(백엔드 ADR 0035): 고른 목소리는 서버 설정 하나에만(GET·PATCH /me/settings), 기기에 저장하지 않는다
+describe('BE #61 고른 목소리 저장', () => {
+  /** /me/settings로 가는 요청(메서드·X-CSRF·본문) */
+  function settingsRequests() {
+    const seen: Array<{ method: string; csrf: string | null; body: unknown }> = []
+    server.events.on('request:start', async ({ request }) => {
+      if (!new URL(request.url).pathname.endsWith('/me/settings')) return
+      const text = request.method === 'GET' ? '' : await request.clone().text()
+      seen.push({
+        method: request.method,
+        csrf: request.headers.get('X-CSRF'),
+        body: text === '' ? undefined : JSON.parse(text),
+      })
+    })
+    return seen
+  }
+
+  it('서버에 저장된 목소리(영국 남)로 시작한다 — 버튼 글자와 올린 음원 모두', async () => {
+    server.use(http.get('*/api/v1/me/settings', () => HttpResponse.json({ voice: 'uk_m' })))
+    renderLesson()
+    await heading()
+
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 영국 남성')
+    expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'uk_m')}.wav`)
+  })
+
+  it('설정이 회차보다 늦게 와도 처음 올린 음원이 저장된 목소리 — 설정을 기다렸다가 듣기 화면을 그린다', async () => {
+    server.use(
+      http.get('*/api/v1/me/settings', async () => {
+        await delay(150) // 회차 목(delay 기본값)보다 늦게
+        return HttpResponse.json({ voice: 'uk_m' })
+      }),
+    )
+    renderLesson()
+    await heading()
+
+    expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'uk_m')}.wav`)
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 영국 남성')
+  })
+
+  it('고른 적 없으면(null) 미국 여성', async () => {
+    server.use(http.get('*/api/v1/me/settings', () => HttpResponse.json({ voice: null })))
+    renderLesson()
+    await heading()
+
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 미국 여성')
+  })
+
+  it('설정을 받지 못해도(403) 듣기 화면은 뜨고 미국 여성', async () => {
+    server.use(
+      http.get('*/api/v1/me/settings', () =>
+        HttpResponse.json({ status: 403, code: 'FORBIDDEN', title: '권한 없음' }, { status: 403 }),
+      ),
+    )
+    renderLesson()
+    await heading()
+
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 미국 여성')
+  })
+
+  it('목소리를 바꾸면 화면을 먼저 바꾸고 PATCH { voice }(X-CSRF) — 다시 들어와도 그 목소리', async () => {
+    document.cookie = 'csrf=c146; path=/'
+    try {
+      const seen = settingsRequests()
+      const user = userEvent.setup()
+      const first = renderLesson()
+      await heading()
+
+      await chooseVoice(user, '영국 여성')
+      expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 영국 여성')
+      await waitFor(() => expect(seen.filter((r) => r.method === 'PATCH')).toHaveLength(1))
+      const patch = seen.find((r) => r.method === 'PATCH')
+      expect(patch?.body).toEqual({ voice: 'uk_w' })
+      expect(patch?.csrf).toBe('c146')
+      expect(localStorage.length).toBe(0) // 기기에는 저장하지 않는다
+
+      first.unmount()
+      renderLesson()
+      await heading()
+      expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 영국 여성')
+    } finally {
+      document.cookie = 'csrf=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    }
+  })
+
+  it('PATCH가 실패해도 고른 목소리로 계속 듣는다(안내 없음)', async () => {
+    server.use(
+      http.patch('*/api/v1/me/settings', () =>
+        HttpResponse.json({ status: 500, code: 'INTERNAL', title: '오류' }, { status: 500 }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    listen(0, 2)
+    play.mockClear()
+
+    await chooseVoice(user, '영국 남성')
+
+    expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 영국 남성')
+    expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'uk_m')}.wav`)
+    expect(play).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 })
 
