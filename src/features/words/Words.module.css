@@ -93,7 +93,7 @@
   gap: 6px;
 }
 
-/* 불러오지 못함 — 카드 자리 가운데에 문구 + 버튼(와이어프레임 ⑩). 문구는 지금 것(서버 title·detail) */
+/* 불러오지 못함 — 카드 자리 가운데에 상태 안내(StatusPanel, S-05와 같음 — #154). 버튼은 그 아래 버튼 자리 */
 .load {
   flex: 1;
   min-height: 420px;
@@ -104,11 +104,4 @@
   gap: var(--space-5);
   padding: var(--space-6);
   text-align: center;
-}
-
-.loadMessage {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.5;
-  white-space: pre-line;
 }

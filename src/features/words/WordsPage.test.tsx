@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +6,7 @@ import { routes } from '../../app/routes'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
 import { buildWords, resetWordMock, WORD_MOCK } from '../../mocks/wordData'
+import { hold } from '../../test/hold'
 import { renderRoutes } from '../../test/render'
 
 let play: ReturnType<typeof vi.spyOn>
@@ -702,28 +703,115 @@ describe('S-06 단어 카드', () => {
     expect(saved).toEqual([{ cardsViewed: WORD_MOCK.total }])
   })
 
-  it('교재 사용 기간이 아니면(403 LICENSE_INACTIVE) 서버 문구와 회차 목록으로', async () => {
-    server.use(
+  // #154: 못 받은 상태는 S-05(받기 전 화면, 명세 S04_S05_빈상태 §2)와 같은 상태 안내
+  describe('단어를 못 받았을 때 — S-05와 같은 상태 안내(StatusPanel)', () => {
+    const problem = (status: number, code: string, title: string, detail?: string) =>
       http.get('*/api/v1/student/lessons/:code/words', () =>
         HttpResponse.json(
-          { code: 'LICENSE_INACTIVE', title: '사용 기간이 아니에요', status: 403 },
-          { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+          { status, code, title, requestId: 'req-1', ...(detail ? { detail } : {}) },
+          { status, headers: { 'Content-Type': 'application/problem+json' } },
         ),
-      ),
-    )
-    renderWords()
+      )
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('사용 기간이 아니에요')
-    expect(screen.getByRole('link', { name: '회차 목록으로' })).toHaveAttribute('href', '/lessons')
-    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
-  })
+    // 5xx·연결 오류는 운영 정책대로 한 번 다시 보낸다(테스트 쿼리 클라이언트는 대기 0)
+    it('인터넷 끊김(연결 오류): 와이파이 아이콘·정한 문구·주 버튼 "다시 시도" → 다시 받으면 카드', async () => {
+      let fail = true
+      server.use(
+        http.get('*/api/v1/student/lessons/:code/words', () =>
+          fail ? HttpResponse.error() : undefined,
+        ),
+      )
+      const user = userEvent.setup()
+      renderWords()
 
-  it('잠긴 회차(423)는 서버 문구와 회차 목록으로', async () => {
-    renderWords('L2-B1-08')
+      const panel = await screen.findByRole('alert')
+      expect(within(panel).getByText('인터넷이 끊겼어요')).toBeInTheDocument()
+      expect(within(panel).getByText('연결을 확인하고 다시 시도해 주세요')).toBeInTheDocument()
+      expect(panel.querySelector('svg.lucide-wifi-off')).not.toBeNull()
+      expect(screen.getByRole('button', { name: '다시 시도' }).className).toMatch(/primary/)
+      fail = false
+      await user.click(screen.getByRole('button', { name: '다시 시도' }))
+      expect(await counter(`1 / ${WORD_MOCK.total}`)).toBeInTheDocument()
+    })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('아직 열리지 않은 회차예요')
-    expect(screen.getByRole('link', { name: '회차 목록으로' })).toHaveAttribute('href', '/lessons')
-    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
+    it('다시 시도를 누르면 받는 동안 안내는 그대로, 버튼만 누를 수 없게 — 화면이 비지 않는다', async () => {
+      let fail = true
+      server.use(
+        http.get('*/api/v1/student/lessons/:code/words', () =>
+          fail ? HttpResponse.error() : hold(),
+        ),
+      )
+      const user = userEvent.setup()
+      renderWords()
+      await screen.findByRole('alert')
+      fail = false
+
+      const retry = screen.getByRole('button', { name: '다시 시도' })
+      await user.click(retry)
+
+      expect(screen.getByRole('alert')).toHaveTextContent('인터넷이 끊겼어요')
+      // 누를 수 없게 하되 포커스는 그 버튼에 남는다(disabled는 포커스를 뺀다)
+      expect(retry).toHaveAttribute('aria-disabled', 'true')
+      expect(retry).not.toBeDisabled()
+      expect(retry).toHaveFocus()
+    })
+
+    it('서버 오류(5xx): 경고 아이콘·정한 문구(서버 title 아님)·"다시 시도", 상태·code·requestId만 기록', async () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      server.use(problem(500, 'INTERNAL', '서버 오류'))
+      renderWords()
+
+      const panel = await screen.findByRole('alert')
+      expect(within(panel).getByText('잠시 문제가 생겼어요')).toBeInTheDocument()
+      expect(within(panel).getByText('잠시 후 다시 시도해 주세요')).toBeInTheDocument()
+      expect(panel.querySelector('svg.lucide-triangle-alert')).not.toBeNull()
+      expect(screen.queryByText('서버 오류')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+      expect(logged).toHaveBeenCalledWith('[api]', {
+        status: 500,
+        code: 'INTERNAL',
+        requestId: 'req-1',
+      })
+    })
+
+    it('잠긴 회차(423): 자물쇠 아이콘·서버 제목과 보조 글·"회차 목록으로", 머리 줄의 뒤로·홈은 그대로', async () => {
+      renderWords('L2-B1-08')
+
+      const panel = await screen.findByRole('status')
+      expect(within(panel).getByText('아직 열리지 않은 회차예요')).toBeInTheDocument()
+      expect(within(panel).getByText('수업일이 되면 열려요')).toBeInTheDocument()
+      expect(panel.querySelector('svg.lucide-lock')).not.toBeNull()
+      expect(screen.getByRole('link', { name: '회차 목록으로' })).toHaveAttribute(
+        'href',
+        '/lessons',
+      )
+      expect(screen.getByRole('link', { name: '회차 목록으로' }).className).toMatch(/secondary/)
+      expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')
+    })
+
+    it('교재 사용 기간이 아니면(403 LICENSE_INACTIVE): 달력 아이콘·서버 제목(보조 글이 같으면 한 번만)·"회차 목록으로"', async () => {
+      server.use(problem(403, 'LICENSE_INACTIVE', '사용 기간이 아니에요', '사용 기간이 아니에요'))
+      renderWords()
+
+      const panel = await screen.findByRole('status')
+      expect(within(panel).getAllByText('사용 기간이 아니에요')).toHaveLength(1)
+      expect(panel.querySelector('svg.lucide-calendar-x')).not.toBeNull()
+      expect(screen.getByRole('link', { name: '회차 목록으로' })).toHaveAttribute(
+        'href',
+        '/lessons',
+      )
+    })
+
+    it('그 밖의 4xx(404): 원 아이콘·서버 문구·"회차 목록으로"', async () => {
+      server.use(problem(404, 'NOT_FOUND', '회차를 찾을 수 없어요'))
+      renderWords()
+
+      const panel = await screen.findByRole('status')
+      expect(panel).toHaveTextContent('회차를 찾을 수 없어요')
+      expect(panel.querySelector('svg.lucide-circle-alert')).not.toBeNull()
+      expect(screen.getByRole('link', { name: '회차 목록으로' })).toBeInTheDocument()
+    })
   })
 })
