@@ -78,6 +78,33 @@ describe('authFetch — 401 → refresh → 재시도', () => {
     ])
   })
 
+  it('keepalive 요청은 refresh 뒤 다시 보낼 때도 keepalive(화면을 떠나며 보낸 flush가 끝까지 가게)', async () => {
+    // MSW는 요청을 다시 만들며 keepalive를 잃으므로 fetch 호출에서 본다
+    const seen: Array<{ path: string; keepalive: boolean }> = []
+    let authorized = false
+    const authFetch = createAuthFetch({
+      fetch: (request) => {
+        const path = new URL(request.url).pathname
+        seen.push({ path, keepalive: request.keepalive })
+        if (path === '/api/v1/auth/refresh') {
+          authorized = true
+          return Promise.resolve(new Response(null, { status: 200 }))
+        }
+        return Promise.resolve(new Response(null, { status: authorized ? 200 : 401 }))
+      },
+    })
+
+    const response = await authFetch(
+      new Request(url('/api/v1/listening/flush'), { method: 'POST', body: '{}', keepalive: true }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(seen.filter((s) => s.path === '/api/v1/listening/flush')).toEqual([
+      { path: '/api/v1/listening/flush', keepalive: true },
+      { path: '/api/v1/listening/flush', keepalive: true },
+    ])
+  })
+
   it('refresh 뒤 csrf 쿠키가 없으면 예전 X-CSRF를 싣고 가지 않는다', async () => {
     setCsrfCookie('old')
     const seen: Array<string | null> = []

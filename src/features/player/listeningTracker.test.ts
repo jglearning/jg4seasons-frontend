@@ -571,7 +571,7 @@ describe('앱 설정(finalVia fetch): 화면이 보이는 끝은 fetch로 응답
     expect(beacon).not.toHaveBeenCalled()
   })
 
-  it('pause의 fetch가 실패해 되돌린 구간은 stop() beacon에 한 번만 싣는다', async () => {
+  it('pause의 fetch가 실패해 되돌린 구간은 stop() beacon에 한 번만 싣고, 이어서 fetch로 다시 보낸다', async () => {
     send.mockRejectedValueOnce(new TypeError('Failed to fetch'))
     const tracker = track({ finalVia: 'fetch' })
     media.play(0)
@@ -580,8 +580,12 @@ describe('앱 설정(finalVia fetch): 화면이 보이는 끝은 fetch로 응답
     await vi.advanceTimersByTimeAsync(0)
 
     tracker.stop()
+    await vi.advanceTimersByTimeAsync(0)
 
     expect(ranges(beacons)).toEqual([[0, 6000]])
+    expect(sent).toHaveLength(1) // 첫 fetch는 실패
+    expect(sent[0]).toMatchObject({ final: true, keepalive: true })
+    expect(ranges(sent)).toEqual([[0, 6000]])
   })
 
   it('pause가 두 번 겹쳐 두 fetch가 다 기다리는 중이면 stop() beacon에 두 구간을 모두 싣는다', async () => {
@@ -639,6 +643,201 @@ describe('앱 설정(finalVia fetch): 화면이 보이는 끝은 fetch로 응답
     expect(onDiscard).not.toHaveBeenCalled() // beacon이 받아들였다
   })
 
+  // #157: 화면을 끈 동안 beacon으로 보낸 구간(서버 수신을 모름)이 다음 fetch 전에 stop()되면 버려지던 문제
+  describe('stop() — 화면이 보이면 beacon으로 보낸 구간을 keepalive fetch로 한 번 더(#157)', () => {
+    const hide = () => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+    const show = () =>
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    afterEach(show)
+
+    it('화면을 끈 동안 beacon으로 보낸 구간과 지금 구간을 stop() 직후 fetch로 다시 보낸다', async () => {
+      const tracker = track({ finalVia: 'fetch' })
+      media.play(0)
+      media.advance(4)
+      hide()
+      show()
+      media.advance(2)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      // beacon은 지금처럼(트랙 전환), 이어서 같은 구간을 keepalive fetch로
+      expect(ranges(beacons)).toEqual([
+        [0, 4000],
+        [4000, 6000],
+      ])
+      expect(sent).toHaveLength(1)
+      expect(sent[0]).toMatchObject({ final: true, keepalive: true, clientSessionId: 'session-1' })
+      expect(ranges(sent)).toEqual([
+        [0, 4000],
+        [4000, 6000],
+      ])
+    })
+
+    it('그 fetch의 응답은 onResult로 전달한다(전환 직후 완료 반영)', async () => {
+      const onResult = vi.fn()
+      const tracker = track({ finalVia: 'fetch', onResult })
+      media.play(0)
+      media.advance(3)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(onResult).toHaveBeenCalledWith(RESULT)
+    })
+
+    it('화면이 숨은 채 stop()이면 지금처럼 beacon만 보내고, 서버 확인 없이 끝난 구간 수를 기록한다', async () => {
+      const onUnconfirmed = vi.fn()
+      const tracker = track({ finalVia: 'fetch', onUnconfirmed })
+      media.play(0)
+      media.advance(3)
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(ranges(beacons)).toEqual([[0, 3000]])
+      expect(send).not.toHaveBeenCalled()
+      expect(onUnconfirmed).toHaveBeenCalledTimes(1)
+      expect(onUnconfirmed).toHaveBeenCalledWith('stopped-beacon-only', 1)
+    })
+
+    it('beacon으로 보낸 구간의 재전송이 실패하면 원인과 함께 "서버 확인 못 함"으로 기록한다(버림이 아니다)', async () => {
+      const onDiscard = vi.fn()
+      const onUnconfirmed = vi.fn()
+      const error = new TypeError('Failed to fetch')
+      send.mockRejectedValueOnce(error)
+      const tracker = track({ finalVia: 'fetch', onDiscard, onUnconfirmed })
+      media.play(0)
+      media.advance(3)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(onUnconfirmed).toHaveBeenCalledTimes(1)
+      expect(onUnconfirmed).toHaveBeenCalledWith(error, 1)
+      expect(onDiscard).not.toHaveBeenCalled()
+    })
+
+    it('재전송이 같은 실패(예: 400)면 버린 구간으로 한 번만 기록한다', async () => {
+      const onDiscard = vi.fn()
+      const onUnconfirmed = vi.fn()
+      const error = new Error('400')
+      send.mockRejectedValueOnce(error)
+      const tracker = track({
+        finalVia: 'fetch',
+        onDiscard,
+        onUnconfirmed,
+        isPermanent: (e) => e === error,
+      })
+      media.play(0)
+      media.advance(3)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(onDiscard).toHaveBeenCalledTimes(1)
+      expect(onDiscard).toHaveBeenCalledWith(error, 1)
+      expect(onUnconfirmed).not.toHaveBeenCalled()
+    })
+
+    it('beacon이 거절한 구간(한 번도 안 간 구간)도 그 fetch에 실어 보낸다 — 버리지 않는다', async () => {
+      const onDiscard = vi.fn()
+      beacon.mockReturnValue(false)
+      const tracker = track({ finalVia: 'fetch', onDiscard })
+      media.play(0)
+      media.advance(4)
+      hide() // 거절 → 남김
+      show()
+      media.advance(2)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(sent).toHaveLength(1)
+      expect(sent[0]).toMatchObject({ final: true, keepalive: true })
+      expect(ranges(sent)).toEqual([
+        [0, 4000],
+        [4000, 6000],
+      ])
+      expect(onDiscard).not.toHaveBeenCalled()
+    })
+
+    it('거절된 구간의 재전송까지 실패하면 원인과 함께 버린 구간으로 한 번만 기록한다', async () => {
+      const onDiscard = vi.fn()
+      const onUnconfirmed = vi.fn()
+      const error = new TypeError('Failed to fetch')
+      beacon.mockReturnValue(false)
+      send.mockRejectedValueOnce(error)
+      const tracker = track({ finalVia: 'fetch', onDiscard, onUnconfirmed })
+      media.play(0)
+      media.advance(3)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(onDiscard).toHaveBeenCalledTimes(1)
+      expect(onDiscard).toHaveBeenCalledWith(error, 1)
+      expect(onUnconfirmed).not.toHaveBeenCalled()
+    })
+
+    it('재전송 묶음이 여럿이면(MAX_SEGMENTS_PER_FLUSH 초과) 모두 보내고, 앞 묶음만 실패하면 그 개수만 기록한다', async () => {
+      const onUnconfirmed = vi.fn()
+      const error = new TypeError('Failed to fetch')
+      send.mockRejectedValueOnce(error)
+      const tracker = track({ finalVia: 'fetch', onUnconfirmed })
+      media.play(0)
+      media.advance(((MAX_SEGMENTS_PER_FLUSH + 1) * MAX_SEGMENT_MS) / 1000)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(send).toHaveBeenCalledTimes(2)
+      expect(sent).toHaveLength(1) // 앞 묶음은 실패
+      expect(ranges(sent)).toEqual([
+        [MAX_SEGMENTS_PER_FLUSH * MAX_SEGMENT_MS, (MAX_SEGMENTS_PER_FLUSH + 1) * MAX_SEGMENT_MS],
+      ])
+      expect(onUnconfirmed).toHaveBeenCalledTimes(1)
+      expect(onUnconfirmed).toHaveBeenCalledWith(error, MAX_SEGMENTS_PER_FLUSH)
+    })
+
+    it('세션이 둘이면 세션마다 따로 보낸다', async () => {
+      send.mockRejectedValueOnce(new TypeError('Failed to fetch')) // ended의 fetch 실패 → 남김
+      const tracker = track({ finalVia: 'fetch' })
+      media.play(0)
+      media.advance(3)
+      media.end()
+      await vi.advanceTimersByTimeAsync(0)
+      media.play(0)
+      media.advance(2)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(sent.map((p) => [p.clientSessionId, ranges([p])])).toEqual([
+        ['session-1', [[0, 3000]]],
+        ['session-2', [[0, 2000]]],
+      ])
+      expect(sent.every((p) => p.final && p.keepalive)).toBe(true)
+    })
+
+    it('명세 기본(finalVia beacon)은 그대로 beacon만', async () => {
+      const onUnconfirmed = vi.fn()
+      const tracker = track({ onUnconfirmed })
+      media.play(0)
+      media.advance(3)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(send).not.toHaveBeenCalled()
+      expect(onUnconfirmed).toHaveBeenCalledWith('stopped-beacon-only', 1)
+    })
+  })
+
   it('stop() 뒤 그 fetch가 실패하고 beacon도 거절됐으면 버린 것으로 기록한다(다시 보낼 기회가 없다)', async () => {
     const onDiscard = vi.fn()
     let fail: (error: Error) => void = () => {}
@@ -657,21 +856,26 @@ describe('앱 설정(finalVia fetch): 화면이 보이는 끝은 fetch로 응답
     expect(onDiscard).toHaveBeenCalledWith('stopped-send-failed', 1)
   })
 
-  it('stop() 뒤 그 fetch가 실패해도 beacon이 받아들였으면 버림이 아니다', async () => {
+  it('stop() 뒤 그 fetch가 실패해도 beacon이 받아들였으면 버림이 아니다 — beacon에만 의존한 구간으로 기록', async () => {
     const onDiscard = vi.fn()
+    const onUnconfirmed = vi.fn()
+    const error = new TypeError('Failed to fetch')
     let fail: (error: Error) => void = () => {}
     send.mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)))
-    const tracker = track({ finalVia: 'fetch', onDiscard })
+    const tracker = track({ finalVia: 'fetch', onDiscard, onUnconfirmed })
     media.play(0)
     media.advance(6)
     media.pause()
     tracker.stop()
+    expect(onUnconfirmed).not.toHaveBeenCalled() // 아직 fetch가 결과를 기다린다
 
-    fail(new TypeError('Failed to fetch'))
+    fail(error)
     await vi.advanceTimersByTimeAsync(0)
 
     expect(ranges(beacons)).toEqual([[0, 6000]])
     expect(onDiscard).not.toHaveBeenCalled()
+    expect(onUnconfirmed).toHaveBeenCalledTimes(1)
+    expect(onUnconfirmed).toHaveBeenCalledWith(error, 1)
   })
 
   it('stop() 뒤 주기 전송(flush)이 실패하고 beacon도 거절됐으면 버린 것으로 기록한다', async () => {
