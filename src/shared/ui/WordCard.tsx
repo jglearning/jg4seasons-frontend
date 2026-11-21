@@ -83,8 +83,21 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
     return { width: card.width || 0, half }
   }
 
+  /** 지금 그려진 진행(0~1) — 움직이는 중이면 그 값, 아니면 쉬는 자리 */
+  const shownT = settleT ?? (up ? 1 : 0)
+
+  /** 움직임을 멈춘다(앞 움직임이 끝 자리를 덮어쓰지 않게) */
+  function stopSettle() {
+    setSettle(null)
+    setSettleT(null)
+  }
+
   function startSettle(from: number, to: number, ms: number = SETTLE_MS) {
-    if (from === to || reducedMotion() || typeof requestAnimationFrame !== 'function') return
+    if (from === to || reducedMotion() || typeof requestAnimationFrame !== 'function') {
+      // 움직이지 않고 끝나도 앞 움직임은 멈춘다 — 안 그러면 계속 돌다 끝에서 튄다(#153)
+      stopSettle()
+      return
+    }
     // 진행값을 지금 바로 시작 값으로 — 비워 두면 첫 프레임 전 한 번이 바뀐 up의 도착 자리 모양으로 그려져 번쩍인다(#151)
     setSettleT(from)
     setSettle({ from, to, ms })
@@ -104,7 +117,8 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
     drag.current = {
       pointerId: event.pointerId,
       startY: event.clientY,
-      start: up ? s.half * 2 : 0,
+      // 넘어가는 중에 잡으면 지금 그려진 자리에서 끌기 시작한다(#153)
+      start: shownT * s.half * 2,
       size: s,
       moved: false,
     }
@@ -149,7 +163,8 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
       return
     }
     setSize(measure(event.currentTarget))
-    startSettle(up ? 1 : 0, up ? 0 : 1, TAP_MS)
+    // 넘어가는 중에 다시 누르면 지금 그려진 자리에서 되돌아간다(#153)
+    startSettle(shownT, up ? 0 : 1, TAP_MS)
     setUp((v) => !v)
   }
 

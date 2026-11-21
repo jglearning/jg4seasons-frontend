@@ -57,6 +57,23 @@ function sheetHeight() {
   } as DOMRect)
 }
 
+/**
+ * 그리기를 브라우저처럼 — jsdom의 requestAnimationFrame은 창이 만들어진 때가 기준인 시각을 넘긴다. 전역
+ * performance.now()보다 그만큼(약 1초) 작아 넘김이 그 시간만큼 늦게 끝난다(#151). 같은 기준 시각으로 약 16ms마다
+ * 부른다(다음 테스트를 시작하기 전에 unstubGlobals가 되돌린다 — vite.config.ts)
+ */
+function browserFrames() {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    window.setTimeout(() => callback(performance.now()), 16),
+  )
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
+}
+
+/** 종이가 위 자리에 다 넘어가 쉴 때까지(보이는 글 + 읽는 이름이 "눌러서 단어 보기") */
+async function settledUp() {
+  await waitFor(() => expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(2))
+}
+
 /** 종이를 dy만큼 끈다(위 +, 아래 -). 놓지 않음 */
 function drag(dy: number) {
   fireEvent.pointerDown(sheet(), { pointerId: 1, clientY: 500, isPrimary: true })
@@ -206,13 +223,7 @@ describe('S-06 단어 카드', () => {
   })
 
   it('종이의 안내 글은 누르기 기준이다 — 아래 자리 "눌러서 뜻 보기", 위 자리 "눌러서 단어 보기"(#128)', async () => {
-    // jsdom의 requestAnimationFrame은 창이 만들어진 때가 기준인 시각을 넘긴다. 전역 performance.now()보다 그만큼
-    // (약 1초) 작아 넘김이 그 시간만큼 늦게 끝나 waitFor를 넘긴다(#151) — 브라우저처럼 같은 기준 시각으로 약 16ms마다
-    // 부른다(다음 테스트를 시작하기 전에 unstubGlobals가 되돌린다 — vite.config.ts)
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
-      window.setTimeout(() => callback(performance.now()), 16),
-    )
-    vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
+    browserFrames()
     const user = userEvent.setup()
     renderWords()
     await counter(`1 / ${WORD_MOCK.total}`)
@@ -263,7 +274,10 @@ describe('S-06 단어 카드', () => {
         frames.push(callback)
         return frames.length
       })
-      vi.stubGlobal('cancelAnimationFrame', () => {})
+      // 취소한 그리기는 브라우저처럼 다시 불리지 않게 빈 함수로 바꾼다(#153)
+      vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+        if (id > 0 && id <= frames.length) frames[id - 1] = () => {}
+      })
       // 종이가 말리는 그림은 폭·높이가 있어야 그린다
       vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
         width: 300,
@@ -325,6 +339,52 @@ describe('S-06 단어 카드', () => {
       release()
 
       expect(moving('눌러서 뜻 보기')).toBe(true)
+    })
+
+    // #153: 움직이는 도중에 다시 누르거나 잡으면 지금 그려진 자리에서 이어 가야 한다(끝 자리로 튀지 않음)
+    it('넘어가는 도중 다시 누르면 지금 자리에서 되돌아간다 — 첫 프레임 전에도 끝 자리로 튀지 않음', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      const before = performance.now()
+      fireEvent.click(sheet())
+      frameAt(before + 40)
+      expect(moving('눌러서 단어 보기')).toBe(true)
+
+      fireEvent.click(sheet())
+
+      // 말린 그림이 이어진다 = 종이 위 보이는 글이 없다(끝 자리로 튀면 "눌러서 단어 보기"가 보인다)
+      expect(sheet()).toHaveAccessibleName('눌러서 뜻 보기')
+      expect(moving('눌러서 뜻 보기')).toBe(true)
+      expect(screen.queryByText('눌러서 단어 보기')).toBeNull()
+    })
+
+    it('넘어가는 도중 잡아 끌면 지금 그려진 자리에서 끌기 시작한다', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      const before = performance.now()
+      fireEvent.click(sheet())
+      frameAt(before + 40)
+
+      drag(20)
+
+      // 끝 자리(종이 높이 2배 = 400px)가 아니라 넘어가던 자리 + 20px
+      const travel = parseFloat(shift())
+      expect(travel).toBeGreaterThan(20)
+      expect(travel).toBeLessThan(SHEET_HEIGHT * 2)
+    })
+
+    it('넘어가는 도중 끝까지 끌어 놓으면 그 자리에 멈춘다 — 앞 움직임이 계속 돌지 않음', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      const before = performance.now()
+      fireEvent.click(sheet())
+      frameAt(before + 40)
+
+      drag(SHEET_HEIGHT * 2)
+      release()
+
+      // 다 넘어간 자리에 쉬는 모양(보이는 글 + 읽는 이름)
+      expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(2)
     })
 
     it('움직임 줄이기면 움직이지 않고 누르는 즉시 위 자리 — 그리기를 예약하지 않는다', async () => {
@@ -408,10 +468,12 @@ describe('S-06 단어 카드', () => {
   })
 
   it('넘어간 종이를 가운데선 아래로 내리고 놓으면 돌아와 뜻을 가린다', async () => {
+    browserFrames()
     const user = userEvent.setup()
     renderWords()
     await counter(`1 / ${WORD_MOCK.total}`)
     await user.click(sheet())
+    await settledUp() // 다 넘어간 뒤에 잡는다(#153 — 넘어가는 중이면 그 자리에서 끌기 시작)
     sheetHeight()
 
     drag(-260)
@@ -421,10 +483,12 @@ describe('S-06 단어 카드', () => {
   })
 
   it('넘어간 종이를 조금만 내리고 놓으면 위에 그대로(위로는 더 넘어가지 않는다)', async () => {
+    browserFrames()
     const user = userEvent.setup()
     renderWords()
     await counter(`1 / ${WORD_MOCK.total}`)
     await user.click(sheet())
+    await settledUp()
     sheetHeight()
 
     drag(40)
