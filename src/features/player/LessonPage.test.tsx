@@ -310,6 +310,8 @@ describe('S-05 화면', () => {
         '/lessons',
       )
       expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+      // 기다려야 풀려 흰 버튼
+      expect(screen.getByRole('link', { name: '회차 목록으로' }).className).toMatch(/secondary/)
       expect(document.documentElement).toHaveAttribute('data-level', 'green')
     })
 
@@ -383,10 +385,14 @@ describe('S-05 화면', () => {
       expect(panel.querySelector('svg.lucide-triangle-alert')).not.toBeNull()
       // 서버 title은 보이지 않는다(정한 문구)
       expect(screen.queryByText('서버 오류')).not.toBeInTheDocument()
-      expect(logged).toHaveBeenCalledWith(
-        '[api]',
-        expect.objectContaining({ status: 503, requestId: 'req-1' }),
-      )
+      // 기록은 상태·code·requestId만(서버 문구 등 다른 값 없음 — 개인정보 규칙)
+      expect(logged).toHaveBeenCalledWith('[api]', {
+        status: 503,
+        code: 'INTERNAL',
+        requestId: 'req-1',
+      })
+      // 다시 하면 풀릴 수 있어 주 버튼
+      expect(screen.getByRole('button', { name: '다시 시도' }).className).toMatch(/primary/)
       // 5xx에서도 나갈 길이 있다
       expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/')

@@ -1,19 +1,17 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import {
-  BookOpen,
-  CalendarX,
-  ChevronLeft,
-  CircleAlert,
-  House,
-  Lock,
-  TriangleAlert,
-  WifiOff,
-} from 'lucide-react'
+import { BookOpen, ChevronLeft, House, Lock } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ApiError } from '../../api/errors'
 import { meQuery } from '../../api/session'
 import { lessonLevelCode } from '../../shared/lessonLabel'
+import {
+  loadStateOf,
+  RETRY_STATUS,
+  useServerErrorLog,
+  WAIT_ICON,
+  type LoadQuery,
+} from '../../shared/loadState'
 import { Button, ButtonLink } from '../../shared/ui/Button'
 import { HeardBar } from '../../shared/ui/HeardBar'
 import { NudgeCard } from '../../shared/ui/NudgeCard'
@@ -505,49 +503,18 @@ function NextNudge({
 
 // ── 회차를 받기 전(와이어프레임 S05_Before, 명세 S04_S05_빈상태 §2, #139) ──
 
-type BeforeQuery = { isError: boolean; error: unknown; fetchStatus: string; refetch: () => unknown }
-
-/**
- * ① loading 불러오는 중 / ② offline 인터넷 끊김 / ③ locked 잠긴 회차 / ④ license 사용 기간 아님 /
- * client 그 밖의 4xx(③④와 같은 틀) / ⑤ server 서버 오류 / none 그리지 않음(401 — 세션 만료 이동이 맡는다)
- */
-type Before = 'loading' | 'offline' | 'locked' | 'license' | 'client' | 'server' | 'none'
+// 상태 판정·정한 문구·아이콘은 S-06과 같이 쓴다(shared/loadState, #154)
 
 /** 처음 이만큼은 머리 줄만 — 빨리 오면 뼈대가 깜박이지 않고 바로 듣기 화면 */
 const LOADING_DELAY_MS = 300
-
-/**
- * 받은 오류를 상태로. 브라우저가 오프라인이면 요청이 멈추고(paused), 온라인인데 서버에 닿지 못하면
- * 연결 오류(TypeError)가 온다 — 둘 다 ②. 서버가 응답한 5xx·엉뚱한 응답·알 수 없는 오류는 ⑤
- */
-function beforeState(query: BeforeQuery): Before {
-  if (query.fetchStatus === 'paused') return 'offline'
-  if (query.fetchStatus === 'fetching' || !query.isError) return 'loading'
-  const error = query.error
-  if (error instanceof TypeError) return 'offline'
-  if (!(error instanceof ApiError)) return 'server'
-  if (error.status === 401) return 'none'
-  if (error.code === 'LESSON_LOCKED') return 'locked'
-  if (error.code === 'LICENSE_INACTIVE') return 'license'
-  if (error.status >= 400 && error.status < 500) return 'client'
-  return 'server'
-}
-
-/** ②⑤는 정한 문구, ③④·그 밖 4xx는 서버 문구(title = 제목, detail = 보조 글) */
-const FIXED_COPY = {
-  offline: { title: '인터넷이 끊겼어요', detail: '연결을 확인하고 다시 시도해 주세요' },
-  server: { title: '잠시 문제가 생겼어요', detail: '잠시 후 다시 시도해 주세요' },
-} as const
-
-const WAIT_ICON = { locked: Lock, license: CalendarX, client: CircleAlert } as const
 
 /**
  * 회차를 받기 전 화면. 바탕은 회차 코드의 레벨(응답 전이라 코드에서 읽는다), 머리 줄은 늘 있다.
  * ②⑤는 다시 시도하면 풀릴 수 있어 주 버튼 "다시 시도", ③④는 기다려야 풀려 흰 버튼 "회차 목록으로".
  * 버튼은 평소 "다음 지문"과 같은 아래 고정 자리
  */
-function LessonBefore({ code, query }: { code: string; query: BeforeQuery }) {
-  const state = beforeState(query)
+function LessonBefore({ code, query }: { code: string; query: LoadQuery }) {
+  const state = loadStateOf(query)
   const loading = state === 'loading'
   const [loadingShown, setLoadingShown] = useState(false)
   useEffect(() => {
@@ -559,29 +526,13 @@ function LessonBefore({ code, query }: { code: string; query: BeforeQuery }) {
     }
   }, [loading])
 
-  // 서버 쪽 문제는 서버 로그와 맞춰 볼 수 있게 상태·code·requestId만 남긴다(개인정보 없음)
   const error = query.error
-  useEffect(() => {
-    if (state !== 'server') return
-    console.error(
-      '[api]',
-      error instanceof ApiError
-        ? { status: error.status, code: error.code, requestId: error.requestId }
-        : error,
-    )
-  }, [state, error])
+  useServerErrorLog(state, error)
 
   let body: ReactNode = null
   let action: ReactNode = null
   if (state === 'offline' || state === 'server') {
-    body = (
-      <StatusPanel
-        icon={state === 'offline' ? WifiOff : TriangleAlert}
-        tone="bad"
-        role="alert"
-        {...FIXED_COPY[state]}
-      />
-    )
+    body = <StatusPanel tone="bad" role="alert" {...RETRY_STATUS[state]} />
     action = (
       <Button block onClick={() => void query.refetch()}>
         다시 시도
