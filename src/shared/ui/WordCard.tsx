@@ -49,7 +49,7 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
    * 2배면 카드 위 끝(다 넘어감). 끌지 않을 때는 null
    */
   const [travel, setTravel] = useState<number | null>(null)
-  /** 놓은 뒤 움직이는 중의 진행(0~1). 움직이지 않을 때는 null */
+  /** 놓은 뒤·누른 뒤 움직이는 중의 진행(0~1). startSettle에서 시작 값으로 바로 채운다. 움직이지 않을 때는 null */
   const [settleT, setSettleT] = useState<number | null>(null)
   const [settle, setSettle] = useState<Settle | null>(null)
   const [size, setSize] = useState<Size>({ width: 0, half: 0 })
@@ -85,6 +85,8 @@ export function WordCard({ sourceLabel, english, posLabel, korean }: WordCardPro
 
   function startSettle(from: number, to: number, ms: number = SETTLE_MS) {
     if (from === to || reducedMotion() || typeof requestAnimationFrame !== 'function') return
+    // 진행값을 지금 바로 시작 값으로 — 비워 두면 첫 프레임 전 한 번이 바뀐 up의 도착 자리 모양으로 그려져 번쩍인다(#151)
+    setSettleT(from)
     setSettle({ from, to, ms })
   }
 

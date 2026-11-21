@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -206,6 +206,13 @@ describe('S-06 단어 카드', () => {
   })
 
   it('종이의 안내 글은 누르기 기준이다 — 아래 자리 "눌러서 뜻 보기", 위 자리 "눌러서 단어 보기"(#128)', async () => {
+    // jsdom의 requestAnimationFrame은 창이 만들어진 때가 기준인 시각을 넘긴다. 전역 performance.now()보다 그만큼
+    // (약 1초) 작아 넘김이 그 시간만큼 늦게 끝나 waitFor를 넘긴다(#151) — 브라우저처럼 같은 기준 시각으로 약 16ms마다
+    // 부른다(다음 테스트를 시작하기 전에 unstubGlobals가 되돌린다 — vite.config.ts)
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      window.setTimeout(() => callback(performance.now()), 16),
+    )
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
     const user = userEvent.setup()
     renderWords()
     await counter(`1 / ${WORD_MOCK.total}`)
@@ -214,8 +221,10 @@ describe('S-06 단어 카드', () => {
     expect(screen.getAllByText('눌러서 뜻 보기')).toHaveLength(2)
     expect(card()).not.toHaveTextContent('올려서')
 
+    // 읽는 이름은 누르는 즉시, 종이 위 보이는 글은 넘김(140ms)이 끝난 뒤 바뀐다(#151)
     await user.click(sheet())
-    expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(2)
+    expect(sheet()).toHaveAccessibleName('눌러서 단어 보기')
+    await waitFor(() => expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(2))
     expect(card()).not.toHaveTextContent('내려서')
   })
 
@@ -282,6 +291,58 @@ describe('S-06 단어 카드', () => {
       expect(moving('눌러서 단어 보기')).toBe(true)
       frameAt(after + 140)
       expect(moving('눌러서 단어 보기')).toBe(false)
+    })
+
+    // #151: 움직임 진행값이 첫 프레임에야 채워져, 그 전 한 번의 그리기가 도착할 자리 모양으로 나왔다(번쩍임) —
+    // 아래 세 테스트가 누르기·끌어 넘기기·끌다 되돌아가기에서 지킨다
+    it('누른 직후 첫 프레임 전에도 종이는 아래 자리에서 시작한다(번쩍이지 않음)', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+
+      fireEvent.click(sheet())
+
+      // 읽는 이름은 바로 바뀌고, 보이는 글은 아직 아래 자리 것(t=0은 멈춘 그림이라 moving()으로는 못 본다)
+      expect(sheet()).toHaveAccessibleName('눌러서 단어 보기')
+      expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(1)
+      expect(screen.getByText('눌러서 뜻 보기')).toBeInTheDocument()
+    })
+
+    it('끌다 놓은 직후 첫 프레임 전에도 놓은 자리에서 이어 넘어간다(다 넘어간 모양 아님)', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+
+      drag(260)
+      release()
+
+      expect(moving('눌러서 단어 보기')).toBe(true)
+    })
+
+    it('가운데선을 못 넘기고 놓아 되돌아갈 때도 첫 프레임 전부터 놓은 자리에서(아래 모양으로 튀지 않음)', async () => {
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+
+      drag(150)
+      release()
+
+      expect(moving('눌러서 뜻 보기')).toBe(true)
+    })
+
+    it('움직임 줄이기면 움직이지 않고 누르는 즉시 위 자리 — 그리기를 예약하지 않는다', async () => {
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }))
+      renderWords()
+      await counter(`1 / ${WORD_MOCK.total}`)
+      const scheduled = frames.length
+
+      fireEvent.click(sheet())
+
+      expect(screen.getAllByText('눌러서 단어 보기')).toHaveLength(2)
+      expect(shift()).toBe('100%')
+      expect(frames).toHaveLength(scheduled)
     })
 
     it('끌다 놓으면 200ms에 다 넘어간다(그대로)', async () => {
