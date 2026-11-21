@@ -1,0 +1,60 @@
+/* 빈 상태·못 받은 상태 안내(명세 S04_S05_빈상태 §2 공통 틀) — 정보 표시라 턱 없음 */
+.panel {
+  box-sizing: border-box;
+  width: 100%;
+  height: 216px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 받침 원: 지름 72, 흰 면, 1px line. 아이콘 30은 이 받침 안에서만(DESIGN.md 1.3) */
+.badge {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: var(--border-card) solid var(--line);
+  background: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.badge[data-tone='bad'] {
+  color: var(--bad);
+}
+
+.badge[data-tone='muted'] {
+  color: var(--muted);
+}
+
+/* 제목: 아이콘 아래 20, 20/800, 줄 높이 28, 두 줄까지 */
+.title {
+  margin: 20px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 28px;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 보조 글: 제목 아래 8, 15/500 muted, 줄 높이 22, 두 줄까지 */
+.detail {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
