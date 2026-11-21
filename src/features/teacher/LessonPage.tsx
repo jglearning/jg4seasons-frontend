@@ -5,8 +5,7 @@ import { levelProps } from '../../shared/level'
 import { StatusPill, type Status } from '../../shared/ui/StatusPill'
 import { Table, type Column } from '../../shared/ui/Table'
 import { shortDate } from '../../shared/dates'
-import { groupByPassage, passageCell, percent } from './format'
-import { voiceLabel } from '../../shared/lessonLabel'
+import { groupByPassage, percent } from './format'
 import {
   lessonDetailQuery,
   teacherClassesQuery,
@@ -17,7 +16,8 @@ import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import styles from './Teacher.module.css'
 
 // T-05 회차 상세(03 §4.4) — 수업 전에 빠르게 보는 학생 × 지문 표.
-// 트랙은 지문 × 목소리 4개(BE #40)라 지문당 열 하나로 모은다: 완료한 목소리 ✓, 없으면 가장 많이 들은 목소리 %.
+// 트랙은 지문 × 목소리 4개(BE #40)라 지문당 열 하나 — 칸은 서버 지문 요약 rows[].passages(BE #63, 목소리를 섞어
+// 들은 것까지 합친 값): 완료 ✓, 들은 구간 %, 안 들음 —. 목소리별 byTrack으로 지문 완료를 판단하지 않는다.
 // 목소리별 자세한 값은 학생 상세(T-04). 칸은 서버 completed·coverage 그대로
 export function LessonPage() {
   const params = useParams()
@@ -80,37 +80,32 @@ function LessonTable({ classId, data }: { classId: number; data: LessonDetail })
         <StatusPill status={STATUS[r.status].status}>{STATUS[r.status].text}</StatusPill>
       ),
     },
-    ...passages.map(({ passageNo, tracks }): Column<LessonDetailRow> => ({
+    ...passages.map(({ passageNo }): Column<LessonDetailRow> => ({
       key: `passage-${passageNo}`,
       header: `지문 ${passageNo}`,
       center: true,
       cell: (r) => {
-        const result = passageCell(
-          tracks.flatMap((track) => {
-            const heard = r.byTrack[String(track.trackId)]
-            return heard === undefined ? [] : [{ track, ...heard }]
-          }),
-        )
+        // 서버 지문 요약(BE #63) — 목소리를 섞어 들은 것까지 합친 값. 완료를 coverage보다 우선(기준이 달라진 지문)
+        const summary = r.passages.find((p) => p.no === passageNo)
         const label = `${r.student.name} 지문 ${passageNo}`
-        const voice = result === undefined ? '' : (voiceLabel(result.track.variant) ?? '')
-        if (result?.completed === true)
+        if (summary?.completed === true)
           return (
             <StatusPill
               status="completed"
               shape="cell"
-              srLabel={`${label} 완료 · ${voice} ${percent(result.coverage)}`}
+              srLabel={`${label} 완료 · ${percent(summary.coverage)}`}
             >
               <Check size={14} strokeWidth={3} />
             </StatusPill>
           )
-        if (result !== undefined)
+        if (summary !== undefined && summary.coverage > 0)
           return (
             <StatusPill
               status="in_progress"
               shape="cell"
-              srLabel={`${label} 들은 구간 · ${voice} ${percent(result.coverage)}`}
+              srLabel={`${label} 들은 구간 ${percent(summary.coverage)}`}
             >
-              {percent(result.coverage)}
+              {percent(summary.coverage)}
             </StatusPill>
           )
         return (
