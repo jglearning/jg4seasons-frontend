@@ -67,6 +67,11 @@ function featuredLesson(groups: Group[]): Lesson | undefined {
   )
 }
 
+/** 받은 회차가 하나도 없는가 — 묶음이 없거나 묶음마다 회차가 없다. 서버가 준 개수만 본다 */
+function noLessons(groups: Group[]): boolean {
+  return groups.every((g) => g.lessons.length === 0)
+}
+
 export function LessonsPage() {
   const home = useQuery(homeQuery)
   const classId = home.data?.class.id
@@ -120,16 +125,47 @@ export function LessonsPage() {
         <div className={styles.board}>
           {/* 이 목록 응답의 사용 상태로(홈 응답보다 새 값) */}
           <LicenseNotice status={lessons.data.class.licenseStatus} />
-          {featured !== undefined && <FeaturedCard lesson={featured} />}
-          {lessons.data.groups.map((group) => (
-            <LessonGroup key={group.module} group={group} onLocked={showLocked} />
-          ))}
+          {noLessons(lessons.data.groups) ? (
+            <EmptyBoard />
+          ) : (
+            <>
+              {featured !== undefined && <FeaturedCard lesson={featured} />}
+              {lessons.data.groups.map((group) => (
+                <LessonGroup key={group.module} group={group} onLocked={showLocked} />
+              ))}
+            </>
+          )}
         </div>
       )}
 
       <Toast message={toast} />
       <StudentTabs home={home.data} />
     </StudentLayout>
+  )
+}
+
+/**
+ * 회차가 하나도 없을 때(진도표가 아직 없는 반, #141) — 빈 도장판(와이어프레임 S04_Empty A안, 명세 S04_S05_빈상태 §1).
+ * 평소 묶음 상자 자리에 점선 상자 + 숫자 없는 동그라미 8개(잠긴 회차와 같은 옅은 면) + 제목 + 보조 글.
+ * 나중에 채워질 판을 보여 줘 "잘못됐다"가 아니라 "기다리면 된다"로 읽히게. 누를 것은 없다(턱 없음)
+ */
+function EmptyBoard() {
+  return (
+    <section className={styles.emptyBoard} aria-label="아직 수업이 없어요">
+      <div className={styles.emptyGrid} aria-hidden="true">
+        {Array.from({ length: 8 }, (_, i) => (
+          <span key={i} className={styles.emptyCell}>
+            <span className={styles.emptyCircle} />
+          </span>
+        ))}
+      </div>
+      <p className={styles.emptyTitle}>아직 수업이 없어요</p>
+      <p className={styles.emptySub}>
+        선생님이 수업 날을 정하면
+        <br />
+        여기에 Reading Day가 생겨요
+      </p>
+    </section>
   )
 }
 
