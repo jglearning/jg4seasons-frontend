@@ -131,6 +131,11 @@ const durationOf = (no: number, scale: number) => timingsOf(no, scale).at(-1)?.[
 const passageTrackId = (no: number, index: number) => 9000 + no * 10 + index
 
 // ── 서버 상태 흉내 ──
+/**
+ * 목소리를 섞어 완료한 지문(BE #59). 목은 구간을 실제로 합치지 않고 결과만 서버처럼 준다:
+ * 지문 coverage 1·completed, 모든 목소리의 combinedRanges = 음원 전체, 목소리별 completed는 모두 false
+ */
+const MIXED_PASSAGE = 4
 type TrackInfo = { durationMs: number; ranges: Array<[number, number]> }
 const tracks = new Map<number, TrackInfo>()
 
@@ -141,10 +146,17 @@ export function resetLessonMock() {
     VARIANTS.forEach(({ scale }, index) => {
       const durationMs = durationOf(no, scale)
       const first = index === 0
-      // 지문 1~4는 us_w로 이미 다 들었다(홈 목의 "지문 듣기 4 / 6"과 맞춤),
+      // 지문 1~3은 us_w로 이미 다 들었다. 지문 4는 목소리를 섞어 완료(us_w 앞 절반 + uk_m 뒤 절반, BE #59 —
+      // 아래 MIXED_PASSAGE). 그래서 홈 목의 "지문 듣기 4 / 6"과 맞는다.
       // 지문 5는 us_w로 문장 1~3만 들었다(완료 전 안내 카드 확인용)
       let ranges: Array<[number, number]> = []
-      if (first && no <= 4) ranges = [[0, durationMs]]
+      if (first && no <= 3) ranges = [[0, durationMs]]
+      if (no === MIXED_PASSAGE) {
+        const half = Math.ceil(timingsOf(no, scale).length / 2)
+        if (first) ranges = [[0, timingsOf(no, scale)[half - 1][1]]]
+        if (VARIANTS[index].variant === 'uk_m')
+          ranges = [[timingsOf(no, scale)[half][0], durationMs]]
+      }
       if (first && no === 5) ranges = [[0, timingsOf(5, 1)[2][1]]]
       tracks.set(passageTrackId(no, index), { durationMs, ranges })
     })
@@ -256,8 +268,10 @@ export function buildLessonDetail(code: string): Detail {
         timings: timingsOf(no, scale),
         timingsApproximate: false,
         heardRanges: info.ranges.map(([a, b]) => [a, b]),
-        // 목은 목소리를 합쳐 세지 않는다 — 합친 집계가 없을 때 서버가 주는 값(= heardRanges)
-        combinedRanges: info.ranges.map(([a, b]) => [a, b]),
+        // 목은 목소리를 합쳐 세지 않는다 — 합친 집계가 없을 때 서버가 주는 값(= heardRanges).
+        // 섞어 완료한 지문만 서버가 합친 결과(음원 전체)
+        combinedRanges:
+          no === MIXED_PASSAGE ? [[0, info.durationMs]] : info.ranges.map(([a, b]) => [a, b]),
       }
     })
     return {
@@ -265,7 +279,7 @@ export function buildLessonDetail(code: string): Detail {
       title: passage.title,
       wordCount: passage.sentences.reduce((sum, [text]) => sum + text.split(/\s+/).length, 0),
       sentences: passage.sentences.map(([text], s) => ({ no: s + 1, text, speaker: null })),
-      ...passageSummary(voices),
+      ...(no === MIXED_PASSAGE ? { coverage: 1, completed: true } : passageSummary(voices)),
       voices,
     }
   })
