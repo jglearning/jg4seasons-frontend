@@ -1,5 +1,5 @@
 import { act, render, screen, within } from '@testing-library/react'
-import { House, LayoutGrid } from 'lucide-react'
+import { House, LayoutGrid, Lock } from 'lucide-react'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import type { ReactElement } from 'react'
@@ -13,6 +13,7 @@ import { SentenceDots } from './SentenceDots'
 import { ActionRow } from './ActionRow'
 import { ProgressBar } from './ProgressBar'
 import { coverArt, levelEnglish, levelName, levelProps } from '../level'
+import { StatusPanel } from './StatusPanel'
 import { StatusPill } from './StatusPill'
 import { StudentLayout } from './StudentLayout'
 import { Table } from './Table'
@@ -384,5 +385,29 @@ describe('HeardBar', () => {
     expect(attr('data-skipped')).toEqual(['20000-40000', '45000-60000'])
     expect(attr('data-range')).toEqual(['0-10000', '10500-20000', '40000-45000'])
     expect(screen.queryByRole('slider')).not.toBeInTheDocument() // onSeek이 없으면 표시만
+  })
+})
+
+describe('StatusPanel', () => {
+  it('받침 안 아이콘(읽지 않음) · 제목 · 보조 글, 역할은 받은 대로, 아이콘 색은 받침의 data-tone', () => {
+    render(<StatusPanel icon={Lock} tone="muted" title="T" detail="D" role="status" />)
+
+    const panel = screen.getByRole('status')
+    expect(within(panel).getByText('T')).toBeInTheDocument()
+    expect(within(panel).getByText('D')).toBeInTheDocument()
+    const badge = panel.querySelector('[data-tone]')
+    expect(badge).toHaveAttribute('data-tone', 'muted')
+    expect(badge).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('보조 글이 없거나 비었거나 제목과 같으면 그리지 않는다', () => {
+    const { rerender } = render(<StatusPanel icon={Lock} tone="bad" title="T" role="alert" />)
+    expect(screen.getByRole('alert').querySelectorAll('p')).toHaveLength(1)
+
+    rerender(<StatusPanel icon={Lock} tone="bad" title="T" detail="" role="alert" />)
+    expect(screen.getByRole('alert').querySelectorAll('p')).toHaveLength(1)
+
+    rerender(<StatusPanel icon={Lock} tone="bad" title="T" detail="T" role="alert" />)
+    expect(screen.getByRole('alert').querySelectorAll('p')).toHaveLength(1)
   })
 })

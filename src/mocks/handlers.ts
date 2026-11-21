@@ -250,8 +250,9 @@ const studentHandlers: AnyHandler[] = [
     if (!/^L2-B1-\d{2}$/.test(code))
       return problem(request, 404, 'NOT_FOUND', '회차를 찾을 수 없어요')
     if (!LESSON_MOCK.openCodes.includes(code as (typeof LESSON_MOCK.openCodes)[number])) {
+      // 문구는 백엔드 StudentLessonGateService 그대로(title = ClassErrorCode, detail = 보조 글)
       return problem(request, 423, 'LESSON_LOCKED', '아직 열리지 않은 회차예요', {
-        detail: '수업 날이 되면 열려요',
+        detail: '수업일이 되면 열려요',
       })
     }
     return HttpResponse.json(buildLessonDetail(code))
@@ -265,7 +266,7 @@ const studentHandlers: AnyHandler[] = [
     const code = String(params.code)
     if (!LESSON_MOCK.openCodes.includes(code as (typeof LESSON_MOCK.openCodes)[number])) {
       return problem(request, 423, 'LESSON_LOCKED', '아직 열리지 않은 회차예요', {
-        detail: '수업 날이 되면 열려요',
+        detail: '수업일이 되면 열려요',
       })
     }
     return HttpResponse.json(buildWords())
