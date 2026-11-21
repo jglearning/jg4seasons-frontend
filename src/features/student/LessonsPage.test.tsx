@@ -388,40 +388,54 @@ describe('S-04 회차 목록', () => {
     )
   })
 
-  // 진도표가 아직 없는 반(#141) — 빈 화면이 불러오는 중과 구분되게
-  describe('회차가 하나도 없을 때', () => {
+  // 진도표가 아직 없는 반(#141, 와이어프레임 S04_Empty A안) — 빈 도장판: 나중에 회차가 채워질 판을 보여 준다
+  describe('회차가 하나도 없을 때(빈 도장판)', () => {
     const EMPTY = '아직 수업이 없어요'
+    const emptyBoard = () => screen.findByRole('region', { name: EMPTY })
 
-    it('묶음이 없으면 "아직 수업이 없어요" — 머리 줄(범위 없이 완료·밀림)과 하단 탭은 그대로', async () => {
+    it('묶음이 없으면 빈 도장판 — 빈 동그라미 8개(읽지 않음)·제목·보조 글 두 줄, 머리 줄(범위 없이)과 하단 탭은 그대로', async () => {
       useLessons((lessons) => {
         lessons.groups = []
       })
       renderLessons()
 
-      expect(await screen.findByText(EMPTY)).toBeInTheDocument()
+      const board = await emptyBoard()
+      expect(within(board).getByText(EMPTY)).toBeInTheDocument()
+      const sub = within(board).getByText(/선생님이 수업 날을 정하면/)
+      expect(sub).toHaveTextContent('선생님이 수업 날을 정하면여기에 Reading Day가 생겨요')
+      expect(sub.querySelector('br')).not.toBeNull()
+      // 동그라미는 꾸밈 — 숫자도 누를 것도 없다
+      const circles = board.querySelector('[aria-hidden="true"]')!
+      expect(circles.children).toHaveLength(8)
+      expect(circles).toHaveTextContent('')
+      expect(within(board).queryAllByRole('button')).toHaveLength(0)
+      expect(within(board).queryAllByRole('link')).toHaveLength(0)
+      // 묶음 상자·맨 위 카드는 없다
+      expect(screen.getAllByRole('region')).toEqual([board])
       expect(screen.getByRole('heading', { level: 1, name: '겨울 · Book 1' })).toBeInTheDocument()
       expect(screen.getByText('완료 2 · 밀림 2')).toBeInTheDocument()
-      expect(screen.queryByRole('region')).not.toBeInTheDocument()
       expect(screen.getByRole('link', { name: '회차, 밀린 수업 2개' })).toHaveAttribute(
         'aria-current',
         'page',
       )
     })
 
-    it('묶음은 있는데 회차가 하나도 없어도 같은 문구', async () => {
+    it('묶음은 있는데 회차가 하나도 없어도 같은 빈 도장판', async () => {
       useLessons((lessons) => {
         for (const g of lessons.groups) g.lessons = []
       })
       renderLessons()
 
-      expect(await screen.findByText(EMPTY)).toBeInTheDocument()
+      expect(await emptyBoard()).toBeInTheDocument()
+      expect(screen.getAllByRole('region')).toHaveLength(1)
     })
 
-    it('회차가 있으면 문구가 없다 — 불러오는 중에도 없다', async () => {
+    it('회차가 있으면 빈 도장판이 없다 — 불러오는 중에도 없다', async () => {
       renderLessons()
 
       expect(screen.queryByText(EMPTY)).not.toBeInTheDocument()
       await group('겨울 1')
+      expect(screen.queryByRole('region', { name: EMPTY })).not.toBeInTheDocument()
       expect(screen.queryByText(EMPTY)).not.toBeInTheDocument()
     })
   })
