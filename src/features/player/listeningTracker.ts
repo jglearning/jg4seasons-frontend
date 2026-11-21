@@ -132,6 +132,22 @@ export class ListeningTracker {
       this.buffer = []
       this.deps.onDiscard?.('beacon-rejected', left)
     }
+    // beacon은 서버가 받았는지 모르고, 화면을 오래 끈 뒤면 access 만료로 401일 수 있다. 화면이 보이면
+    // beacon으로 보낸 구간(화면을 끈 동안 + 방금)을 keepalive fetch로 한 번 더 — 401이면 refresh 뒤 다시 간다(#157)
+    if (this.deps.finalVia === 'fetch' && document.visibilityState === 'visible') {
+      void this.resendUnconfirmed()
+    }
+  }
+
+  /** stop() 뒤: beacon으로 보낸 구간을 fetch(final, keepalive)로. 실패하면 다시 보낼 곳이 없어 기록만 */
+  private async resendUnconfirmed(): Promise<void> {
+    const queue = this.unconfirmed.splice(0)
+    while (queue.length > 0) {
+      const items = this.takeBatch(queue)
+      if (await this.trySend(items, true, true)) {
+        this.deps.onDiscard?.('stopped-resend-failed', items.length)
+      }
+    }
   }
 
   /** 이 화면에서 들은 구간(합친 것) — 진행 바는 이것만 채운다 */

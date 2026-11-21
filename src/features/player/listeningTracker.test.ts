@@ -639,6 +639,90 @@ describe('앱 설정(finalVia fetch): 화면이 보이는 끝은 fetch로 응답
     expect(onDiscard).not.toHaveBeenCalled() // beacon이 받아들였다
   })
 
+  // #157: 화면을 끈 동안 beacon으로 보낸 구간(서버 수신을 모름)이 다음 fetch 전에 stop()되면 버려지던 문제
+  describe('stop() — 화면이 보이면 beacon으로 보낸 구간을 keepalive fetch로 한 번 더(#157)', () => {
+    const hide = () => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+    const show = () =>
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    afterEach(show)
+
+    it('화면을 끈 동안 beacon으로 보낸 구간과 지금 구간을 stop() 직후 fetch로 다시 보낸다(401이어도 refresh 뒤 복구)', async () => {
+      const tracker = track({ finalVia: 'fetch' })
+      media.play(0)
+      media.advance(4)
+      hide()
+      show()
+      media.advance(2)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      // beacon은 지금처럼(트랙 전환), 이어서 같은 구간을 keepalive fetch로
+      expect(ranges(beacons)).toEqual([
+        [0, 4000],
+        [4000, 6000],
+      ])
+      expect(sent).toHaveLength(1)
+      expect(sent[0]).toMatchObject({ final: true, keepalive: true, clientSessionId: 'session-1' })
+      expect(ranges(sent)).toEqual([
+        [0, 4000],
+        [4000, 6000],
+      ])
+    })
+
+    it('그 fetch의 응답은 onResult로 전달한다(전환 직후 완료 반영)', async () => {
+      const onResult = vi.fn()
+      const tracker = track({ finalVia: 'fetch', onResult })
+      media.play(0)
+      media.advance(3)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(onResult).toHaveBeenCalledWith(RESULT)
+    })
+
+    it('화면이 숨은 채 stop()이면 지금처럼 beacon만', async () => {
+      const tracker = track({ finalVia: 'fetch' })
+      media.play(0)
+      media.advance(3)
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(ranges(beacons)).toEqual([[0, 3000]])
+      expect(send).not.toHaveBeenCalled()
+    })
+
+    it('그 fetch가 실패하면 다시 보낼 곳이 없으므로 기록한다', async () => {
+      const onDiscard = vi.fn()
+      send.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      const tracker = track({ finalVia: 'fetch', onDiscard })
+      media.play(0)
+      media.advance(3)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(onDiscard).toHaveBeenCalledWith('stopped-resend-failed', 1)
+    })
+
+    it('명세 기본(finalVia beacon)은 그대로 beacon만', async () => {
+      const tracker = track()
+      media.play(0)
+      media.advance(3)
+
+      tracker.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(send).not.toHaveBeenCalled()
+    })
+  })
+
   it('stop() 뒤 그 fetch가 실패하고 beacon도 거절됐으면 버린 것으로 기록한다(다시 보낼 기회가 없다)', async () => {
     const onDiscard = vi.fn()
     let fail: (error: Error) => void = () => {}
