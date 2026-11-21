@@ -1,10 +1,19 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { BookOpen, ChevronLeft, House, Lock } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  BookOpen,
+  CalendarX,
+  ChevronLeft,
+  CircleAlert,
+  House,
+  Lock,
+  TriangleAlert,
+  WifiOff,
+} from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ApiError } from '../../api/errors'
 import { meQuery } from '../../api/session'
-import { errorMessage, NETWORK_MESSAGE } from '../../shared/errorMessage'
+import { lessonLevelCode } from '../../shared/lessonLabel'
 import { Button, ButtonLink } from '../../shared/ui/Button'
 import { HeardBar } from '../../shared/ui/HeardBar'
 import { NudgeCard } from '../../shared/ui/NudgeCard'
@@ -13,6 +22,7 @@ import { PlayControls } from '../../shared/ui/PlayControls'
 import { SegmentGroup } from '../../shared/ui/SegmentGroup'
 import { SentenceDots } from '../../shared/ui/SentenceDots'
 import { SentenceRow } from '../../shared/ui/SentenceRow'
+import { StatusPanel } from '../../shared/ui/StatusPanel'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
 import { VoiceButton, VoiceSheet } from '../../shared/ui/VoiceSheet'
 import type { FlushResult } from './flushApi'
@@ -81,16 +91,7 @@ export function LessonPage() {
     [queryClient],
   )
 
-  if (lesson.data === undefined) {
-    return (
-      <StudentLayout>
-        <div className={styles.screen}>
-          <LessonHead title={code} />
-          <LessonLoadState query={lesson} />
-        </div>
-      </StudentLayout>
-    )
-  }
+  if (lesson.data === undefined) return <LessonBefore code={code} query={lesson} />
 
   const data = lesson.data
   return (
@@ -487,36 +488,171 @@ function NextNudge({
   )
 }
 
-function LessonLoadState({
-  query,
-}: {
-  query: { isError: boolean; error: unknown; fetchStatus: string; refetch: () => unknown }
-}) {
-  if (!query.isError) {
-    if (query.fetchStatus !== 'paused') return null
-    return (
-      <p className={styles.loadMessage} role="alert">
-        {NETWORK_MESSAGE}
-      </p>
+// ── 회차를 받기 전(와이어프레임 S05_Before, 명세 S04_S05_빈상태 §2, #139) ──
+
+type BeforeQuery = { isError: boolean; error: unknown; fetchStatus: string; refetch: () => unknown }
+
+/**
+ * ① loading 불러오는 중 / ② offline 인터넷 끊김 / ③ locked 잠긴 회차 / ④ license 사용 기간 아님 /
+ * client 그 밖의 4xx(③④와 같은 틀) / ⑤ server 서버 오류 / none 그리지 않음(401 — 세션 만료 이동이 맡는다)
+ */
+type Before = 'loading' | 'offline' | 'locked' | 'license' | 'client' | 'server' | 'none'
+
+/** 처음 이만큼은 머리 줄만 — 빨리 오면 뼈대가 깜박이지 않고 바로 듣기 화면 */
+const LOADING_DELAY_MS = 300
+
+/**
+ * 받은 오류를 상태로. 브라우저가 오프라인이면 요청이 멈추고(paused), 온라인인데 서버에 닿지 못하면
+ * 연결 오류(TypeError)가 온다 — 둘 다 ②. 서버가 응답한 5xx·엉뚱한 응답·알 수 없는 오류는 ⑤
+ */
+function beforeState(query: BeforeQuery): Before {
+  if (query.fetchStatus === 'paused') return 'offline'
+  if (query.fetchStatus === 'fetching' || !query.isError) return 'loading'
+  const error = query.error
+  if (error instanceof TypeError) return 'offline'
+  if (!(error instanceof ApiError)) return 'server'
+  if (error.status === 401) return 'none'
+  if (error.code === 'LESSON_LOCKED') return 'locked'
+  if (error.code === 'LICENSE_INACTIVE') return 'license'
+  if (error.status >= 400 && error.status < 500) return 'client'
+  return 'server'
+}
+
+/** ②⑤는 정한 문구, ③④·그 밖 4xx는 서버 문구(title = 제목, detail = 보조 글) */
+const FIXED_COPY = {
+  offline: { title: '인터넷이 끊겼어요', detail: '연결을 확인하고 다시 시도해 주세요' },
+  server: { title: '잠시 문제가 생겼어요', detail: '잠시 후 다시 시도해 주세요' },
+} as const
+
+const WAIT_ICON = { locked: Lock, license: CalendarX, client: CircleAlert } as const
+
+/**
+ * 회차를 받기 전 화면. 바탕은 회차 코드의 레벨(응답 전이라 코드에서 읽는다), 머리 줄은 늘 있다.
+ * ②⑤는 다시 시도하면 풀릴 수 있어 주 버튼 "다시 시도", ③④는 기다려야 풀려 흰 버튼 "회차 목록으로".
+ * 버튼은 평소 "다음 지문"과 같은 아래 고정 자리
+ */
+function LessonBefore({ code, query }: { code: string; query: BeforeQuery }) {
+  const state = beforeState(query)
+  const loading = state === 'loading'
+  const [loadingShown, setLoadingShown] = useState(false)
+  useEffect(() => {
+    if (!loading) return
+    const timer = setTimeout(() => setLoadingShown(true), LOADING_DELAY_MS)
+    return () => {
+      clearTimeout(timer)
+      setLoadingShown(false)
+    }
+  }, [loading])
+
+  // 서버 쪽 문제는 서버 로그와 맞춰 볼 수 있게 상태·code·requestId만 남긴다(개인정보 없음)
+  const error = query.error
+  useEffect(() => {
+    if (state !== 'server') return
+    console.error(
+      '[api]',
+      error instanceof ApiError
+        ? { status: error.status, code: error.code, requestId: error.requestId }
+        : error,
+    )
+  }, [state, error])
+
+  let body: ReactNode = null
+  let action: ReactNode = null
+  if (state === 'offline' || state === 'server') {
+    body = (
+      <StatusPanel
+        icon={state === 'offline' ? WifiOff : TriangleAlert}
+        tone="bad"
+        role="alert"
+        {...FIXED_COPY[state]}
+      />
+    )
+    action = (
+      <Button block onClick={() => void query.refetch()}>
+        다시 시도
+      </Button>
+    )
+  } else if (state === 'locked' || state === 'license' || state === 'client') {
+    const problem = error instanceof ApiError ? error : undefined
+    body = (
+      <StatusPanel
+        icon={WAIT_ICON[state]}
+        tone="muted"
+        role="status"
+        title={problem?.title ?? ''}
+        detail={problem?.detail}
+      />
+    )
+    action = (
+      <ButtonLink to="/lessons" variant="secondary" block>
+        회차 목록으로
+      </ButtonLink>
     )
   }
-  const status = query.error instanceof ApiError ? query.error.status : undefined
-  if (status === 401) return null
-  const clientError = status !== undefined && status >= 400 && status < 500
+
   return (
-    <div className={styles.load}>
-      <p className={styles.loadMessage} role="alert">
-        {errorMessage(query.error)}
-      </p>
-      {clientError ? (
-        <ButtonLink to="/lessons" variant="secondary">
-          회차 목록으로
-        </ButtonLink>
-      ) : (
-        <Button variant="secondary" onClick={() => void query.refetch()}>
-          다시 시도
-        </Button>
-      )}
+    <StudentLayout levelCode={lessonLevelCode(code)}>
+      <div className={loading ? styles.screen : `${styles.screen} ${styles.screenBefore}`}>
+        <LessonHead title={code} />
+        {loading ? loadingShown && <LessonSkeleton /> : <div className={styles.before}>{body}</div>}
+      </div>
+      {loading
+        ? loadingShown && (
+            <div className={styles.bottom}>
+              <span className={styles.skelButton} aria-hidden="true" />
+            </div>
+          )
+        : action && <div className={styles.bottom}>{action}</div>}
+    </StudentLayout>
+  )
+}
+
+/**
+ * ① 불러오는 중 — 듣기 화면의 뼈대(지문 번호 6 · 듣기 카드 · 복습 줄 자리). 응답이 오면 같은 자리에 실제 내용이 들어가
+ * 화면이 튀지 않는다. 1.2초로 깜박이고, 움직임 줄이기면 멈춘다(DESIGN.md 1.3 — 불러오는 표시에만 허용)
+ */
+function LessonSkeleton() {
+  return (
+    <div className={styles.skeleton} role="status" aria-label="불러오는 중">
+      <div className={styles.skelTabs} aria-hidden="true">
+        {Array.from({ length: 6 }, (_, i) => (
+          <span key={i} className={styles.skelTab} />
+        ))}
+      </div>
+      {/* 칸 구조·높이는 실제 듣기 카드와 같다(지문 정보 줄 · 가운데 · 들은 구간) — 막대만 칸 안에 */}
+      <div className={styles.card}>
+        <div className={styles.cardTop} aria-hidden="true">
+          <span className={`${styles.skelBar} ${styles.skelVoice}`} />
+          <span className={`${styles.skelBar} ${styles.skelRate}`} />
+        </div>
+        <span className={`${styles.skelSlot} ${styles.skelEyebrowSlot}`} aria-hidden="true">
+          <span className={`${styles.skelBar} ${styles.skelEyebrow}`} />
+        </span>
+        <span className={`${styles.skelSlot} ${styles.skelTitleSlot}`} aria-hidden="true">
+          <span className={`${styles.skelBar} ${styles.skelTitle}`} />
+        </span>
+        <span className={`${styles.skelSlot} ${styles.skelGuideSlot}`} aria-hidden="true">
+          <span className={`${styles.skelBar} ${styles.skelGuide}`} />
+        </span>
+        <div className={styles.center}>
+          <span className={styles.skelPositionSlot} aria-hidden="true" />
+          <span className={styles.skelDotsSlot} aria-hidden="true" />
+          <div className={styles.skelControls}>
+            <div className={styles.skelRow} aria-hidden="true">
+              <span className={`${styles.skelBar} ${styles.skelSide}`} />
+              <span className={`${styles.skelBar} ${styles.skelPlay}`} />
+              <span className={`${styles.skelBar} ${styles.skelSide}`} />
+            </div>
+            <p className={styles.skelText}>불러오는 중이에요</p>
+          </div>
+        </div>
+        <div className={styles.heard} aria-hidden="true">
+          <span className={styles.skelHeardHead} />
+          <span className={`${styles.skelBar} ${styles.skelHeard}`} />
+          <span className={styles.skelTimes} />
+        </div>
+      </div>
+      <span className={styles.skelReview} aria-hidden="true" />
     </div>
   )
 }

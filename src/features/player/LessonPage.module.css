@@ -280,16 +280,216 @@
   gap: var(--space-3);
 }
 
-.load {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-8) 0;
+/* ── 회차를 받기 전(와이어프레임 S05_Before, #139) ── */
+
+/* ②~⑤: 머리 줄과 아래 버튼 사이의 세로 가운데에 안내 묶음(높이 216 고정 — StatusPanel). 좌우 32 = 화면 여백 20 + 12.
+   가운데를 버튼 위 끝 기준으로 잡도록 아래 여백은 버튼 자리만(평소의 16 간격 없이), 머리 줄 다음 칸 여백도 없앤다 */
+.screenBefore {
+  padding-bottom: calc(54px + 24px + env(safe-area-inset-bottom));
 }
 
-.loadMessage {
+.header + .before {
   margin: 0;
-  padding-top: var(--space-8);
-  font-size: 16px;
+}
+
+.before {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+/* ① 뼈대: 지문 번호 줄 → 듣기 카드(남는 높이) → 복습 줄 자리. 1.2초로 깜박인다(불러오는 표시에만 — DESIGN.md 1.3) */
+.skeleton {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+}
+
+/* 머리 줄 다음 칸의 여백(`.header + *`)은 뼈대 안의 지문 번호 줄이 받는다 */
+.header + .skeleton {
+  margin: 0;
+}
+
+@keyframes skeletonPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+.skelTabs {
+  flex: none;
+  margin: 4px 0 14px;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* 지문 번호 자리: 지름 46, 흰 면, 1px line, 숫자 없음 */
+.skelTab {
+  width: 46px;
+  height: 46px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--white);
+  border: var(--border-card) solid var(--line);
+}
+
+.skelBar {
+  display: block;
+  flex: none;
+  background: var(--line);
+}
+
+.skelVoice {
+  width: 112px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.skelRate {
+  width: 132px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+/* 지문 정보 줄 칸: 실제 줄(지문 n · 길이 / 제목 / 책 안내)과 같은 여백·높이, 막대는 칸 세로 가운데 */
+.skelSlot {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+
+.skelEyebrowSlot {
+  height: 21px;
+  margin-top: 16px;
+}
+
+.skelTitleSlot {
+  height: 31px;
+  margin-top: 2px;
+}
+
+.skelGuideSlot {
+  height: 23px;
+  margin-top: 8px;
+}
+
+.skelEyebrow {
+  width: 96px;
+  height: 14px;
+  border-radius: 7px;
+}
+
+.skelTitle {
+  width: 240px;
+  max-width: 100%;
+  height: 24px;
+  border-radius: 8px;
+}
+
+.skelGuide {
+  width: 180px;
+  max-width: 100%;
+  height: 15px;
+  border-radius: 7px;
+}
+
+/* 가운데(`.center` 그대로): 문장 위치(37) · 점(10) 자리 + 재생 줄 — 재생 자리가 실제 재생 버튼과 같은 높이에 온다 */
+.skelPositionSlot {
+  display: block;
+  flex: none;
+  height: 37px;
+}
+
+.skelDotsSlot {
+  display: block;
+  flex: none;
+  height: 10px;
+}
+
+/* 재생 줄 칸은 실제와 같은 높이 110(동그라미 + 옆 버튼 글자), 글은 동그라미 줄 18 아래 — 칸 높이를 늘리지 않게 겹쳐 둔다 */
+.skelControls {
+  position: relative;
+  flex: none;
+  height: 110px;
+}
+
+/* 64 · 96 · 64, 사이 28 — 옆 동그라미는 재생 동그라미 세로 가운데 */
+.skelRow {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.skelSide {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.skelPlay {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+}
+
+.skelText {
+  position: absolute;
+  top: calc(96px + 18px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* 들은 구간(`.heard` 그대로): 머리 줄(21) · 바(폭 가득 × 12) · 시간 줄(44) */
+.skelHeardHead {
+  display: block;
+  height: 21px;
+}
+
+.skelHeard {
+  width: 100%;
+  height: 12px;
+  border-radius: 6px;
+}
+
+.skelTimes {
+  display: block;
+  height: 44px;
+}
+
+/* 복습 줄 자리(48) */
+.skelReview {
+  display: block;
+  flex: none;
+  height: 48px;
+}
+
+/* 아래 버튼 자리: 높이 54, 반경 14, 흰 면 + 1px line, 턱 없음(누를 수 없음) */
+.skelButton {
+  display: block;
+  height: 54px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: var(--white);
+  border: var(--border-card) solid var(--line);
 }
