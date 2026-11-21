@@ -208,6 +208,19 @@ function silentWav(durationMs: number): Blob {
   return new Blob([buffer], { type: 'audio/wav' })
 }
 
+/**
+ * 지문 합산 값(BE #59)을 목소리별 값에서: 합친 청취율이 없으니 목소리 하나의 최댓값, 완료는 필수 목소리 중 완료가 있으면.
+ * 서버가 합친 집계를 쓸 수 없을 때와 같은 결과다
+ */
+function passageSummary(
+  voices: ReadonlyArray<{ required: boolean; coverage: number; completed: boolean }>,
+): { coverage: number; completed: boolean } {
+  return {
+    coverage: voices.reduce((best, v) => Math.max(best, v.coverage), 0),
+    completed: voices.some((v) => v.required && v.completed),
+  }
+}
+
 // ── 응답 만들기 ──
 const variantIndex = (variant: Variant) => VARIANTS.findIndex((v) => v.variant === variant)
 
@@ -229,32 +242,34 @@ export function buildLessonDetail(code: string): Detail {
   const number = Number(code.slice(-2))
   const passages: Passage[] = PASSAGES.map((passage, p) => {
     const no = p + 1
+    const voices = VARIANTS.map(({ variant, scale }, index) => {
+      const info = tracks.get(passageTrackId(no, index)) as TrackInfo
+      const value = coverage(info)
+      return {
+        trackId: passageTrackId(no, index),
+        variant,
+        audioUrl: mockAudioUrl(info.durationMs),
+        durationMs: info.durationMs,
+        required: true,
+        coverage: Math.round(value * 100) / 100,
+        completed: value >= THRESHOLD,
+        timings: timingsOf(no, scale),
+        timingsApproximate: false,
+        heardRanges: info.ranges.map(([a, b]) => [a, b]),
+        // 목은 목소리를 합쳐 세지 않는다 — 합친 집계가 없을 때 서버가 주는 값(= heardRanges)
+        combinedRanges: info.ranges.map(([a, b]) => [a, b]),
+      }
+    })
     return {
       no,
       title: passage.title,
       wordCount: passage.sentences.reduce((sum, [text]) => sum + text.split(/\s+/).length, 0),
       sentences: passage.sentences.map(([text], s) => ({ no: s + 1, text, speaker: null })),
-      voices: VARIANTS.map(({ variant, scale }, index) => {
-        const info = tracks.get(passageTrackId(no, index)) as TrackInfo
-        const value = coverage(info)
-        return {
-          trackId: passageTrackId(no, index),
-          variant,
-          audioUrl: mockAudioUrl(info.durationMs),
-          durationMs: info.durationMs,
-          required: true,
-          coverage: Math.round(value * 100) / 100,
-          completed: value >= THRESHOLD,
-          timings: timingsOf(no, scale),
-          timingsApproximate: false,
-          heardRanges: info.ranges.map(([a, b]) => [a, b]),
-        }
-      }),
+      ...passageSummary(voices),
+      voices,
     }
   })
-  const passagesDone = passages.filter((p) =>
-    p.voices.some((v) => v.required && v.completed),
-  ).length
+  const passagesDone = passages.filter((p) => p.completed).length
   return {
     lesson: { code, number, title: `Reading Day ${number}`, type: 'regular' },
     // 반 레벨 색(BE #18) — 홈 목(studentData)의 그린과 같은 값
@@ -294,7 +309,13 @@ export function recordFlush(body: Schemas['FlushRequest']): Schemas['FlushRespon
   ])
   const detail = buildLessonDetail(LESSON_MOCK.code)
   const value = coverage(info)
+  const passage = detail.passages.find((p) => p.voices.some((v) => v.trackId === body.trackId))
   return {
+    passage: {
+      no: passage?.no ?? 0,
+      coverage: passage?.coverage ?? 0,
+      completed: passage?.completed ?? false,
+    },
     track: {
       trackId: body.trackId,
       coverage: Math.round(value * 100) / 100,

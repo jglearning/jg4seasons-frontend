@@ -1350,6 +1350,7 @@ describe('S-08 회차 완료', () => {
       http.post('*/api/v1/listening/flush', () =>
         HttpResponse.json({
           track: { trackId: LESSON_MOCK.passageTrackId(5, 'us_w'), coverage: 1, completed: true },
+          passage: { no: 5, coverage: 1, completed: true },
           lesson: {
             code: LESSON_MOCK.code,
             status: 'completed',
@@ -1492,6 +1493,7 @@ describe('S-08 회차 완료', () => {
         await answered
         return HttpResponse.json({
           track: { trackId: LESSON_MOCK.passageTrackId(5, 'us_w'), coverage: 1, completed: true },
+          passage: { no: 5, coverage: 1, completed: true },
           lesson: {
             code: LESSON_MOCK.code,
             status: 'completed',

@@ -254,6 +254,21 @@ function trackResult(p: Progress | undefined, passageNo: number, variant: string
   }
 }
 
+/**
+ * 4.3·4.4 지문 요약(BE #63) — 지문 번호 오름차순, 안 들은 지문도 0·false로.
+ * 목은 목소리를 합쳐 세지 않는다: 목소리 하나의 최댓값, 완료한 목소리가 있으면 완료
+ */
+function passageSummaries(p: Progress | undefined): Schemas['TeacherPassageSummary'][] {
+  return Array.from({ length: PASSAGES }, (_, i) => i + 1).map((no) => {
+    const results = VARIANTS.map((variant) => trackResult(p, no, variant))
+    return {
+      no,
+      coverage: results.reduce((best, r) => Math.max(best, r.coverage), 0),
+      completed: results.some((r) => r.completed),
+    }
+  })
+}
+
 const trackId = (passageNo: number, variant: string) =>
   9000 + passageNo * 10 + VARIANTS.indexOf(variant as (typeof VARIANTS)[number])
 
@@ -398,6 +413,7 @@ export function teacherHandlers({ problem, readJson, currentUser }: Helpers): An
               status: p?.status ?? 'not_started',
               requiredDone: p?.requiredDone ?? 0,
               requiredTotal: PASSAGES,
+              passages: passageSummaries(p),
               tracks: Array.from({ length: PASSAGES }, (_, i) => i + 1).flatMap((passageNo) =>
                 VARIANTS.map((variant) => {
                   const r = trackResult(p, passageNo, variant)
@@ -459,6 +475,7 @@ export function teacherHandlers({ problem, readJson, currentUser }: Helpers): An
         return {
           student: { id: student.id, name: student.name },
           status: p?.status ?? 'not_started',
+          passages: passageSummaries(p),
           byTrack,
         }
       })
