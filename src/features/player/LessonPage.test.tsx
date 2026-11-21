@@ -10,6 +10,7 @@ import { server } from '../../mocks/node'
 import { hold } from '../../test/hold'
 import { renderRoutes } from '../../test/render'
 import { formatHeardAmount } from './heardAmount'
+import { mapRanges } from './voiceMap'
 
 // jsdom은 오디오를 재생하지 못한다 — 재생 위치·상태를 요소에 직접 두고 이벤트를 흉내 낸다(브라우저 순서대로)
 type FakeAudio = HTMLAudioElement & {
@@ -618,7 +619,7 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     expect(filled).toEqual(['0-5000', `${s3}-${s3 + 3000}`])
   })
 
-  it('음성을 바꾸면 그 음성 파일로, 같은 문장의 새 시작 시각에서 이어 듣는다', async () => {
+  it('음성을 바꾸면 그 음성 파일로, 같은 문장의 같은 비율 지점에서 이어 듣는다(BE #59 합치는 규칙)', async () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
@@ -633,9 +634,12 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'uk_m')}.wav`)
     expect(play).toHaveBeenCalledTimes(1) // 듣던 중이었으니 이어서 재생 — 누른 그 순간에
     metadata(seconds(5, 'uk_m'))
-    // 목소리마다 길이가 달라 같은 문장이라도 시각이 다르다
-    expect(startOf(5, 4, 'uk_m')).not.toBe(startOf(5, 4))
-    expect(audio().currentTime).toBe(startOf(5, 4, 'uk_m'))
+    // 문장 4를 2초 들은 자리 = 문장 4의 비율 r 지점 → 영국 남 문장 4의 같은 비율 지점(문장 시작이 아니다)
+    const [a, b] = LESSON_MOCK.timings(5, 'us_w')[3]
+    const [c, d] = LESSON_MOCK.timings(5, 'uk_m')[3]
+    expect(b - a).toBeGreaterThan(2000)
+    expect(d - c).not.toBe(b - a) // 목소리마다 길이가 달라 같은 비율이라도 시각이 다르다
+    expect(audio().currentTime).toBe(Math.round(c + (2000 / (b - a)) * (d - c)) / 1000)
     expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 영국 남성')
   })
 
@@ -756,6 +760,10 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
   })
 
   it('들은 구간 바는 서버 + 이 화면에서 들은 구간만 채우고 건너뛴 곳은 빗금, 음성을 바꿨다 와도 남는다', async () => {
+    const timeline = (variant: VoiceCode) => ({
+      timings: LESSON_MOCK.timings(5, variant),
+      durationMs: LESSON_MOCK.durationMs(5, variant),
+    })
     const user = userEvent.setup()
     const { container } = renderLesson()
     await heading()
@@ -771,8 +779,11 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
       [...container.querySelectorAll('[data-skipped]')].map((el) => el.getAttribute('data-skipped'))
     expect(skipped()).toEqual([`${seeded}-40000`])
 
+    // 영국 여성: 서버 combinedRanges는 비어 있고(목은 합치지 않는다), 이 화면에서 미국 여로 들은 40~45초만
+    // 영국 여 시각으로 옮겨 보인다(BE #59 규칙 — voiceMap 단위 테스트가 규칙 자체를 지킨다)
     await chooseVoice(user, '영국 여성')
-    expect(filled()).toEqual([])
+    const [[a, b]] = mapRanges(timeline('us_w'), timeline('uk_w'), [[40000, 45000]])
+    expect(filled()).toEqual([`${a}-${b}`])
     await chooseVoice(user, '미국 여성')
     expect(filled()).toEqual([`0-${seeded}`, '40000-45000'])
   })
@@ -887,7 +898,7 @@ function clockOf(ms: number) {
 }
 
 describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
-  it('완료 안 된 지문에서 "다음 지문" → 가장 많이 들은 목소리의 들은 구간과 안 들은 문장', async () => {
+  it('완료 안 된 지문에서 "다음 지문" → 지문 들은 구간(서버 합산)과 지금 음성 기준 안 들은 문장', async () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
@@ -895,7 +906,8 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     await user.click(screen.getByRole('button', { name: '다음 지문' }))
 
     expect(nudge()).toHaveTextContent('지문 5를 아직 다 안 들었어요')
-    expect(nudge()).toHaveTextContent('미국 여 들은 구간 30% · 안 들은 문장 4, 5, 6, 7, 8, 9')
+    expect(nudge()).toHaveTextContent('들은 구간 30% · 안 들은 문장 4, 5, 6, 7, 8, 9')
+    expect(nudge()).not.toHaveTextContent('미국 여') // 섞어 들어도 세므로 음성 이름을 붙이지 않는다
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(5) })).toBeInTheDocument()
   })
 
@@ -926,9 +938,7 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
 
     await user.click(screen.getByRole('link', { name: '오늘 단어 57개 보기' }))
     expect(nudge()).toHaveTextContent('아직 완료 안 된 지문이 있어요')
-    expect(nudge()).toHaveTextContent(
-      '완료 안 된 지문: 5, 6 · 아무 음성으로 끝까지 들으면 완료돼요',
-    )
+    expect(nudge()).toHaveTextContent('완료 안 된 지문: 5, 6 · 음성을 바꿔 들어도 이어서 세요')
     expect(
       within(nudge() as HTMLElement).getByRole('link', { name: '그래도 단어로' }),
     ).toHaveAttribute('href', '/lessons/L2-B1-05/words')
@@ -966,14 +976,16 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     server.use(
       http.get('*/api/v1/student/lessons/:code', () => {
         const detail = buildLessonDetail(LESSON_MOCK.code)
-        // 지문 5: 영국 남으로 다 들었다(서버 completed). 지문 6: 미국 남 40%, 미국 여 10%
+        // 지문 5: 영국 남으로 다 들었다(서버 completed). 지문 6: 미국 남 40%, 미국 여 10%(지문 합산 40%)
         const [p5, p6] = [detail.passages[4], detail.passages[5]]
         for (const v of p5.voices)
           if (v.variant === 'uk_m') Object.assign(v, { completed: true, coverage: 1 })
+        Object.assign(p5, { completed: true, coverage: 1 })
         for (const v of p6.voices) {
           if (v.variant === 'us_m') v.coverage = 0.4
           if (v.variant === 'us_w') v.coverage = 0.1
         }
+        p6.coverage = 0.4
         detail.completion.passagesDone = 5
         return HttpResponse.json(detail)
       }),
@@ -985,14 +997,15 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(6) })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '지문 5 완료' })).toBeInTheDocument()
     expect(voiceButton()).toHaveAccessibleName('음성 고르기, 지금 미국 여성')
-    expect(player()).toHaveTextContent('들은 구간 10%') // 미국 여성 트랙의 서버 coverage
+    // 들은 구간은 지문 coverage(목소리를 합친 서버 값) — 고른 목소리 하나의 값(10%)이 아니다(BE #59)
+    expect(player()).toHaveTextContent('들은 구간 40%')
   })
 
   it('지문을 모두 마쳤으면 단어 학습 링크는 그대로 이동한다', async () => {
     server.use(
       http.get('*/api/v1/student/lessons/:code', () => {
         const detail = buildLessonDetail(LESSON_MOCK.code)
-        for (const p of detail.passages) for (const v of p.voices) v.completed = true
+        for (const p of detail.passages) p.completed = true
         return HttpResponse.json(detail)
       }),
     )
@@ -1005,6 +1018,145 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
 
     expect(nudge()).not.toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/lessons/L2-B1-05/words')
+  })
+})
+
+// BE #59(백엔드 ADR 0034): 지문 완료 = 목소리 하나 기준 이상 또는 여러 목소리로 들은 구간을 합친 청취율 기준 이상
+describe('BE #59 목소리를 섞어 들은 지문', () => {
+  /** 2.3 응답을 고쳐 준다(서버가 합쳐 준 값 흉내) */
+  function lessonWith(change: (detail: ReturnType<typeof buildLessonDetail>) => void) {
+    server.use(
+      http.get('*/api/v1/student/lessons/:code', () => {
+        const detail = buildLessonDetail(LESSON_MOCK.code)
+        change(detail)
+        return HttpResponse.json(detail)
+      }),
+    )
+  }
+  const voiceOf = (detail: ReturnType<typeof buildLessonDetail>, no: number, variant: VoiceCode) =>
+    detail.passages[no - 1].voices.find(
+      (v) => v.variant === variant,
+    ) as (typeof detail.passages)[0]['voices'][0]
+  const filledRanges = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-range]')].map((el) => el.getAttribute('data-range'))
+
+  it('완료한 목소리가 없어도 서버가 지문 완료(passage.completed)면 탭에 완료, 첫 지문은 그다음 미완료', async () => {
+    lessonWith((detail) => {
+      // 지문 5: 미국 여 앞 절반 + 영국 남 뒤 절반 — 어느 목소리도 완료가 아니지만 합쳐서 완료
+      Object.assign(detail.passages[4], { completed: true, coverage: 0.95 })
+      detail.completion.passagesDone = 5
+    })
+    renderLesson()
+    await heading()
+
+    expect(screen.getByRole('button', { name: '지문 5 완료' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: LESSON_MOCK.title(6) })).toBeInTheDocument()
+  })
+
+  it('목소리가 완료여도 서버가 지문 미완료면 탭은 미완료 — 화면이 목소리로 판정하지 않는다', async () => {
+    lessonWith((detail) => {
+      voiceOf(detail, 5, 'uk_w').completed = true
+    })
+    renderLesson()
+    await heading()
+
+    expect(screen.getByRole('button', { name: '지문 5 듣는 중' })).toBeInTheDocument()
+  })
+
+  it('들은 구간 바는 지금 목소리의 combinedRanges(다른 목소리로 들은 곳까지 옮긴 서버 값)', async () => {
+    const end = LESSON_MOCK.timings(5, 'us_w')[5][1] // 문장 1~6
+    lessonWith((detail) => {
+      voiceOf(detail, 5, 'us_w').combinedRanges = [[0, end]]
+    })
+    const { container } = renderLesson()
+    await heading()
+
+    expect(filledRanges(container)).toEqual([`0-${end}`])
+  })
+
+  it('복습의 "들음" 점도 combinedRanges로 센다', async () => {
+    const end = LESSON_MOCK.timings(5, 'us_w')[4][1] // 문장 1~5
+    lessonWith((detail) => {
+      voiceOf(detail, 5, 'us_w').combinedRanges = [[0, end]]
+      detail.completion.passagesDone = detail.completion.passagesTotal
+    })
+    renderLesson()
+    await heading()
+    openReview()
+
+    expect(heardNos()).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('이 화면에서 다른 목소리로 들은 구간도 지금 목소리 시각으로 옮겨 바에 보인다(다시 받기 전)', async () => {
+    const user = userEvent.setup()
+    const { container } = renderLesson()
+    await heading()
+    await user.click(screen.getByRole('button', { name: '지문 6 아직 안 들음' }))
+    listen(0, 2) // 미국 여, 문장 1 안
+    audio().paused = true
+    fire(audio(), 'pause')
+
+    await chooseVoice(user, '영국 남성')
+
+    // 문장 1 안의 0~2초 = 문장 1의 비율만큼 → 영국 남 문장 1의 같은 비율(끝은 내림)
+    const [a, b] = LESSON_MOCK.timings(6, 'us_w')[0]
+    const [c, d] = LESSON_MOCK.timings(6, 'uk_m')[0]
+    expect(a).toBe(0)
+    expect(c).toBe(0)
+    expect(b).toBeGreaterThan(2000)
+    expect(filledRanges(container)).toEqual([`0-${Math.floor((2000 / b) * d)}`])
+  })
+
+  it('flush 응답의 passage로 지문 완료·들은 구간을 바로 고친다(목소리는 미완료여도)', async () => {
+    server.use(
+      http.post('*/api/v1/listening/flush', () =>
+        HttpResponse.json({
+          track: {
+            trackId: LESSON_MOCK.passageTrackId(5, 'us_w'),
+            coverage: 0.6,
+            completed: false,
+          },
+          passage: { no: 5, coverage: 0.95, completed: true },
+          lesson: {
+            code: LESSON_MOCK.code,
+            status: 'in_progress',
+            requiredDone: 5,
+            requiredTotal: 6,
+          },
+          dropped: 0,
+        }),
+      ),
+    )
+    renderLesson()
+    await heading()
+
+    listen(0, 3)
+    audio().paused = true
+    fire(audio(), 'pause')
+
+    expect(await screen.findByRole('button', { name: '지문 5 듣는 중 · 완료' })).toBeInTheDocument()
+    expect(player()).toHaveTextContent('들은 구간 95%')
+  })
+
+  it('안내 카드의 "이어서 듣기"는 지금 목소리 그대로, 지금 목소리 기준 첫 안 들은 문장부터', async () => {
+    // 영국 남의 combinedRanges = 미국 여로 들은 문장 1~3을 옮긴 것(서버 값 흉내)
+    const end = LESSON_MOCK.timings(5, 'uk_m')[2][1]
+    lessonWith((detail) => {
+      voiceOf(detail, 5, 'uk_m').combinedRanges = [[0, end]]
+    })
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    await chooseVoice(user, '영국 남성')
+    play.mockClear()
+
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
+    expect(nudge()).toHaveTextContent('들은 구간 30% · 안 들은 문장 4, 5, 6, 7, 8, 9')
+    await user.click(within(nudge() as HTMLElement).getByRole('button', { name: '이어서 듣기' }))
+
+    expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(5, 'uk_m')}.wav`)
+    expect(audio().currentTime).toBe(startOf(5, 4, 'uk_m'))
+    expect(play).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -1040,7 +1192,8 @@ describe('BE #18 계약 — 레벨 색, 문장 시각 없음', () => {
     fire(audio(), 'pause')
     play.mockClear()
     await user.click(screen.getByRole('button', { name: '다음 지문' }))
-    expect(nudge()).toHaveTextContent('미국 여 들은 구간 30%')
+    expect(nudge()).toHaveTextContent('들은 구간 30%')
+    expect(nudge()).not.toHaveTextContent('미국 여')
     expect(nudge()).not.toHaveTextContent('안 들은 문장')
     await user.click(within(nudge() as HTMLElement).getByRole('button', { name: '이어서 듣기' }))
     expect(play).toHaveBeenCalledTimes(1)
@@ -1380,8 +1533,8 @@ describe('S-08 회차 완료', () => {
 
     const complete = await dialog()
     expect(within(complete).getByRole('heading', { name: 'Reading Day 5 완료' })).toHaveFocus()
-    // 들은 분량(#130) = 완료한 목소리의 음원 길이 합: 이미 들은 지문 1~4 + 방금 완료된 지문 5(모두 us_w).
-    // 지문 6은 완료한 목소리가 없어 들어가지 않는다. 칸 순서는 들은 분량 → 지문
+    // 들은 분량(#130, BE #59) = 지문 coverage × 고른 목소리(us_w) 길이의 합: 지문 1~4는 1, 지문 5는 flush
+    // 응답의 passage.coverage 1, 지문 6은 0. 칸 순서는 들은 분량 → 지문
     const heardMs = [1, 2, 3, 4, 5].reduce((sum, no) => sum + LESSON_MOCK.durationMs(no, 'us_w'), 0)
     const terms = within(complete).getAllByRole('term')
     expect(terms.map((term) => term.textContent)).toEqual(['들은 분량', '지문'])
@@ -1399,13 +1552,11 @@ describe('S-08 회차 완료', () => {
     expect(behind.closest('[inert]')).not.toBeNull()
   })
 
-  it('완료한 목소리가 하나도 없으면(합 0) 들은 분량 칸 없이 지문 한 칸만(#130)', async () => {
+  it('지문 coverage가 모두 0이면(합 0) 들은 분량 칸 없이 지문 한 칸만(#130)', async () => {
     server.use(
       http.get('*/api/v1/student/lessons/:code', () => {
         const detail = buildLessonDetail(LESSON_MOCK.code)
-        for (const passage of detail.passages) {
-          for (const voice of passage.voices) voice.completed = false
-        }
+        for (const passage of detail.passages) passage.coverage = 0
         return HttpResponse.json(detail)
       }),
       http.post('*/api/v1/listening/flush', () =>
@@ -1415,6 +1566,7 @@ describe('S-08 회차 완료', () => {
             coverage: 0.4,
             completed: false,
           },
+          passage: { no: 5, coverage: 0, completed: false },
           lesson: {
             code: LESSON_MOCK.code,
             status: 'completed',

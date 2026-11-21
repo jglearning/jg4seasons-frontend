@@ -32,7 +32,6 @@ import {
   DEFAULT_VOICE,
   PLAYBACK_RATES,
   usePlayer,
-  VOICE_LABEL,
   VOICE_ORDER,
   voiceLong,
   type PlaybackRate,
@@ -45,13 +44,16 @@ import { LessonComplete } from './LessonComplete'
 import { PlayerProvider } from './PlayerProvider'
 import { heardSentences } from './sentenceSync'
 import { useSentenceSync } from './useSentenceSync'
+import { mapPosition, mapRanges } from './voiceMap'
 import styles from './LessonPage.module.css'
 
 // S-05 회차 듣기(STU-04·05·06·11, v0.2 지시문 §2 · 와이어프레임 S05_Player·S05_VoiceSheet, ADR-26 따라 읽기).
 // 머리 줄(뒤로·제목·이름·홈) → 지문 번호 → 듣기 카드(음성·속도·지문·책 안내·문장 위치·재생 줄·들은 구간 바) → 복습 줄 → 맨 아래 다음 지문.
 // 지문 음원 하나를 들으며 지금 문장을 따라가고, 문장 버튼·바로 위치를 옮긴다.
-// 음성 4개(us_w·us_m·uk_w·uk_m)는 파일 선택, 속도 0.8·1.0·1.2는 재생 속도(ADR-27). 아무 음성 하나를 다 들으면 지문 완료(서버).
-// 고른 음성·속도는 이 화면 안에서만 유지한다(저장은 이슈 9). 처음 음성은 미국 여성(A5).
+// 음성 4개(us_w·us_m·uk_w·uk_m)는 파일 선택, 속도 0.8·1.0·1.2는 재생 속도(ADR-27). 지문 완료는 서버 판정 —
+// 음성 하나를 기준 이상 들었거나, 여러 음성으로 들은 구간을 합쳐 기준 이상(BE #59). 음성을 바꾸면 같은 조각의
+// 같은 비율 지점으로 옮겨 이어 듣는다(voiceMap — 서버가 구간을 합치는 규칙과 같다).
+// 고른 음성·속도는 이 화면 안에서만 유지한다(저장은 #146). 처음 음성은 미국 여성(A5).
 // 완료·청취율·완료 기준·문장 시각은 모두 서버 값 — 화면은 보여 주기만 한다("들음" 점·빗금은 표시용, 03 §2.3)
 
 export function LessonPage() {
@@ -91,6 +93,9 @@ export function LessonPage() {
     [queryClient],
   )
 
+  // 고른 음성 — 듣기 화면과 완료 화면(들은 분량)이 같이 쓴다
+  const [variant, setVariant] = useState<Variant>(DEFAULT_VOICE)
+
   if (lesson.data === undefined) return <LessonBefore code={code} query={lesson} />
 
   const data = lesson.data
@@ -98,12 +103,12 @@ export function LessonPage() {
     <PlayerProvider lessonTitle={data.lesson.title} onTrackResult={onTrackResult}>
       {/* 완료 화면이 덮은 동안 뒤의 S-05는 누르거나 읽히지 않게 */}
       <div inert={completeShown}>
-        <LessonBody code={code} data={data} />
+        <LessonBody code={code} data={data} variant={variant} onVariantChange={setVariant} />
       </div>
       {completeShown && (
         <LessonComplete
           title={data.lesson.title}
-          heardMs={heardAmountMs(data.passages)}
+          heardMs={heardAmountMs(data.passages, variant)}
           passagesDone={data.completion.passagesDone}
           passagesTotal={data.completion.passagesTotal}
           wordsTotal={data.words.total}
@@ -121,12 +126,21 @@ type Nudge = 'next' | 'words'
 /** 복습 본문 — 펼치는 버튼의 aria-controls(접혀 있으면 그리지 않는다) */
 const REVIEW_ID = 'review-sentences'
 
-function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
+function LessonBody({
+  code,
+  data,
+  variant,
+  onVariantChange: setVariant,
+}: {
+  code: string
+  data: LessonDetail
+  variant: Variant
+  onVariantChange: (variant: Variant) => void
+}) {
   const player = usePlayer()
   const studentName = useQuery(meQuery).data?.name
   const [selectedNo, setSelectedNo] = useState(() => firstUnfinished(data))
   const passage = data.passages.find((p) => p.no === selectedNo) ?? data.passages[0]
-  const [variant, setVariant] = useState<Variant>(DEFAULT_VOICE)
   const [nudge, setNudge] = useState<Nudge | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [reviewShown, setReviewShown] = useState(false)
@@ -150,7 +164,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     playing: player.playing,
     container: listRef,
   })
-  const listened = speed ? heardRanges(speed, player) : []
+  const listened = speed ? listenedRanges(passage, speed, player) : []
   const heard = speed ? heardSentences(timings, listened) : []
   const sentenceCount = passage.sentences.length
   const at = Math.max(current, 0)
@@ -173,15 +187,17 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
     setSelectedNo(no)
   }
 
-  /** 음성은 파일 선택 — 음성마다 길이가 달라 같은 문장의 새 음성 시작 시각으로 옮겨 이어 듣는다(재생 상태 유지) */
-  function selectVariant(next: Variant, options: { from?: number; play?: boolean } = {}) {
+  /**
+   * 음성은 파일 선택 — 음성마다 길이가 달라 지금 자리를 새 음성의 같은 조각·같은 비율 지점으로 옮겨 이어 듣는다
+   * (서버가 섞어 들은 구간을 합치는 규칙과 같다, BE #59). 재생 상태 유지. 시작 전이면 처음부터
+   */
+  function selectVariant(next: Variant) {
     setVariant(next)
     const target = voiceOf(passage, next)
     if (target === undefined || target.trackId === speed?.trackId) return
-    const index = options.from ?? (started ? at : 0)
     load(passageSource(passage, target), {
-      atMs: target.timings[index]?.[0] ?? 0,
-      play: options.play ?? player.playing,
+      atMs: started && speed ? mapPosition(speed, target, positionMs) : 0,
+      play: player.playing,
     })
   }
 
@@ -192,8 +208,8 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
   }
 
   const next = data.passages.find((p) => p.no === selectedNo + 1)
-  const done = passageDone(passage)
-  const unfinished = data.passages.filter((p) => !passageDone(p))
+  const done = passage.completed
+  const unfinished = data.passages.filter((p) => !p.completed)
   const allDone = unfinished.length === 0
 
   function goNext() {
@@ -219,7 +235,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
         />
 
         <PassageTabs
-          tabs={data.passages.map((p) => ({ no: p.no, done: passageDone(p) }))}
+          tabs={data.passages.map((p) => ({ no: p.no, done: p.completed }))}
           selected={selectedNo}
           onSelect={selectPassage}
         />
@@ -290,9 +306,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
 
           <div className={styles.heard}>
             <div className={styles.heardHead}>
-              <span className={styles.heardLabel}>
-                들은 구간 {speed ? percent(speed.coverage) : '0%'}
-              </span>
+              <span className={styles.heardLabel}>들은 구간 {percent(passage.coverage)}</span>
               <span className={styles.heardGoal}>{percent(threshold)}면 완료</span>
             </div>
             <HeardBar
@@ -360,13 +374,12 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
         {nudge === 'next' && next ? (
           <NextNudge
             passage={passage}
+            voice={speed}
             player={player}
-            onStay={(target, index) => {
+            onStay={(index) => {
               setNudge(null)
-              // 문장 시각이 없으면 문장으로 옮기지 않고 지금 자리에서 이어 듣는다
-              if (target.variant !== speed?.variant)
-                selectVariant(target.variant, { from: index, play: true })
-              else if (target.timings.length > 0) playFrom(index)
+              // 지금 음성 그대로. 문장 시각이 없으면 문장으로 옮기지 않고 지금 자리에서 이어 듣는다
+              if (timings.length > 0) playFrom(index)
               else player.play()
             }}
             onGo={() => selectPassage(next.no)}
@@ -374,7 +387,7 @@ function LessonBody({ code, data }: { code: string; data: LessonDetail }) {
         ) : nudge === 'words' && !allDone ? (
           <NudgeCard
             title="아직 완료 안 된 지문이 있어요"
-            body={`완료 안 된 지문: ${unfinished.map((p) => p.no).join(', ')} · 아무 음성으로 끝까지 들으면 완료돼요`}
+            body={`완료 안 된 지문: ${unfinished.map((p) => p.no).join(', ')} · 음성을 바꿔 들어도 이어서 세요`}
             primary={{ label: '마저 듣기', onClick: () => selectPassage(unfinished[0].no) }}
             secondary={{ label: '그래도 단어로', to: wordsTo }}
           />
@@ -444,45 +457,43 @@ function LessonHead({ title, summary, name }: { title: string; summary?: string;
   )
 }
 
-/** 완료 안 된 지문에서 "다음 지문"을 누르면: 가장 많이 들은 음성의 들은 구간과 안 들은 문장 */
+/**
+ * 완료 안 된 지문에서 "다음 지문"을 누르면: 지문 들은 구간(서버 합산 coverage)과 지금 음성 기준 안 들은 문장.
+ * 섞어 들어도 세므로(BE #59) 음성 이름을 붙이지 않고, "이어서 듣기"도 지금 음성 그대로
+ */
 function NextNudge({
   passage,
+  voice,
   player,
   onStay,
   onGo,
 }: {
   passage: Passage
+  /** 지금 듣는 음성(지문에 음성이 없으면 undefined) */
+  voice: Voice | undefined
   player: PlayerValue
-  onStay: (voice: Voice, sentenceIndex: number) => void
+  onStay: (sentenceIndex: number) => void
   onGo: () => void
 }) {
-  // 완료로 치는 음성(서버 required) 중 가장 많이 들은 것 — 아무 음성 하나를 다 들으면 완료(ADR-27)
-  const target = mostHeardVoice(passage)
-  const heard = target ? heardSentences(target.timings, heardRanges(target, player)) : []
+  const heard = voice ? heardSentences(voice.timings, listenedRanges(passage, voice, player)) : []
   const missing = passage.sentences.filter((_, i) => !heard[i]).map((s) => s.no)
   const firstMissing = Math.max(
     passage.sentences.findIndex((_, i) => !heard[i]),
     0,
   )
+  const heardText = `들은 구간 ${percent(passage.coverage)}`
   return (
     <NudgeCard
       title={`지문 ${passage.no}${objectParticle(passage.no)} 아직 다 안 들었어요`}
       body={
-        target === undefined
-          ? ''
-          : target.timings.length === 0
-            ? // 문장 시각이 없으면 안 들은 문장을 셀 수 없다
-              `${VOICE_LABEL(target.variant)} 들은 구간 ${percent(target.coverage)}`
-            : `${VOICE_LABEL(target.variant)} 들은 구간 ${percent(target.coverage)} · 안 들은 문장 ${
-                missing.length > 0 ? missing.join(', ') : '없음(조금씩 빈 곳)'
-              }`
+        voice === undefined || voice.timings.length === 0
+          ? // 문장 시각이 없으면 안 들은 문장을 셀 수 없다
+            heardText
+          : `${heardText} · 안 들은 문장 ${
+              missing.length > 0 ? missing.join(', ') : '없음(조금씩 빈 곳)'
+            }`
       }
-      primary={{
-        label: '이어서 듣기',
-        onClick: () => {
-          if (target) onStay(target, firstMissing)
-        },
-      }}
+      primary={{ label: '이어서 듣기', onClick: () => onStay(firstMissing) }}
       secondary={{ label: '그냥 넘어가기', onClick: onGo }}
     />
   )
@@ -665,12 +676,9 @@ const PLAYER_ERROR: Record<NonNullable<PlayerValue['error']>, string> = {
   load: '소리를 불러오지 못했어요',
 }
 
-function passageDone(passage: Passage): boolean {
-  return passage.voices.some((v) => v.required && v.completed)
-}
-
+/** 처음 고를 지문: 서버가 완료라고 하지 않은 첫 지문 */
 function firstUnfinished(data: LessonDetail): number {
-  return data.passages.find((p) => !passageDone(p))?.no ?? data.passages[0]?.no ?? 1
+  return data.passages.find((p) => !p.completed)?.no ?? data.passages[0]?.no ?? 1
 }
 
 /** 고른 음성의 트랙, 이 지문에 없으면 첫 트랙 */
@@ -678,24 +686,27 @@ function voiceOf(passage: Passage, variant: Variant): Voice | undefined {
   return passage.voices.find((v) => v.variant === variant) ?? passage.voices[0]
 }
 
-/** 안내 기준: 완료로 치는 음성(required) 중 가장 많이 들은 것, 같으면 서버 순서(us_w 먼저) */
-function mostHeardVoice(passage: Passage): Voice | undefined {
-  const candidates = passage.voices.filter((v) => v.required)
-  const pool = candidates.length > 0 ? candidates : passage.voices
-  if (pool.length === 0) return undefined
-  return pool.reduce((best, v) => (v.coverage > best.coverage ? v : best), pool[0])
-}
-
 /** 속도 선택 줄의 값(문자열): 1 → "1.0" */
 function rateValue(rate: PlaybackRate): string {
   return rate.toFixed(1)
 }
 
-/** 서버가 준 들은 구간 + 이 화면에서 들은 구간(서버 값은 다시 받기 전까지 그대로라서) */
-function heardRanges(speed: Voice, player: PlayerValue): Array<[number, number]> {
+/**
+ * 그 음성 시각으로 본 지문의 들은 구간: 서버 combinedRanges(다른 음성으로 들은 곳까지 옮긴 값, BE #59) +
+ * 이 화면에서 들은 구간. 서버 값은 다시 받기 전까지 그대로라서, 이 화면에서 다른 음성으로 들은 구간도
+ * 서버와 같은 규칙(voiceMap)으로 옮겨 더한다
+ */
+function listenedRanges(
+  passage: Passage,
+  voice: Voice,
+  player: PlayerValue,
+): Array<[number, number]> {
   return mergeRanges([
-    ...speed.heardRanges.map(([a, b]): [number, number] => [a, b]),
-    ...player.listenedOf(speed.trackId),
+    ...voice.combinedRanges.map(([a, b]): [number, number] => [a, b]),
+    ...player.listenedOf(voice.trackId),
+    ...passage.voices
+      .filter((other) => other.trackId !== voice.trackId)
+      .flatMap((other) => mapRanges(other, voice, player.listenedOf(other.trackId))),
   ])
 }
 
@@ -750,14 +761,20 @@ function applyFlushResult(queryClient: QueryClient, code: string, result: FlushR
         passagesDone: result.lesson.requiredDone,
         passagesTotal: result.lesson.requiredTotal,
       },
-      passages: before.passages.map((p) => ({
-        ...p,
-        voices: p.voices.map((v) =>
-          v.trackId === result.track.trackId
-            ? { ...v, coverage: result.track.coverage, completed: result.track.completed }
-            : v,
-        ),
-      })),
+      passages: before.passages.map((p) => {
+        // 방금 보낸 트랙의 지문만: 지문 합산 값(result.passage)과 그 트랙 값(result.track)
+        if (!p.voices.some((v) => v.trackId === result.track.trackId)) return p
+        return {
+          ...p,
+          coverage: result.passage.coverage,
+          completed: result.passage.completed,
+          voices: p.voices.map((v) =>
+            v.trackId === result.track.trackId
+              ? { ...v, coverage: result.track.coverage, completed: result.track.completed }
+              : v,
+          ),
+        }
+      }),
     }
   })
   return completedNow
