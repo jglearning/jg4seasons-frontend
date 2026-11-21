@@ -63,6 +63,7 @@ class FakeMedia extends EventTarget implements MediaLike {
 
 const RESULT: FlushResult = {
   track: { trackId: 9002, coverage: 0.3, completed: false },
+  passage: { no: 1, coverage: 0.3, completed: false },
   lesson: { code: 'L2-B1-05', status: 'in_progress', requiredDone: 3, requiredTotal: 6 },
   dropped: 0,
 }
