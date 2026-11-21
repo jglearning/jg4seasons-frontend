@@ -41,6 +41,8 @@ export type TrackerDeps = {
   isPermanent?: (error: unknown) => boolean
   /** 구간을 보내지 못하고 버릴 때(기록용) */
   onDiscard?: (reason: unknown, segments: number) => void
+  /** beacon으로만 보내고 서버 수신을 확인하지 못한 채 끝난 구간(기록용 — 버림이 아니라 확인 못 함) */
+  onUnconfirmed?: (reason: unknown, segments: number) => void
   newId?: () => string
   now?: () => Date
   userAgent?: string
@@ -126,27 +128,36 @@ export class ListeningTracker {
     window.removeEventListener('pagehide', this.onPageHide)
     clearInterval(this.timer)
     this.close()
-    // 떼어 낸 뒤에는 다시 보낼 기회가 없다 — 큐에 못 넣으면 기록만 남긴다
     const left = this.beaconAll()
+    // beacon은 서버가 받았는지 모르고, 화면을 오래 끈 뒤면 access 만료로 401일 수 있다. 화면이 보이면
+    // beacon으로 보낸 구간(화면을 끈 동안 + 방금)과 beacon이 거절한 구간을 keepalive fetch로 한 번 더 —
+    // 401이면 refresh 뒤 다시 간다(#157)
+    if (this.deps.finalVia === 'fetch' && document.visibilityState === 'visible') {
+      void this.resendAfterStop(this.unconfirmed.splice(0), this.buffer.splice(0))
+      return
+    }
+    // 떼어 낸 뒤에는 다시 보낼 기회가 없다 — 기록만 남긴다
     if (left > 0) {
       this.buffer = []
       this.deps.onDiscard?.('beacon-rejected', left)
     }
-    // beacon은 서버가 받았는지 모르고, 화면을 오래 끈 뒤면 access 만료로 401일 수 있다. 화면이 보이면
-    // beacon으로 보낸 구간(화면을 끈 동안 + 방금)을 keepalive fetch로 한 번 더 — 401이면 refresh 뒤 다시 간다(#157)
-    if (this.deps.finalVia === 'fetch' && document.visibilityState === 'visible') {
-      void this.resendUnconfirmed()
+    if (this.unconfirmed.length > 0) {
+      this.deps.onUnconfirmed?.('stopped-beacon-only', this.unconfirmed.length)
+      this.unconfirmed = []
     }
   }
 
-  /** stop() 뒤: beacon으로 보낸 구간을 fetch(final, keepalive)로. 실패하면 다시 보낼 곳이 없어 기록만 */
-  private async resendUnconfirmed(): Promise<void> {
-    const queue = this.unconfirmed.splice(0)
+  /** stop() 뒤: 남은 구간을 fetch(final, keepalive)로. 실패하면 다시 보낼 곳이 없어 기록만 —
+   * beacon이 거절한 구간은 버림, beacon으로 보낸 구간은 서버 확인 못 함 */
+  private async resendAfterStop(beaconed: Queued[], rejected: Queued[]): Promise<void> {
+    const queue = [...beaconed, ...rejected]
     while (queue.length > 0) {
       const items = this.takeBatch(queue)
-      if (await this.trySend(items, true, true)) {
-        this.deps.onDiscard?.('stopped-resend-failed', items.length)
-      }
+      const failed = await this.trySend(items, true, true)
+      if (failed === null) continue
+      const lost = items.filter((item) => rejected.includes(item)).length
+      if (lost > 0) this.deps.onDiscard?.(failed.error, lost)
+      if (items.length > lost) this.deps.onUnconfirmed?.(failed.error, items.length - lost)
     }
   }
 
@@ -314,9 +325,9 @@ export class ListeningTracker {
     const items = this.takeBatch(this.buffer)
     if (items.length === 0) return
     this.inFlight = items
-    const kept = await this.trySend(items, false, false)
+    const failed = await this.trySend(items, false, false)
     this.inFlight = []
-    if (kept) this.requeue(items)
+    if (failed) this.requeue(items, failed.error)
     else if (this.buffer.length > 0) await this.flush()
   }
 
@@ -326,39 +337,49 @@ export class ListeningTracker {
     const queue = this.buffer.splice(0)
     this.finalPending.push(...queue)
     const failed: Queued[] = []
+    let lastError: unknown
     while (queue.length > 0) {
       const items = this.takeBatch(queue)
       // 다시 보낼 묶음은 되돌릴 때까지 finalPending에 둔다 — 그 사이 stop()의 beacon이 싣게
-      if (await this.trySend(items, true, true)) failed.push(...items)
-      else this.finalPending = this.finalPending.filter((item) => !items.includes(item))
+      const result = await this.trySend(items, true, true)
+      if (result) {
+        failed.push(...items)
+        lastError = result.error
+      } else this.finalPending = this.finalPending.filter((item) => !items.includes(item))
     }
     this.finalPending = this.finalPending.filter((item) => !failed.includes(item))
-    this.requeue(failed)
+    this.requeue(failed, lastError)
   }
 
   /** 보내지 못한 구간을 다음 전송 앞에 되돌린다. 이미 떼어 냈으면 다시 보낼 기회가 없다 —
-   * stop()의 beacon에도 못 실린 것만 버린 것으로 기록한다 */
-  private requeue(items: Queued[]) {
+   * stop()의 beacon에도 못 실린 것은 버림, beacon에 실린 것은 beacon에만 의존(서버 확인 못 함)으로 기록 */
+  private requeue(items: Queued[], error: unknown) {
     if (items.length === 0) return
     if (this.started) {
       this.buffer.unshift(...items)
       return
     }
-    const lost = items.filter((item) => !this.beaconedAtStop.has(item)).length
+    const beaconed = items.filter((item) => this.beaconedAtStop.has(item)).length
+    const lost = items.length - beaconed
     if (lost > 0) this.deps.onDiscard?.('stopped-send-failed', lost)
+    if (beaconed > 0) this.deps.onUnconfirmed?.(error, beaconed)
   }
 
-  /** 보낸다. 다시 보내야 하면 true(호출한 쪽이 남긴다), 성공했거나 버렸으면 false */
-  private async trySend(items: Queued[], final: boolean, keepalive: boolean): Promise<boolean> {
+  /** 보낸다. 다시 보내야 하면 { error }(호출한 쪽이 남긴다), 성공했거나 버렸으면 null */
+  private async trySend(
+    items: Queued[],
+    final: boolean,
+    keepalive: boolean,
+  ): Promise<{ error: unknown } | null> {
     let result: FlushResult
     try {
       result = await this.deps.send(this.payload(items, final), { keepalive })
     } catch (error) {
       if (this.deps.isPermanent?.(error)) {
         this.deps.onDiscard?.(error, items.length)
-        return false
+        return null
       }
-      return true
+      return { error }
     }
     // 응답 처리(캐시 반영)의 오류는 전송 실패가 아니다 — 다시 보내지 않고, 다음 전송도 막지 않게 기록만
     try {
@@ -366,7 +387,7 @@ export class ListeningTracker {
     } catch (error) {
       console.error('[flush] 응답 처리 오류', error)
     }
-    return false
+    return null
   }
 
   /** 보내는 중인 것까지 실어 sendBeacon(final). 큐에 못 넣은 구간은 남기고 그 수를 돌려준다 */

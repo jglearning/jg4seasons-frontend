@@ -722,6 +722,44 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     })
   })
 
+  it('음성을 바꾸면 beacon 뒤 같은 구간을 fetch로 한 번 더 보내고, 그 응답으로 지문 완료를 바로 표시한다(#157)', async () => {
+    server.use(
+      http.post('*/api/v1/listening/flush', () =>
+        HttpResponse.json({
+          track: {
+            trackId: LESSON_MOCK.passageTrackId(5, 'us_w'),
+            coverage: 0.6,
+            completed: false,
+          },
+          passage: { no: 5, coverage: 0.95, completed: true },
+          lesson: {
+            code: LESSON_MOCK.code,
+            status: 'in_progress',
+            requiredDone: 5,
+            requiredTotal: 6,
+          },
+          dropped: 0,
+        }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    openReview()
+    listen(30, 40)
+
+    await chooseVoice(user, '미국 남성')
+
+    expect(beacon).toHaveBeenCalledTimes(1)
+    expect(await screen.findByRole('button', { name: '지문 5 듣는 중 · 완료' })).toBeInTheDocument()
+    expect(flushBodies).toHaveLength(1)
+    expect(flushBodies[0]).toMatchObject({
+      trackId: LESSON_MOCK.passageTrackId(5, 'us_w'),
+      final: true,
+      segments: [expect.objectContaining({ startMs: 30000, endMs: 40000 })],
+    })
+  })
+
   it('음성을 고른 뒤 지문을 옮겨도 그 음성으로 올린다', async () => {
     const user = userEvent.setup()
     renderLesson()

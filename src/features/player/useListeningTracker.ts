@@ -55,6 +55,14 @@ export function useListeningTracker(
           ...describeFlushError(reason),
         })
       },
+      // 손실은 아니지만(beacon이 갔을 수 있다) 서버 coverage가 화면보다 낮게 남을 수 있는 구간
+      onUnconfirmed: (reason, segments) => {
+        console.warn('[flush] beacon만 보냄, 서버 확인 실패', {
+          trackId,
+          segments,
+          ...describeFlushError(reason),
+        })
+      },
       userAgent: navigator.userAgent,
     })
     current.start()
