@@ -128,7 +128,7 @@
   color: var(--bad);
 }
 
-/* 오늘 단어(턱 카드 링크) · 다음 수업(정보 상자, 턱 없음) — 반 폭씩 */
+/* 오늘 단어(링크, 오른쪽 ›) · 다음 수업(정보 상자) — 반 폭씩, 같은 상자 모양. 턱은 주 버튼에만 */
 .pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -156,21 +156,27 @@
   text-decoration: none;
 }
 
+.wordsCard,
+.nextBox {
+  border: var(--border-card) solid var(--line);
+}
+
 .wordsCard {
-  border: var(--border-control) solid var(--line-strong);
-  box-shadow: 0 var(--lip) 0 var(--line-strong);
-  transition:
-    transform var(--motion-press),
-    box-shadow var(--motion-press);
+  position: relative;
+  padding-right: 36px;
+  transition: opacity var(--motion-press);
 }
 
 .wordsCard:active {
-  transform: translateY(var(--lip));
-  box-shadow: 0 0 0 transparent;
+  opacity: 0.6;
 }
 
-.nextBox {
-  border: var(--border-card) solid var(--line);
+.wordsChevron {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  color: var(--muted);
 }
 
 .smallLabel {
