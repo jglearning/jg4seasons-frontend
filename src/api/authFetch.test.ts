@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { server } from '../mocks/node'
-import { createAuthFetch } from './authFetch'
+import { createAuthFetch, GET_TIMEOUT_MS } from './authFetch'
 
 const ORIGIN = 'http://localhost:3000'
 const url = (path: string) => `${ORIGIN}${path}`
@@ -188,6 +188,153 @@ describe('authFetch — 401 → refresh → 재시도', () => {
 
     expect(response.status).toBe(401)
     expect(refreshCalls).toBe(0)
+  })
+})
+
+// 서버가 연결만 받고 답하지 않으면 화면이 불러오는 중에 갇힌다 — GET만 끊는다(#159).
+// MSW 대신 fetch를 직접 넘긴다: 응답을 언제 줄지(또는 영영 안 줄지) 테스트가 정하고, 끊긴 요청은 signal로 본다
+describe('authFetch — GET 시간 제한', () => {
+  type Pending = { request: Request; resolve: (response: Response) => void }
+
+  /** 부르면 응답하지 않고 기다리는 fetch. 끊기면(signal) 그 이유로 실패한다 */
+  function hangingFetch() {
+    const pending: Pending[] = []
+    const fetch = (request: Request) =>
+      new Promise<Response>((resolve, reject) => {
+        pending.push({ request, resolve })
+        request.signal.addEventListener('abort', () => reject(request.signal.reason), {
+          once: true,
+        })
+      })
+    return { fetch, pending }
+  }
+
+  function settled<T>(promise: Promise<T>) {
+    const state = { done: false, error: undefined as unknown }
+    promise.then(
+      () => (state.done = true),
+      (error: unknown) => {
+        state.done = true
+        state.error = error
+      },
+    )
+    return state
+  }
+
+  it('GET이 10초 안에 답하지 않으면 요청을 끊고 TimeoutError로 끝난다', async () => {
+    vi.useFakeTimers()
+    const { fetch, pending } = hangingFetch()
+    const result = settled(createAuthFetch({ fetch })(new Request(url('/api/v1/me'))))
+
+    await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS - 1)
+    expect(result.done).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(result.error).toMatchObject({ name: 'TimeoutError' })
+    expect(pending[0]?.request.signal.aborted).toBe(true)
+  })
+
+  it('10초 안에 오면 그대로 돌려주고 타이머를 남기지 않는다', async () => {
+    vi.useFakeTimers()
+    const { fetch, pending } = hangingFetch()
+    const response = createAuthFetch({ fetch })(new Request(url('/api/v1/me')))
+
+    await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS - 1)
+    pending[0]?.resolve(new Response('{}', { status: 200 }))
+
+    expect((await response).status).toBe(200)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('상태 변경 요청(POST)은 끊지 않는다 — 서버가 처리했는데 화면만 실패로 보이면 다시 눌러 중복된다', async () => {
+    vi.useFakeTimers()
+    const { fetch, pending } = hangingFetch()
+    const result = settled(
+      createAuthFetch({ fetch })(new Request(url('/api/v1/x'), { method: 'POST', body: '{}' })),
+    )
+
+    await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS * 3)
+    expect(result.done).toBe(false)
+    expect(pending[0]?.request.signal.aborted).toBe(false)
+
+    pending[0]?.resolve(new Response('{}', { status: 200 }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(result).toEqual({ done: true, error: undefined })
+  })
+
+  it('401 뒤 refresh가 답하지 않아도 GET은 10초에 끝난다(refresh는 다른 요청과 함께 쓰므로 끊지 않는다)', async () => {
+    vi.useFakeTimers()
+    const { fetch, pending } = hangingFetch()
+    const authFetch = createAuthFetch({
+      fetch: (request) =>
+        new URL(request.url).pathname === '/api/v1/me'
+          ? Promise.resolve(new Response(null, { status: 401 }))
+          : fetch(request),
+    })
+    const result = settled(authFetch(new Request(url('/api/v1/me'))))
+
+    await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS)
+    expect(result.error).toMatchObject({ name: 'TimeoutError' })
+    const refresh = pending.find((p) => new URL(p.request.url).pathname === '/api/v1/auth/refresh')
+    expect(refresh?.request.signal.aborted).toBe(false)
+
+    refresh?.resolve(new Response(null, { status: 503 }))
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('refresh 뒤 다시 보낸 요청까지 합쳐 10초', async () => {
+    vi.useFakeTimers()
+    const { fetch, pending } = hangingFetch()
+    let first = true
+    const authFetch = createAuthFetch({
+      fetch: (request) => {
+        const path = new URL(request.url).pathname
+        if (path === '/api/v1/auth/refresh') {
+          return new Promise((r) => setTimeout(() => r(new Response(null, { status: 200 })), 6_000))
+        }
+        if (first) {
+          first = false
+          return Promise.resolve(new Response(null, { status: 401 }))
+        }
+        return fetch(request)
+      },
+    })
+    const result = settled(authFetch(new Request(url('/api/v1/me'))))
+
+    await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS - 1)
+    expect(pending).toHaveLength(1)
+    expect(result.done).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(result.error).toMatchObject({ name: 'TimeoutError' })
+    expect(pending[0]?.request.signal.aborted).toBe(true)
+  })
+
+  it('부르는 쪽이 취소하면(쿼리 signal) 그 이유로 끝나고 타이머를 남기지 않는다', async () => {
+    vi.useFakeTimers()
+    const { fetch, pending } = hangingFetch()
+    const controller = new AbortController()
+    const result = settled(
+      createAuthFetch({ fetch })(new Request(url('/api/v1/me'), { signal: controller.signal })),
+    )
+
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(result.error).toMatchObject({ name: 'AbortError' })
+    expect(pending[0]?.request.signal.aborted).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('이미 취소된 signal로 부르면 보내지 않는다', async () => {
+    const { fetch, pending } = hangingFetch()
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      createAuthFetch({ fetch })(new Request(url('/api/v1/me'), { signal: controller.signal })),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(pending).toHaveLength(0)
   })
 })
 

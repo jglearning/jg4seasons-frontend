@@ -65,14 +65,34 @@ function requestIdOf(
   return str(problem.requestId) ?? response.headers.get('X-Request-Id') ?? undefined
 }
 
+/** 시간 제한으로 끊은 요청인지(fetch는 abort 이유를 그대로 던진다 — authFetch의 GET 제한, 들어가기 화면의 제한) */
+export function isTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'TimeoutError'
+}
+
+/**
+ * 다시 보내도 같은 결과인 오류인가 — 쿼리 재시도 정책과 화면의 "다시 시도" 여부가 이 함수 하나로 정한다.
+ * 우리 서버는 모든 오류를 code 있는 Problem Details로 답한다(백엔드 ADR-17). 그래서 code 없는 4xx는
+ * 앞단(CloudFront·WAF)의 답으로 보고 다시 해 볼 수 있는 쪽에 둔다. 408·429는 기다리면 풀린다.
+ * 401은 세션 흐름(authFetch refresh → 입장 화면)이 맡으므로 본문과 상관없이 여기서 멈춘다
+ */
+export function isPermanentError(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false
+  if (error.status === 401) return true
+  if (!error.isProblem) return false
+  if (error.status === 408 || error.status === 429) return false
+  return error.status >= 400 && error.status < 500
+}
+
 /** 오류 응답 본문(이미 파싱된 값이든 아니든)을 ApiError로 바꾼다 */
 export function toApiError(response: Response, body: unknown): ApiError {
   const problem = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
   const code = str(problem.code)
   if (code === undefined) {
+    // code 없는 4xx는 앞단의 답(isPermanentError 머리 주석) — "볼 수 없어요"처럼 굳은 문구 대신 다시 해 보라고
     return new ApiError({
       status: response.status,
-      title: fallbackTitle(response.status),
+      title: fallbackTitle(response.status === 401 ? 401 : 500),
       requestId: requestIdOf(response, problem),
     })
   }
