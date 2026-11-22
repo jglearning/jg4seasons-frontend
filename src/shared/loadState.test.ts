@@ -30,6 +30,19 @@ describe('loadStateOf', () => {
     ['404', failed(apiError(404, 'NOT_FOUND')), 'client'],
     ['500', failed(apiError(500, 'INTERNAL')), 'server'],
     ['503', failed(apiError(503)), 'server'],
+    [
+      '시간 초과 — 들어가기 화면처럼 연결 안내(#159)',
+      failed(new DOMException('늦음', 'TimeoutError')),
+      'offline',
+    ],
+    ['408 — 다시 하면 풀림(#159)', failed(apiError(408, 'TIMEOUT')), 'server'],
+    ['429 — 다시 하면 풀림(#159)', failed(apiError(429, 'RATE_LIMITED')), 'server'],
+    [
+      'code 없는 403(WAF HTML) — 우리 서버 답이 아님(#159)',
+      failed(new ApiError({ status: 403, title: 't' })),
+      'server',
+    ],
+    ['code 없는 404(#159)', failed(new ApiError({ status: 404, title: 't' })), 'server'],
   ] as const)('%s', (_, q, expected) => {
     expect(loadStateOf(q)).toBe(expected)
   })

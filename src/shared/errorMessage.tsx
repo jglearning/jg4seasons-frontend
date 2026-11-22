@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ApiError } from '../api/errors'
+import { ApiError, isTimeout } from '../api/errors'
 
 // 요청 실패를 화면 문구로(모든 화면 공용). 순서: 화면이 정한 code별 문구 → LOCKED의 해제 시각(until) →
 // Problem Details의 title(+ detail) → 연결 실패 → 그 밖. 화면별 문구(Copy)는 각 기능 폴더에 둔다
@@ -12,12 +12,19 @@ export type Copy = {
   unlockAt?: (time: string) => string
 }
 
-// 서버 쪽 문제(5xx)·응답 형식 오류는 서버 로그와 맞춰 볼 수 있게 requestId를 남긴다(개인정보 없음)
+// 서버 쪽 문제(5xx)·응답 형식 오류·우리 서버 답이 아닌 4xx(CloudFront·WAF, #159)는
+// 서버·앞단 로그와 맞춰 볼 수 있게 requestId를 남긴다(개인정보 없음)
 const LOGGED_CODES = new Set(['BAD_RESPONSE', 'EMPTY_RESPONSE'])
+
+function shouldLog(error: ApiError): boolean {
+  if (error.status >= 500) return true
+  if (error.code !== undefined && LOGGED_CODES.has(error.code)) return true
+  return !error.isProblem && error.status !== 401
+}
 
 export function errorMessage(error: unknown, copy: Copy = {}): ReactNode {
   if (error instanceof ApiError) {
-    if (error.status >= 500 || (error.code !== undefined && LOGGED_CODES.has(error.code))) {
+    if (shouldLog(error)) {
       console.error('[api]', { status: error.status, code: error.code, requestId: error.requestId })
     }
     const override = error.code === undefined ? undefined : copy.codes?.[error.code]
@@ -34,6 +41,8 @@ export function errorMessage(error: unknown, copy: Copy = {}): ReactNode {
       </>
     )
   }
+  // 응답이 늦어 끊은 요청(authFetch GET 10초)은 연결 문구 — 코드 실수가 아니라 기록하지 않는다
+  if (isTimeout(error)) return NETWORK_MESSAGE
   // 원인을 찾을 수 있게 남긴다. 요청 값(개인 코드·비밀번호)은 오류 객체에 들어 있지 않다
   console.error(error)
   // fetch 연결 실패는 TypeError로 온다(코드 실수의 TypeError도 여기로 오지만 위에서 기록된다)

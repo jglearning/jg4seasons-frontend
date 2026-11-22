@@ -1,6 +1,6 @@
 import { CalendarX, CircleAlert, Lock, TriangleAlert, WifiOff, type LucideIcon } from 'lucide-react'
 import { useEffect } from 'react'
-import { ApiError } from '../api/errors'
+import { ApiError, isPermanentError, isTimeout } from '../api/errors'
 
 // 학생 화면의 받기 전·못 받은 상태(와이어프레임 S05_Before, 명세 S04_S05_빈상태 §2·§3) — S-05(#139)·S-06(#154) 공용.
 // 판정만 여기서 하고 그리기(StatusPanel·버튼 자리)는 화면이 한다
@@ -15,24 +15,28 @@ export type LoadQuery = {
 
 /**
  * loading 불러오는 중 / offline 인터넷 끊김 / locked 잠긴 회차 / license 사용 기간 아님 /
- * client 그 밖의 4xx(locked·license와 같은 틀) / server 서버 오류 / none 그리지 않음(401 — 세션 만료 이동이 맡는다)
+ * client 다시 해도 같은 그 밖의 4xx(locked·license와 같은 틀) / server 서버 오류·다시 하면 풀릴 수 있는 오류 /
+ * none 그리지 않음(401 — 세션 만료 이동이 맡는다)
  */
 export type LoadState = 'loading' | 'offline' | 'locked' | 'license' | 'client' | 'server' | 'none'
 
 /**
  * 받은 오류를 상태로. 브라우저가 오프라인이면 요청이 멈추고(paused), 온라인인데 서버에 닿지 못하면
- * 연결 오류(TypeError)가 온다 — 둘 다 offline. 서버가 응답한 5xx·엉뚱한 응답·알 수 없는 오류는 server
+ * 연결 오류(TypeError)가 오고, 응답이 늦으면 시간 초과(TimeoutError) — 모두 offline.
+ * 서버가 응답한 5xx·엉뚱한 응답·알 수 없는 오류는 server
  */
 export function loadStateOf(query: LoadQuery): LoadState {
   if (query.fetchStatus === 'paused') return 'offline'
   if (query.fetchStatus === 'fetching' || !query.isError) return 'loading'
   const error = query.error
-  if (error instanceof TypeError) return 'offline'
+  // 응답이 10초 안에 오지 않은 것(authFetch GET 제한)도 들어가기 화면처럼 연결 안내로(#159)
+  if (error instanceof TypeError || isTimeout(error)) return 'offline'
   if (!(error instanceof ApiError)) return 'server'
   if (error.status === 401) return 'none'
   if (error.code === 'LESSON_LOCKED') return 'locked'
   if (error.code === 'LICENSE_INACTIVE') return 'license'
-  if (error.status >= 400 && error.status < 500) return 'client'
+  // 408·429·code 없는 4xx는 다시 하면 풀릴 수 있다 → server(다시 시도 + 기록)
+  if (isPermanentError(error)) return 'client'
   return 'server'
 }
 

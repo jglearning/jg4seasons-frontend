@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/errors'
 import { errorMessage, type Copy } from './errorMessage'
 
@@ -51,5 +51,34 @@ describe('errorMessage — LOCKED 해제 시각', () => {
       isProblem: true,
     })
     expect(shown(error)).toBe('너무 많이 시도했어요1분 뒤에 다시 시도해 주세요')
+  })
+})
+
+describe('errorMessage — 기록', () => {
+  it('우리 서버 답이 아닌 4xx(앞단 HTML)는 5xx처럼 상태·requestId를 기록한다(#159)', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    errorMessage(
+      new ApiError({ status: 403, title: '잠시 후 다시 시도해 주세요', requestId: 'cf-1' }),
+    )
+    expect(logged).toHaveBeenCalledWith('[api]', {
+      status: 403,
+      code: undefined,
+      requestId: 'cf-1',
+    })
+  })
+
+  it('Problem Details 4xx와 code 없는 401은 기록하지 않는다(서버가 정한 결과·세션 흐름)', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    errorMessage(new ApiError({ status: 404, code: 'NOT_FOUND', title: 't', isProblem: true }))
+    errorMessage(new ApiError({ status: 401, title: 't' }))
+    expect(logged).not.toHaveBeenCalled()
+  })
+
+  it('시간 초과는 연결 문구, 기록 없음', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(shown(new DOMException('늦음', 'TimeoutError'))).toBe(
+      '인터넷 연결을 확인하고 다시 시도해 주세요',
+    )
+    expect(logged).not.toHaveBeenCalled()
   })
 })

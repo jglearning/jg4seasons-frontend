@@ -400,6 +400,78 @@ describe('S-05 화면', () => {
       await user.click(screen.getByRole('button', { name: '다시 시도' }))
       expect(await heading()).toBeInTheDocument()
     })
+
+    // 서버가 연결만 받고 답하지 않으면 뼈대가 끝없이 이어졌다(#159) — GET 10초 제한, 다시 보내지 않고 바로 안내
+    it('응답 없음(10초): 다시 보내지 않고 ② 인터넷 끊김 안내 → "다시 시도"로 다시 받으면 화면', async () => {
+      vi.useFakeTimers()
+      let answer = false
+      let lessonRequests = 0
+      server.use(
+        http.get('*/api/v1/student/lessons/:code', () => {
+          lessonRequests++
+          return answer ? undefined : hold()
+        }),
+      )
+      renderLesson()
+
+      await vi.advanceTimersByTimeAsync(9_900)
+      expect(screen.getByRole('status', { name: '불러오는 중' })).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      await vi.advanceTimersByTimeAsync(200)
+      const panel = screen.getByRole('alert')
+      expect(within(panel).getByText('인터넷이 끊겼어요')).toBeInTheDocument()
+      expect(panel.querySelector('svg.lucide-wifi-off')).not.toBeNull()
+      // 자동 재시도 없음 — 한 번 더 보내면 20초 동안 뼈대만 보인다
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(lessonRequests).toBe(1)
+
+      // 기본 목의 늦은 답(delay)은 실제 시간 — 실제 타이머로 돌아가 응답까지 받고 끝낸다(다음 테스트로 넘기지 않게)
+      vi.useRealTimers()
+      answer = true
+      fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+      expect(await heading()).toBeInTheDocument()
+      expect(lessonRequests).toBe(2)
+    })
+
+    it('429(한도): 다시 하면 풀린다 — ⑤와 같은 "다시 시도", 회차 목록으로 막지 않는다(#159)', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      server.use(
+        http.get('*/api/v1/student/lessons/:code', () =>
+          problemResponse(429, { code: 'RATE_LIMITED', title: '요청이 너무 많아요' }),
+        ),
+      )
+      renderLesson()
+
+      const panel = await screen.findByRole('alert', {}, { timeout: 3000 })
+      expect(within(panel).getByText('잠시 문제가 생겼어요')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: '회차 목록으로' })).not.toBeInTheDocument()
+    })
+
+    it('우리 서버 답이 아닌 4xx(앞단 HTML 403): ⑤와 같은 "다시 시도", 원인을 찾게 기록(#159)', async () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      server.use(
+        http.get(
+          '*/api/v1/student/lessons/:code',
+          () =>
+            new HttpResponse('<html>403 Forbidden</html>', {
+              status: 403,
+              headers: { 'Content-Type': 'text/html', 'X-Request-Id': 'cf-1' },
+            }),
+        ),
+      )
+      renderLesson()
+
+      const panel = await screen.findByRole('alert', {}, { timeout: 3000 })
+      expect(within(panel).getByText('잠시 문제가 생겼어요')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+      expect(logged).toHaveBeenCalledWith('[api]', {
+        status: 403,
+        code: undefined,
+        requestId: 'cf-1',
+      })
+    })
   })
 
   // 회차를 받기 전에도 나갈 길(#139) — 홈 화면 앱에는 브라우저 뒤로 가기가 없다
