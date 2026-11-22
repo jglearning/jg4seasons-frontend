@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { shouldRetry } from '../app/queryClient'
-import { ApiError, toApiError, unwrap, unwrapVoid } from './errors'
+import { ApiError, isPermanentError, isTimeout, toApiError, unwrap, unwrapVoid } from './errors'
 
 describe('toApiError', () => {
   it('Problem Details의 code·title·detail·until·errors를 꺼낸다', () => {
@@ -43,25 +43,71 @@ describe('toApiError', () => {
     })
   })
 
-  it('code 없는 응답은 서버 title(프레임워크 기본 영어)·detail 대신 상태별 한국어 문구를 쓴다', () => {
+  it('code 없는 응답은 서버 title(프레임워크 기본 영어)·detail 대신 한국어 문구를 쓴다', () => {
     const body = { title: 'Unauthorized', status: 401, detail: 'Full authentication is required' }
 
     expect(toApiError(new Response(null, { status: 401 }), body)).toMatchObject({
       title: '다시 들어와 주세요',
       detail: undefined,
     })
-    expect(toApiError(new Response(null, { status: 403 }), undefined).title).toBe(
+  })
+
+  it('code 없는 401 밖의 4xx(CloudFront·WAF HTML)는 우리 서버 답이 아니라 "잠시 후 다시"(#159)', () => {
+    for (const status of [400, 403, 404, 413, 429]) {
+      expect(toApiError(new Response(null, { status }), '<html>Forbidden</html>').title).toBe(
+        '잠시 후 다시 시도해 주세요',
+      )
+    }
+  })
+
+  it('code 있는 응답에 title이 없으면 상태별 문구', () => {
+    expect(toApiError(new Response(null, { status: 403 }), { code: 'FORBIDDEN' }).title).toBe(
       '이 화면을 볼 수 없어요',
     )
-    expect(toApiError(new Response(null, { status: 404 }), undefined).title).toBe('찾을 수 없어요')
-    expect(toApiError(new Response(null, { status: 413 }), undefined).title).toBe(
-      '요청을 처리하지 못했어요',
+    expect(toApiError(new Response(null, { status: 404 }), { code: 'NOT_FOUND' }).title).toBe(
+      '찾을 수 없어요',
     )
   })
 
-  it('쿼리 재시도 정책과 이어진다: 4xx ApiError는 재시도하지 않고 5xx는 한 번 한다', () => {
+  it('쿼리 재시도 정책과 이어진다: Problem Details 4xx는 재시도하지 않고 5xx는 한 번 한다', () => {
     expect(shouldRetry(0, toApiError(new Response(null, { status: 401 }), {}))).toBe(false)
+    expect(
+      shouldRetry(0, toApiError(new Response(null, { status: 404 }), { code: 'NOT_FOUND' })),
+    ).toBe(false)
     expect(shouldRetry(0, toApiError(new Response(null, { status: 503 }), {}))).toBe(true)
+  })
+})
+
+describe('isTimeout', () => {
+  it('시간 제한으로 끊은 요청(TimeoutError)만', () => {
+    expect(isTimeout(new DOMException('늦음', 'TimeoutError'))).toBe(true)
+    expect(isTimeout(new DOMException('취소', 'AbortError'))).toBe(false)
+    expect(isTimeout(new TypeError('Failed to fetch'))).toBe(false)
+  })
+})
+
+// 다시 보내도 같은 결과인 오류인가 — 재시도 정책·화면 판정이 함께 쓴다(#159)
+describe('isPermanentError', () => {
+  const problem = (status: number, code = 'X') =>
+    new ApiError({ status, code, title: 't', isProblem: true })
+  const notProblem = (status: number) => new ApiError({ status, title: 't' })
+
+  it.each([
+    ['Problem Details 400', problem(400), true],
+    ['Problem Details 403', problem(403), true],
+    ['Problem Details 404', problem(404), true],
+    ['Problem Details 423', problem(423, 'LESSON_LOCKED'), true],
+    ['401(Problem Details든 아니든 — 세션 흐름이 맡음)', notProblem(401), true],
+    ['Problem Details 408', problem(408), false],
+    ['Problem Details 429', problem(429, 'RATE_LIMITED'), false],
+    ['code 없는 403(WAF HTML 등)', notProblem(403), false],
+    ['code 없는 404', notProblem(404), false],
+    ['5xx', problem(503), false],
+    ['시간 초과', new DOMException('늦음', 'TimeoutError'), false],
+    ['연결 실패', new TypeError('Failed to fetch'), false],
+    ['알 수 없는 오류', new Error('x'), false],
+  ] as const)('%s', (_, error, expected) => {
+    expect(isPermanentError(error)).toBe(expected)
   })
 })
 

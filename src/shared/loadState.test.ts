@@ -30,6 +30,19 @@ describe('loadStateOf', () => {
     ['404', failed(apiError(404, 'NOT_FOUND')), 'client'],
     ['500', failed(apiError(500, 'INTERNAL')), 'server'],
     ['503', failed(apiError(503)), 'server'],
+    [
+      '시간 초과 — 느린 망인지 멈춘 서버인지 몰라 서버 오류 안내(#159)',
+      failed(new DOMException('늦음', 'TimeoutError')),
+      'server',
+    ],
+    ['408 — 다시 하면 풀림(#159)', failed(apiError(408, 'TIMEOUT')), 'server'],
+    ['429 — 다시 하면 풀림(#159)', failed(apiError(429, 'RATE_LIMITED')), 'server'],
+    [
+      'code 없는 403(WAF HTML) — 우리 서버 답이 아님(#159)',
+      failed(new ApiError({ status: 403, title: 't' })),
+      'server',
+    ],
+    ['code 없는 404(#159)', failed(new ApiError({ status: 404, title: 't' })), 'server'],
   ] as const)('%s', (_, q, expected) => {
     expect(loadStateOf(q)).toBe(expected)
   })
@@ -52,6 +65,12 @@ describe('useServerErrorLog', () => {
       code: 'INTERNAL',
       requestId: 'req-1',
     })
+  })
+
+  it('시간 초과(DOMException)도 이름 — jsdom의 DOMException은 Error의 하위 클래스가 아니다(#159)', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderHook(() => useServerErrorLog('server', new DOMException('응답이 늦어요', 'TimeoutError')))
+    expect(logged).toHaveBeenCalledWith('[api]', { name: 'TimeoutError' })
   })
 
   it('그 밖의 오류는 이름만 — 메시지에 응답 본문 조각이 섞일 수 있어서(개인정보 규칙)', () => {

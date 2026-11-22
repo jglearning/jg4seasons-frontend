@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, Navigate, Outlet, useLocation } from 'react-router'
-import { ApiError } from '../../api/errors'
+import { ApiError, isPermanentError } from '../../api/errors'
 import { Button } from '../../shared/ui/Button'
 import { meQuery } from '../../api/session'
 import { entryPathFor } from './entry'
@@ -34,11 +34,11 @@ export function RequireSession({ area }: { area: Area }) {
     )
   }
 
-  const status = me.error instanceof ApiError ? me.error.status : undefined
   // 401은 이미 입장 화면으로 가는 중이다
-  if (status === 401) return null
-  // 그 밖의 4xx(예: 403)는 다시 해도 같다 → 입장 화면으로 가는 길을 준다
-  const clientError = status !== undefined && status >= 400 && status < 500
+  if (me.error instanceof ApiError && me.error.status === 401) return null
+  // 다시 해도 같은 4xx(예: Problem Details 403)는 입장 화면으로 가는 길을 준다.
+  // 시간 초과·408·429·앞단의 4xx는 "다시 시도"(isPermanentError, #159)
+  const clientError = isPermanentError(me.error)
 
   return (
     <main className={styles.page}>

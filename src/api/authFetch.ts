@@ -11,6 +11,8 @@ import { CSRF_HEADER, needsCsrf, readCsrfToken } from './csrf'
 // - 그 밖(5xx·429·리다이렉트): 세션은 그대로 두고 refresh 응답을 돌려준다(쿼리 재시도 정책이 판단)
 // refresh가 성공했는데 다시 보낸 요청도 401이면(쿠키가 실제로 심어지지 않은 경우) 세션이 끝난 것으로 본다.
 //
+// GET은 위 전체가 10초 안에 끝나지 않으면 끊고 TimeoutError를 던진다(withDeadline, #159).
+//
 // 이 fetch(와 이것을 쓰는 클라이언트)는 앱에 하나만 만든다 — refresh 합치기가 인스턴스 안에서만 된다.
 
 const AUTH_PREFIX = '/api/v1/auth/'
@@ -20,6 +22,42 @@ export type AuthFetchOptions = {
   fetch?: (input: Request) => Promise<Response>
   /** 세션이 끝났을 때. 여러 번 불려도 안전하게(멱등) 만든다 */
   onSessionExpired?: () => void
+}
+
+/** GET 한 번(원 요청 → refresh 대기 → 다시 보내기 전체)의 시간 제한(#159) */
+export const GET_TIMEOUT_MS = 10_000
+
+/**
+ * 응답이 오지 않으면 화면이 불러오는 중에 갇힌다(fetch에는 제한이 없다) — 기한을 넘기면 끊고 TimeoutError.
+ * 부르는 쪽 signal(쿼리 취소)도 함께 받는다. refresh는 여러 요청이 함께 기다리므로 끊지 않고,
+ * 이 요청만 기다림을 끝낸다(Promise.race). AbortSignal.timeout 대신 setTimeout — 테스트의 가짜 타이머로 넘길 수 있게.
+ * 기한은 응답 헤더까지다 — 그 뒤 본문 읽기(openapi-fetch의 response.json())는 덮지 않는다(CloudFront가 본문을 모아
+ * 보내므로 헤더 뒤 멈춤은 드물다고 봄, issues.md)
+ */
+function withDeadline(
+  input: Request,
+  run: (request: Request) => Promise<Response>,
+): Promise<Response> {
+  const controller = new AbortController()
+  const outer = input.signal
+  const onOuterAbort = () => controller.abort(outer.reason)
+  if (outer.aborted) return Promise.reject(outer.reason)
+  outer.addEventListener('abort', onOuterAbort, { once: true })
+  const timer = setTimeout(
+    () => controller.abort(new DOMException('응답이 늦어요', 'TimeoutError')),
+    GET_TIMEOUT_MS,
+  )
+  const aborted = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener('abort', () => reject(controller.signal.reason), {
+      once: true,
+    })
+  })
+  return Promise.race([run(new Request(input, { signal: controller.signal })), aborted]).finally(
+    () => {
+      clearTimeout(timer)
+      outer.removeEventListener('abort', onOuterAbort)
+    },
+  )
 }
 
 type RefreshResult =
@@ -61,7 +99,12 @@ export function createAuthFetch({
     return refreshing
   }
 
-  return async function authFetch(input: Request): Promise<Response> {
+  // GET만 시간 제한 — 상태 변경 요청은 서버가 처리했는데 화면만 끊으면 다시 눌러 중복된다
+  return function authFetch(input: Request): Promise<Response> {
+    return input.method === 'GET' ? withDeadline(input, send) : send(input)
+  }
+
+  async function send(input: Request): Promise<Response> {
     const request = withCsrf(input)
     // 본문은 한 번만 읽히므로 보내기 전에 다시 보낼 사본을 떠 둔다
     const retry = request.clone()

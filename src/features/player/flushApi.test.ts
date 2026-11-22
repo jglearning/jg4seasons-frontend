@@ -83,8 +83,15 @@ describe('sendFlush · 실패 구분', () => {
     [429, false],
     [500, false],
     [503, false],
-  ])('%i이면 버림=%s(다시 보내도 같은 실패만 버린다)', (status, permanent) => {
-    expect(isPermanentFlushError(new ApiError({ status, title: 'x' }))).toBe(permanent)
+  ])('Problem Details %i이면 버림=%s(다시 보내도 같은 실패만 버린다)', (status, permanent) => {
+    expect(
+      isPermanentFlushError(new ApiError({ status, code: 'X', title: 'x', isProblem: true })),
+    ).toBe(permanent)
+  })
+
+  // 우리 서버는 모든 오류에 code를 붙인다 — code 없는 4xx는 CloudFront·WAF의 답이라 구간을 버리지 않고 다시 보낸다(#159)
+  it.each([400, 403, 404, 415])('code 없는 %i(앞단 HTML)은 버리지 않는다', (status) => {
+    expect(isPermanentFlushError(new ApiError({ status, title: 'x' }))).toBe(false)
   })
 
   it('네트워크 오류(TypeError)는 다시 보낸다', () => {
