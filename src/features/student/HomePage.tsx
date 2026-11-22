@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { CircleAlert, Settings } from 'lucide-react'
+import { ChevronRight, CircleAlert, Settings } from 'lucide-react'
 import { Link } from 'react-router'
 import { meQuery } from '../../api/session'
 import { coverArt, levelEnglish } from '../../shared/level'
@@ -90,6 +90,7 @@ export function HomePage() {
             <Link to={`/lessons/${data.words.lessonCode}/words`} className={styles.wordsCard}>
               <span className={styles.smallLabel}>오늘 단어</span>
               <span className={styles.smallValue}>{data.words.total}개</span>
+              <ChevronRight size={20} strokeWidth={2} className={styles.wordsChevron} aria-hidden />
             </Link>
           )}
           {data.next !== null && (
