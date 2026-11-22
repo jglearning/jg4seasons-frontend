@@ -7,14 +7,12 @@
   padding: 14px var(--space-4);
   border-radius: 14px;
   background: var(--white);
-  border: var(--border-control) solid var(--line-strong);
-  box-shadow: 0 var(--lip) 0 var(--line-strong);
+  /* 턱 없음 — 홈 "오늘 단어"·"다음 수업" 상자와 같은 모양, 누를 수 있다는 표시는 오른쪽 ›(#161) */
+  border: var(--border-card) solid var(--line);
   color: var(--ink);
   text-decoration: none;
   word-break: keep-all;
-  transition:
-    transform var(--motion-press),
-    box-shadow var(--motion-press);
+  transition: opacity var(--motion-press);
 }
 
 /* 펼침 버튼 — 링크와 같은 모양(버튼 기본 글꼴·폭·정렬을 지움) */
@@ -26,8 +24,7 @@
 }
 
 .row:active {
-  transform: translateY(var(--lip));
-  box-shadow: 0 0 0 transparent;
+  opacity: 0.6;
 }
 
 .icon {
