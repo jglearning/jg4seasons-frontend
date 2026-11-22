@@ -39,12 +39,13 @@ export function beaconFlush(payload: FlushPayload): boolean {
 /**
  * 다시 보내도 같은 결과인 실패인가 — 그러면 그 구간은 버린다(영원히 재전송하지 않게).
  * 400 형식·세션 불일치, 403 CSRF·권한, 404 내 진도표에 없는 트랙, 415 Content-Type, 423 LESSON_LOCKED(수업일 전·휴강만), 409, 422.
- * 네트워크 오류·5xx·429는 다시 보낸다. 401은 API 클라이언트가 refresh를 한 뒤에도 401이면 세션 만료로 화면을 옮긴다(이 구간은 알려진 손실)
+ * 네트워크 오류·5xx·429는 다시 보낸다. 401은 API 클라이언트가 refresh를 한 뒤에도 401이면 세션 만료로 화면을 옮긴다(이 구간은 알려진 손실).
+ * 우리 서버의 답(code 있는 Problem Details)일 때만 버린다 — code 없는 4xx는 CloudFront·WAF의 답이라 다시 보낸다(#159, api/errors isPermanentError와 같은 전제)
  */
 const PERMANENT_STATUSES = [400, 403, 404, 409, 415, 422, 423]
 
 export function isPermanentFlushError(error: unknown): boolean {
-  if (!(error instanceof ApiError)) return false
+  if (!(error instanceof ApiError) || !error.isProblem) return false
   return PERMANENT_STATUSES.includes(error.status)
 }
 

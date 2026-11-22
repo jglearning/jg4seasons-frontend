@@ -30,7 +30,9 @@ export const GET_TIMEOUT_MS = 10_000
 /**
  * 응답이 오지 않으면 화면이 불러오는 중에 갇힌다(fetch에는 제한이 없다) — 기한을 넘기면 끊고 TimeoutError.
  * 부르는 쪽 signal(쿼리 취소)도 함께 받는다. refresh는 여러 요청이 함께 기다리므로 끊지 않고,
- * 이 요청만 기다림을 끝낸다(Promise.race). AbortSignal.timeout 대신 setTimeout — 테스트의 가짜 타이머로 넘길 수 있게
+ * 이 요청만 기다림을 끝낸다(Promise.race). AbortSignal.timeout 대신 setTimeout — 테스트의 가짜 타이머로 넘길 수 있게.
+ * 기한은 응답 헤더까지다 — 그 뒤 본문 읽기(openapi-fetch의 response.json())는 덮지 않는다(CloudFront가 본문을 모아
+ * 보내므로 헤더 뒤 멈춤은 드물다고 봄, issues.md)
  */
 function withDeadline(
   input: Request,

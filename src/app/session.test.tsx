@@ -120,8 +120,9 @@ describe('들어온 뒤의 세션', () => {
   })
 
   // 응답이 오지 않으면 흰 화면이 끝없이 이어졌다(#159) — GET 10초 제한
-  it('/me가 10초 안에 답하지 않으면 흰 화면 대신 연결 문구와 다시 시도 → 누르면 들어간다', async () => {
+  it('/me가 10초 안에 답하지 않으면 흰 화면 대신 "잠시 후 다시"와 다시 시도 → 누르면 들어간다', async () => {
     vi.useFakeTimers()
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     setMockSession('student')
     let answer = false
     server.use(http.get('*/api/v1/me', () => (answer ? undefined : hold())))
@@ -130,7 +131,8 @@ describe('들어온 뒤의 세션', () => {
     await vi.advanceTimersByTimeAsync(9_900)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     await vi.advanceTimersByTimeAsync(200)
-    expect(screen.getByRole('alert')).toHaveTextContent('인터넷 연결을 확인')
+    expect(screen.getByRole('alert')).toHaveTextContent('잠시 후 다시 시도해 주세요')
+    expect(logged).toHaveBeenCalledWith('[api]', { name: 'TimeoutError' })
 
     // 기본 목의 늦은 답(delay)은 실제 시간이라 가짜 타이머로는 오지 않는다 — 실제 타이머로 돌아가 홈 응답까지 받고 끝낸다
     // (남기면 다음 테스트에서 401로 도착해 세션 만료 이동을 일으킨다)

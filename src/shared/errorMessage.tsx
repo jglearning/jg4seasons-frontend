@@ -41,8 +41,12 @@ export function errorMessage(error: unknown, copy: Copy = {}): ReactNode {
       </>
     )
   }
-  // 응답이 늦어 끊은 요청(authFetch GET 10초)은 연결 문구 — 코드 실수가 아니라 기록하지 않는다
-  if (isTimeout(error)) return NETWORK_MESSAGE
+  // 응답이 늦어 끊은 요청(authFetch GET 10초) — 느린 망인지 멈춘 서버인지 모르므로 연결 문구 대신 "잠시 후"(#159 리뷰).
+  // 서버 쪽 원인일 수 있어 이름만 기록(응답이 없어 requestId도 없다)
+  if (isTimeout(error)) {
+    console.error('[api]', { name: 'TimeoutError' })
+    return '잠시 후 다시 시도해 주세요'
+  }
   // 원인을 찾을 수 있게 남긴다. 요청 값(개인 코드·비밀번호)은 오류 객체에 들어 있지 않다
   console.error(error)
   // fetch 연결 실패는 TypeError로 온다(코드 실수의 TypeError도 여기로 오지만 위에서 기록된다)

@@ -402,8 +402,10 @@ describe('S-05 화면', () => {
     })
 
     // 서버가 연결만 받고 답하지 않으면 뼈대가 끝없이 이어졌다(#159) — GET 10초 제한, 다시 보내지 않고 바로 안내
-    it('응답 없음(10초): 다시 보내지 않고 ② 인터넷 끊김 안내 → "다시 시도"로 다시 받으면 화면', async () => {
+    // 느린 망인지 멈춘 서버인지 모르므로 ② 인터넷 끊김이 아니라 ⑤ 서버 오류 안내(#159 리뷰)
+    it('응답 없음(10초): 다시 보내지 않고 ⑤ 서버 오류 안내 + 기록 → "다시 시도"로 다시 받으면 화면', async () => {
       vi.useFakeTimers()
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
       let answer = false
       let lessonRequests = 0
       server.use(
@@ -420,8 +422,9 @@ describe('S-05 화면', () => {
 
       await vi.advanceTimersByTimeAsync(200)
       const panel = screen.getByRole('alert')
-      expect(within(panel).getByText('인터넷이 끊겼어요')).toBeInTheDocument()
-      expect(panel.querySelector('svg.lucide-wifi-off')).not.toBeNull()
+      expect(within(panel).getByText('잠시 문제가 생겼어요')).toBeInTheDocument()
+      expect(panel.querySelector('svg.lucide-triangle-alert')).not.toBeNull()
+      expect(logged).toHaveBeenCalledWith('[api]', { name: 'TimeoutError' })
       // 자동 재시도 없음 — 한 번 더 보내면 20초 동안 뼈대만 보인다
       await vi.advanceTimersByTimeAsync(20_000)
       expect(lessonRequests).toBe(1)

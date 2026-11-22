@@ -74,11 +74,10 @@ describe('errorMessage — 기록', () => {
     expect(logged).not.toHaveBeenCalled()
   })
 
-  it('시간 초과는 연결 문구, 기록 없음', () => {
+  it('시간 초과는 "잠시 후 다시" — 서버 쪽 원인일 수 있어 이름만 기록(메시지 없음)', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-    expect(shown(new DOMException('늦음', 'TimeoutError'))).toBe(
-      '인터넷 연결을 확인하고 다시 시도해 주세요',
-    )
-    expect(logged).not.toHaveBeenCalled()
+    expect(shown(new DOMException('늦음', 'TimeoutError'))).toBe('잠시 후 다시 시도해 주세요')
+    expect(logged).toHaveBeenCalledTimes(1)
+    expect(logged).toHaveBeenCalledWith('[api]', { name: 'TimeoutError' })
   })
 })

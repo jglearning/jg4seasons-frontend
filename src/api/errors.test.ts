@@ -53,7 +53,7 @@ describe('toApiError', () => {
   })
 
   it('code 없는 401 밖의 4xx(CloudFront·WAF HTML)는 우리 서버 답이 아니라 "잠시 후 다시"(#159)', () => {
-    for (const status of [403, 404, 413, 429]) {
+    for (const status of [400, 403, 404, 413, 429]) {
       expect(toApiError(new Response(null, { status }), '<html>Forbidden</html>').title).toBe(
         '잠시 후 다시 시도해 주세요',
       )

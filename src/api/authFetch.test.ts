@@ -246,21 +246,26 @@ describe('authFetch — GET 시간 제한', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('상태 변경 요청(POST)은 끊지 않는다 — 서버가 처리했는데 화면만 실패로 보이면 다시 눌러 중복된다', async () => {
-    vi.useFakeTimers()
-    const { fetch, pending } = hangingFetch()
-    const result = settled(
-      createAuthFetch({ fetch })(new Request(url('/api/v1/x'), { method: 'POST', body: '{}' })),
-    )
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+    '상태 변경 요청(%s)은 끊지 않는다 — 서버가 처리했는데 화면만 실패로 보이면 다시 눌러 중복된다',
+    async (method) => {
+      vi.useFakeTimers()
+      const { fetch, pending } = hangingFetch()
+      const result = settled(
+        createAuthFetch({ fetch })(
+          new Request(url('/api/v1/x'), { method, body: method === 'DELETE' ? null : '{}' }),
+        ),
+      )
 
-    await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS * 3)
-    expect(result.done).toBe(false)
-    expect(pending[0]?.request.signal.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS * 3)
+      expect(result.done).toBe(false)
+      expect(pending[0]?.request.signal.aborted).toBe(false)
 
-    pending[0]?.resolve(new Response('{}', { status: 200 }))
-    await vi.advanceTimersByTimeAsync(0)
-    expect(result).toEqual({ done: true, error: undefined })
-  })
+      pending[0]?.resolve(new Response('{}', { status: 200 }))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(result).toEqual({ done: true, error: undefined })
+    },
+  )
 
   it('401 뒤 refresh가 답하지 않아도 GET은 10초에 끝난다(refresh는 다른 요청과 함께 쓰므로 끊지 않는다)', async () => {
     vi.useFakeTimers()
@@ -318,12 +323,31 @@ describe('authFetch — GET 시간 제한', () => {
       createAuthFetch({ fetch })(new Request(url('/api/v1/me'), { signal: controller.signal })),
     )
 
-    controller.abort()
+    const reason = new DOMException('화면을 떠남', 'AbortError')
+    controller.abort(reason)
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(result.error).toMatchObject({ name: 'AbortError' })
-    expect(pending[0]?.request.signal.aborted).toBe(true)
+    // 이유를 바꾸지 않고 그대로 넘긴다
+    expect(result.error).toBe(reason)
+    expect(pending[0]?.request.signal.reason).toBe(reason)
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('끝나면 부르는 쪽 signal에서 리스너를 뗀다(오래 사는 signal에 쌓이지 않게)', async () => {
+    const { fetch, pending } = hangingFetch()
+    const controller = new AbortController()
+    // Request는 넘긴 signal을 따라가는 자기 signal을 만든다 — 그 signal(input.signal)에서 봐야 한다
+    const request = new Request(url('/api/v1/me'), { signal: controller.signal })
+    const added = vi.spyOn(request.signal, 'addEventListener')
+    const removed = vi.spyOn(request.signal, 'removeEventListener')
+    const response = createAuthFetch({ fetch })(request)
+
+    pending[0]?.resolve(new Response('{}', { status: 200 }))
+    await response
+
+    const listener = added.mock.calls.find(([type]) => type === 'abort')?.[1]
+    expect(listener).toBeDefined()
+    expect(removed).toHaveBeenCalledWith('abort', listener)
   })
 
   it('이미 취소된 signal로 부르면 보내지 않는다', async () => {

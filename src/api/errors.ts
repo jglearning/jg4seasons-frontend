@@ -89,7 +89,8 @@ export function toApiError(response: Response, body: unknown): ApiError {
   const problem = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
   const code = str(problem.code)
   if (code === undefined) {
-    // code 없는 4xx는 앞단의 답(isPermanentError 머리 주석) — "볼 수 없어요"처럼 굳은 문구 대신 다시 해 보라고
+    // code 없는 4xx는 앞단의 답(isPermanentError 머리 주석) — "볼 수 없어요"처럼 굳은 문구 대신 다시 해 보라고.
+    // 저장 요청(POST·PATCH)에도 같은 문구다. 앞단이 계속 막으면 다시 해도 실패하지만 errorMessage가 기록을 남긴다
     return new ApiError({
       status: response.status,
       title: fallbackTitle(response.status === 401 ? 401 : 500),

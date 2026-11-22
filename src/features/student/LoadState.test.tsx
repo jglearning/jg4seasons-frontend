@@ -25,11 +25,7 @@ function renderState(error: Error) {
 
 describe('학생 LoadState', () => {
   it.each([
-    [
-      '시간 초과',
-      new DOMException('늦음', 'TimeoutError'),
-      '인터넷 연결을 확인하고 다시 시도해 주세요',
-    ],
+    ['시간 초과', new DOMException('늦음', 'TimeoutError'), '잠시 후 다시 시도해 주세요'],
     ['429', problem(429), '서버 문구'],
     [
       'code 없는 403(앞단 HTML)',

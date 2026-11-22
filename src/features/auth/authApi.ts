@@ -33,7 +33,8 @@ async function withTimeout<T>(
 
 /**
  * 들어가기 화면이 "누가 들어와 있나"를 물을 때의 /me(#70) — 응답이 오지 않으면 화면이 칸을 감춘 채 갇히므로 시간 제한을 둔다.
- * 쿼리가 취소하면(signal) 함께 끊는다. 앱 전체의 세션 확인은 src/api/session.ts의 meQuery(제한 없음)
+ * 쿼리가 취소하면(signal) 함께 끊는다. 앱 전체의 세션 확인은 src/api/session.ts의 meQuery.
+ * GET이라 authFetch의 10초 제한(#159)도 함께 걸리지만 이쪽이 먼저 시작해 먼저 끝난다 — 결과는 같은 TimeoutError
  */
 export function fetchMeForEntry(querySignal?: AbortSignal) {
   return withTimeout((signal) => unwrap(api.GET('/api/v1/me', { signal })), querySignal)

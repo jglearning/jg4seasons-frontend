@@ -41,6 +41,21 @@ describe('createQueryClient 재시도', () => {
     expect(queryFn).toHaveBeenCalledTimes(1)
   })
 
+  it('code 없는 4xx(앞단 HTML)면 한 번 더 시도한다(#159)', async () => {
+    vi.useFakeTimers()
+    const error = new ApiError({ status: 403, title: 't' })
+    const queryFn = vi.fn(async (): Promise<string> => {
+      throw error
+    })
+
+    const result = createQueryClient().fetchQuery({ queryKey: ['waf'], queryFn })
+    result.catch(() => {})
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    await expect(result).rejects.toBe(error)
+    expect(queryFn).toHaveBeenCalledTimes(2)
+  })
+
   it('5xx면 한 번 더 시도하고 멈춘다', async () => {
     vi.useFakeTimers()
     const error = problem(503)
