@@ -1,5 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, CircleAlert, Ellipsis, EllipsisVertical, Menu, Share } from 'lucide-react'
+import {
+  ChevronLeft,
+  CircleAlert,
+  Copy,
+  Ellipsis,
+  EllipsisVertical,
+  Menu,
+  Share,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../api/errors'
@@ -227,11 +235,14 @@ function InAppGuide({ app }: { app: string }) {
         <li>2. '다른 브라우저로 열기'를 골라요</li>
         <li>3. 열린 브라우저에서 다시 이 안내대로 추가해요</li>
       </ol>
-      <div className={styles.copyRow}>
-        <Button variant="secondary" onClick={onCopy}>
-          주소 복사
-        </Button>
+      <p className={styles.note}>메뉴가 없으면 주소를 복사해 크롬에 붙여 넣어요</p>
+      {/* 주소 + 복사를 한 상자로(11/24 동섭 — 턱 없음, 무엇을 복사하는지 묶어 보이게) */}
+      <div className={styles.copyBox}>
         <span className={styles.url}>{url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+        <button type="button" className={styles.copyButton} aria-label="주소 복사" onClick={onCopy}>
+          <Copy size={18} strokeWidth={2} aria-hidden />
+          복사
+        </button>
       </div>
       <p className={styles.note} role="status">
         {copy === 'done' && '복사했어요. 다른 브라우저 주소창에 붙여 넣어요'}
