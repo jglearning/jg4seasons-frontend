@@ -5,7 +5,7 @@ import { Button } from '../../shared/ui/Button'
 import { CheckboxGroup } from '../../shared/ui/CheckboxGroup'
 import { SelectField } from '../../shared/ui/SelectField'
 import { TextField } from '../../shared/ui/TextField'
-import { createClass, teachersQuery } from './adminApi'
+import { activeTeacherOptions, createClass, teachersQuery } from './adminApi'
 import { BOOK_OPTIONS } from '../../shared/books'
 import { WEEKDAY_OPTIONS } from './format'
 import { useSubmit } from '../../shared/useSubmit'
@@ -46,10 +46,7 @@ export function ClassNewPage() {
     navigate(`/admin/classes/${created.id}`)
   }
 
-  // 새로 넣을 수 있는 교사는 활성 교사·관리자만(서버 규칙)
-  const teacherOptions = (teachers.data?.items ?? [])
-    .filter((t) => t.status === 'active')
-    .map((t) => ({ value: t.id, label: t.name }))
+  const teacherOptions = activeTeacherOptions(teachers.data?.items)
   const generalError = submit.formError(FIELDS)
 
   return (

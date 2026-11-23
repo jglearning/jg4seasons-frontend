@@ -42,9 +42,15 @@ export function ClassesPage() {
           <h1 className={styles.title}>반 관리</h1>
           {classes.data && <p className={styles.sub}>{classes.data.total}개 반</p>}
         </div>
-        <ButtonLink to="/admin/classes/new" size="teacher">
-          반 만들기
-        </ButtonLink>
+        <div className={styles.actions}>
+          {/* A-05: 학원 표를 붙여넣어 반·학생을 한 번에(사이드바는 그대로) */}
+          <ButtonLink to="/admin/roster-import" variant="secondary" size="teacher">
+            명단 가져오기
+          </ButtonLink>
+          <ButtonLink to="/admin/classes/new" size="teacher">
+            반 만들기
+          </ButtonLink>
+        </div>
       </div>
       {classes.data ? (
         <Table
