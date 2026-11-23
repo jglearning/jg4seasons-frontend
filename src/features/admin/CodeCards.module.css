@@ -64,6 +64,11 @@
     -webkit-print-color-adjust: exact;
   }
 
+  /* 반이 여럿이면(A-05) 둘째 반부터 새 쪽 */
+  .sheet + .sheet {
+    break-before: page;
+  }
+
   /* 점선 = 자르는 선(옆 칸과 겹치지 않게 오른쪽·아래만) */
   .cell {
     box-sizing: border-box;
