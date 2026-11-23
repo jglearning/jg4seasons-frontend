@@ -87,8 +87,8 @@ describe('S-07 설정', () => {
     expect(steps()).toBeVisible()
     expect(within(steps()).getByRole('img', { name: '점 세 개 메뉴' })).toBeInTheDocument()
     expect(steps()).toHaveTextContent('1. 오른쪽 위 를 눌러요')
-    expect(steps()).toHaveTextContent("2. '홈 화면에 추가'를 골라요")
-    expect(steps()).toHaveTextContent("3. '설치'를 골라요")
+    expect(steps()).toHaveTextContent("2. '앱 설치' 또는 '홈 화면에 추가'를 골라요")
+    expect(steps()).toHaveTextContent("3. 창이 뜨면 '설치'를 골라요")
     expect(steps()).toHaveTextContent('4. 홈 화면의 4 Seasons 아이콘으로 열어요')
     // 설치 이벤트가 오지 않았으면 설치 버튼 없음(#164)
     expect(within(steps()).queryByRole('button')).not.toBeInTheDocument()
@@ -229,7 +229,9 @@ describe('S-07 설정', () => {
       await user.click(row)
       await user.click(within(steps()).getByRole('button', { name: '홈 화면에 추가하기' }))
 
-      expect(await within(steps()).findByRole('list')).toHaveTextContent("3. '설치'를 골라요")
+      expect(await within(steps()).findByRole('list')).toHaveTextContent(
+        "3. 창이 뜨면 '설치'를 골라요",
+      )
       expect(
         within(steps()).queryByRole('button', { name: '홈 화면에 추가하기' }),
       ).not.toBeInTheDocument()

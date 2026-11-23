@@ -193,8 +193,9 @@ function InstallGuide() {
           <li>
             1. 오른쪽 위 <MenuIcon icon={EllipsisVertical} label="점 세 개 메뉴" /> 를 눌러요
           </li>
-          <li>2. '홈 화면에 추가'를 골라요</li>
-          <li>3. '설치'를 골라요</li>
+          {/* 크롬 버전에 따라 메뉴 이름이 '앱 설치' 또는 '홈 화면에 추가'(11/24 조사) */}
+          <li>2. '앱 설치' 또는 '홈 화면에 추가'를 골라요</li>
+          <li>3. 창이 뜨면 '설치'를 골라요</li>
           <li>4. {LAST_STEP}</li>
         </ol>
       )
