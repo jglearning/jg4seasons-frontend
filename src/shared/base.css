@@ -52,6 +52,21 @@ html[data-level] body {
   font-feature-settings: 'ss06';
 }
 
+/* 학생 화면 글자는 선택하지 않는다(#163) — 크롬 안드로이드 "탭하여 검색"이 이름·반 같은 보통 글자를 누를 때 뜬다.
+   교사·관리자 화면은 표를 복사하므로 그대로(data-level 없음). 예외: 입력 칸, S-05 지문 문장(SentenceRow) */
+html[data-level] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html[data-level] input,
+html[data-level] textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* 움직임 줄이기: 전환·애니메이션을 바로 바뀌게(DESIGN.md 1.3) */
 @media (prefers-reduced-motion: reduce) {
   *,
