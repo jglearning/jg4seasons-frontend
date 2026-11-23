@@ -12,13 +12,13 @@ export interface paths {
          * 반 목록
          * @description id 순, 가입 코드 포함. status를 빼면 전부
          */
-        get: operations["list_1"];
+        get: operations["listClasses"];
         put?: never;
         /**
          * 반 생성
          * @description 진도표(권의 회차 수만큼 — 블랙 28, 그 밖 24회, 개강일 포함, 수업 요일마다, 공휴일 미반영)와 가입 코드를 함께 만든다. 없는 권·잘못된 요일·이름은 400(errors[].field), 다른 학원·비활성 교사는 404. X-CSRF 필요
          */
-        post: operations["create_1"];
+        post: operations["createClass"];
         delete?: never;
         options?: never;
         head?: never;
@@ -46,7 +46,7 @@ export interface paths {
          * 반 변경
          * @description 빠진 칸은 그대로. 권·개강일·요일은 바꿀 수 없음(새 반으로). active가 아니면 그 반 가입 코드로 입장할 수 없음. teacherIds는 전체 교체. 다른 학원 반·교사는 404. X-CSRF 필요
          */
-        patch: operations["update_2"];
+        patch: operations["updateClass"];
         trace?: never;
     };
     "/api/v1/admin/classes/{id}/access-code/regenerate": {
@@ -80,13 +80,13 @@ export interface paths {
          * 반 학생 목록
          * @description 현재 소속 학생(이름 순, 같으면 id 순). 개인 코드 평문 없음. 다른 학원 반은 404
          */
-        get: operations["list_2"];
+        get: operations["listClassStudents"];
         put?: never;
         /**
          * 학생 등록
          * @description 1~50명, 응답은 요청 순서. 학생마다 개인 코드(숫자 4자리, 학원 안 고유)를 발급해 평문을 이 응답에서만 준다(카드 인쇄용, 다시 볼 수 없음). 이름·학교·학년은 앞뒤 공백을 지운다(학교·학년이 비면 null), 같은 이름 허용. 다른 학원 반은 404, 진행 중(active)이 아닌 반은 409 CLASS_NOT_ACTIVE — 둘 다 아무도 만들지 않는다. X-CSRF 필요
          */
-        post: operations["create_2"];
+        post: operations["createClassStudents"];
         delete?: never;
         options?: never;
         head?: never;
@@ -153,6 +153,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/roster-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 명단 가져오기
+         * @description 반 항목 순서대로 새 반(진도표·가입 코드·담당 교사)을 만들거나 기존 반을 쓰고, 학생을 새로 만들어(이미 있는 학생을 찾아 옮기지 않음) 넣는다. 한 트랜잭션 — 검사 오류가 하나라도 있으면 첫 오류로 4xx(400 VALIDATION·404·409 CLASS_NOT_ACTIVE·403 LICENSE_INACTIVE·409 LICENSE_SEATS_FULL)이고 아무것도 만들지 않는다. 경고는 막지 않는다. 개인 코드 평문은 이 응답에서만(카드 인쇄용). 감사 로그 한 줄. X-CSRF 필요
+         */
+        post: operations["createRosterImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roster-imports/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 명단 가져오기 검사
+         * @description 아무것도 만들지 않는다. 형식(타입·길이·개수: 반 1~30, 반마다 학생 1~50)이 틀리면 400 VALIDATION, 형식이 맞으면 200과 데이터 문제 목록. errors가 비어야 만들기가 성공한다(그 사이 다른 관리자가 바꾸지 않았다면). warnings는 만들기를 막지 않는다. X-CSRF 필요
+         */
+        post: operations["checkRosterImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/students/search": {
         parameters: {
             query?: never;
@@ -190,7 +230,7 @@ export interface paths {
          * 학생 변경
          * @description 빠진 칸은 그대로, 이름은 앞뒤 공백을 지움, 학교·학년은 빈 문자열이면 지움. 바꿀 값이 없으면 400. status inactive = 퇴원: 로그인 불가·로그인 유지(refresh) 끊김·반 소속 모두 끝남(기록 보존, 코드는 그대로), 감사 로그. 이미 퇴원이면 아무것도 늘지 않음. active = 되살리기(상태만 — 반은 이동으로). 다른 학원 학생은 404. X-CSRF 필요
          */
-        patch: operations["update_1"];
+        patch: operations["updateStudent"];
         trace?: never;
     };
     "/api/v1/admin/students/{id}/move": {
@@ -224,13 +264,13 @@ export interface paths {
          * 교사·관리자 목록
          * @description id 순
          */
-        get: operations["list"];
+        get: operations["listTeachers"];
         put?: never;
         /**
          * 교사 생성
          * @description 아이디가 이미 있으면(전체 학원, 대소문자 무관) 409 LOGIN_ID_TAKEN, 다른 학원 반이 있으면 404. X-CSRF 필요
          */
-        post: operations["create"];
+        post: operations["createTeacher"];
         delete?: never;
         options?: never;
         head?: never;
@@ -254,7 +294,7 @@ export interface paths {
          * 교사 변경
          * @description 빠진 칸은 그대로. 자기 비활성화는 409 SELF_CHANGE_NOT_ALLOWED, 다른 학원 교사·반은 404. 비활성화·비밀번호 재설정이면 그 교사의 refresh를 모두 끊음. X-CSRF 필요
          */
-        patch: operations["update"];
+        patch: operations["updateTeacher"];
         trace?: never;
     };
     "/api/v1/auth/code/verify": {
@@ -408,7 +448,7 @@ export interface paths {
          * 내 설정
          * @description 저장한 적이 없으면 모든 값이 null. 기본값은 화면이 정한다
          */
-        get: operations["get"];
+        get: operations["getMySettings"];
         put?: never;
         post?: never;
         delete?: never;
@@ -418,7 +458,7 @@ export interface paths {
          * 내 설정 부분 수정
          * @description 보낸 칸만 바꾼다. 보내지 않은 칸은 그대로, null은 그 칸만 비운다. 응답은 설정 전체. 네 목소리 밖의 값은 400 VALIDATION(errors[].field = voice)
          */
-        patch: operations["patch"];
+        patch: operations["patchMySettings"];
         trace?: never;
     };
     "/api/v1/student/classes/{classId}/lessons": {
@@ -1495,6 +1535,70 @@ export interface components {
              */
             until?: string;
         };
+        RosterImportCheckResponse: {
+            /** @description 고쳐야 만들 수 있는 것. 비면 만들 수 있음 */
+            errors: components["schemas"]["RosterImportIssue"][];
+            /** @description 만들 수는 있지만 확인할 것 */
+            warnings: components["schemas"]["RosterImportIssue"][];
+        };
+        /** @description 반 항목 하나: 기존 반 id 또는 새 반, 그리고 학생 */
+        RosterImportClassItem: {
+            /**
+             * Format: int64
+             * @description 학생을 넣을 기존 반 id. newClass와 둘 중 하나만
+             */
+            existingClassId?: number;
+            /** @description 새로 만들 반(5.1 반 만들기와 같은 칸). existingClassId와 둘 중 하나만 */
+            newClass?: components["schemas"]["ClassCreateRequest"];
+            /** @description 1~50명. 새 학생으로 만든다(기존 학생을 찾아 옮기지 않음) */
+            students: components["schemas"]["StudentCreateItem"][];
+        };
+        /** @description 검사 오류 또는 경고 하나 */
+        RosterImportIssue: {
+            /** @description 오류: VALIDATION · NOT_FOUND · CLASS_NOT_ACTIVE · LICENSE_INACTIVE · LICENSE_SEATS_FULL (만들기가 실패할 때와 같은 code). 경고: SAME_NAME_STUDENT · SAME_NAME_CLASS */
+            code: string;
+            /**
+             * @description 요청 안 위치: classes · classes[1] · classes[1].newClass.bookCode · classes[1].students[3].name
+             * @example classes[1].students[3].name
+             */
+            field: string;
+            /** @description 화면에 그대로 보일 문구 */
+            message: string;
+        };
+        RosterImportRequest: {
+            /** @description 반 항목 1~30개, 요청 순서대로 만든다 */
+            classes: components["schemas"]["RosterImportClassItem"][];
+        };
+        RosterImportResponse: {
+            /** @description 요청 순서 */
+            classes: components["schemas"]["RosterImportedClass"][];
+            /**
+             * Format: int32
+             * @description 이번에 만든 반 수
+             */
+            createdClasses: number;
+            /**
+             * Format: int32
+             * @description 이번에 만든 학생 수
+             */
+            createdStudents: number;
+        };
+        RosterImportedClass: {
+            /** @description 반 가입 코드(카드 인쇄용) */
+            accessCode: string;
+            /** Format: int64 */
+            classId: number;
+            /** @description true = 이번에 만든 반, false = 기존 반 */
+            created: boolean;
+            level: components["schemas"]["ClassLevel"];
+            /** @example L2 */
+            levelCode: string;
+            name: string;
+            /** @description 5.1 반 응답의 season과 같음 */
+            season: string;
+            /** @description 이번에 만든 학생, 요청 순서 */
+            students: components["schemas"]["PersonalCodeItem"][];
+        };
         SessionCancelRequest: {
             /** @description 메모 100자 이하. 보내지 않으면 원래 메모 그대로, 빈 문자열이면 메모 없음 */
             note?: string;
@@ -2187,7 +2291,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    list_1: {
+    listClasses: {
         parameters: {
             query?: {
                 /** @description active · finished · archived */
@@ -2219,7 +2323,7 @@ export interface operations {
             };
         };
     };
-    create_1: {
+    createClass: {
         parameters: {
             query?: never;
             header?: never;
@@ -2283,7 +2387,7 @@ export interface operations {
             };
         };
     };
-    update_2: {
+    updateClass: {
         parameters: {
             query?: never;
             header?: never;
@@ -2349,7 +2453,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    listClassStudents: {
         parameters: {
             query?: never;
             header?: never;
@@ -2380,7 +2484,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    createClassStudents: {
         parameters: {
             query?: never;
             header?: never;
@@ -2508,6 +2612,72 @@ export interface operations {
             };
         };
     };
+    createRosterImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RosterImportResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    checkRosterImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterImportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RosterImportCheckResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     search: {
         parameters: {
             query?: never;
@@ -2541,7 +2711,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    updateStudent: {
         parameters: {
             query?: never;
             header?: never;
@@ -2611,7 +2781,7 @@ export interface operations {
             };
         };
     };
-    list: {
+    listTeachers: {
         parameters: {
             query?: never;
             header?: never;
@@ -2640,7 +2810,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    createTeacher: {
         parameters: {
             query?: never;
             header?: never;
@@ -2673,7 +2843,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    updateTeacher: {
         parameters: {
             query?: never;
             header?: never;
@@ -2926,7 +3096,7 @@ export interface operations {
             };
         };
     };
-    get: {
+    getMySettings: {
         parameters: {
             query?: never;
             header?: never;
@@ -2955,7 +3125,7 @@ export interface operations {
             };
         };
     };
-    patch: {
+    patchMySettings: {
         parameters: {
             query?: never;
             header?: never;
