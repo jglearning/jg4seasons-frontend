@@ -21,3 +21,41 @@ export function isIos(): boolean {
   if (/iPhone|iPad|iPod/.test(ua)) return true
   return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1
 }
+
+/** 앱 안 브라우저(홈 화면 추가가 없다) — UA 표식과 화면에 쓸 앱 이름 */
+const IN_APPS: Array<[RegExp, string]> = [
+  [/KAKAOTALK/i, '카카오톡'],
+  [/NAVER/, '네이버 앱'],
+  [/Instagram/, '인스타그램'],
+  [/FBAN|FBAV/, '페이스북'],
+  [/\bLine\//, '라인'],
+]
+
+/**
+ * 홈 화면 추가 단계를 고르는 브라우저 종류(#164). 순서가 중요하다 — 인앱 브라우저는 UA에 크롬·사파리 표식도 있다
+ * - inApp: 카카오톡·네이버 앱 등 안. 먼저 다른 브라우저로 열어야 한다
+ * - samsung: 삼성 인터넷(메뉴가 오른쪽 아래 ≡)
+ * - iosSafari / iosOther: 아이폰·아이패드 사파리 / 그 밖(크롬 CriOS·파이어폭스 FxiOS 등)
+ * - other: 안드로이드 크롬 등(오른쪽 위 ⋮)
+ */
+export type BrowserKind =
+  | { kind: 'inApp'; app: string }
+  | { kind: 'samsung' }
+  | { kind: 'iosSafari' }
+  | { kind: 'iosOther' }
+  | { kind: 'other' }
+
+export function browserKind(): BrowserKind {
+  const ua = navigator.userAgent
+  const inApp = IN_APPS.find(([pattern]) => pattern.test(ua))
+  if (inApp) return { kind: 'inApp', app: inApp[1] }
+  if (/SamsungBrowser/.test(ua)) return { kind: 'samsung' }
+  if (isIos())
+    return /CriOS|FxiOS|EdgiOS|OPiOS/.test(ua) ? { kind: 'iosOther' } : { kind: 'iosSafari' }
+  return { kind: 'other' }
+}
+
+/** 인앱 브라우저에서 복사해 갈 주소 — 다른 브라우저는 로그인이 따로라 지금 화면이 아니라 첫 화면 */
+export function siteUrl(): string {
+  return `${window.location.origin}/`
+}

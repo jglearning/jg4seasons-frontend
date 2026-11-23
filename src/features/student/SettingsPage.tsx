@@ -1,15 +1,24 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, CircleAlert, Share } from 'lucide-react'
+import {
+  ChevronLeft,
+  CircleAlert,
+  Copy,
+  Ellipsis,
+  EllipsisVertical,
+  Menu,
+  Share,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../api/errors'
 import { logout, meQuery } from '../../api/session'
+import { promptInstall, useCanInstall } from '../../shared/installPrompt'
 import { levelEnglish } from '../../shared/level'
 import { ActionRow } from '../../shared/ui/ActionRow'
 import { Button } from '../../shared/ui/Button'
 import { NumberCircle } from '../../shared/ui/NumberCircle'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
-import { HOME_SCREEN_SECTION_ID, isIos, isStandalone } from './homeScreen'
+import { browserKind, HOME_SCREEN_SECTION_ID, isStandalone, siteUrl } from './homeScreen'
 import { homeQuery } from './studentApi'
 import styles from './SettingsPage.module.css'
 
@@ -71,7 +80,6 @@ function HomeScreenGroup() {
   const fromHint = hash === `#${HOME_SCREEN_SECTION_ID}`
   const rowRef = useRef<HTMLButtonElement>(null)
   const [standalone] = useState(isStandalone)
-  const [ios] = useState(isIos)
   // 홈 카드 "방법 보기"(/settings#home-screen)로 오면 펼친 채로 시작하고 이 줄로 옮겨 포커스.
   // 이 묶음은 홈 응답을 받은 뒤 처음 그려지므로 첫 값으로 충분하다(설정 화면 안에는 이 주소로 가는 링크가 없다)
   const [open, setOpen] = useState(fromHint)
@@ -101,25 +109,146 @@ function HomeScreenGroup() {
             onToggle={() => setOpen((value) => !value)}
           />
           <div id={STEPS_ID} className={styles.panel} hidden={!open}>
-            {ios ? (
-              <ol className={styles.steps}>
-                <li>
-                  1. 아래 공유 버튼{' '}
-                  <Share size={18} strokeWidth={2} className={styles.stepIcon} aria-hidden />을
-                  눌러요
-                </li>
-                <li>2. '홈 화면에 추가'를 골라요</li>
-              </ol>
-            ) : (
-              <ol className={styles.steps}>
-                <li>1. 오른쪽 위 ⋮ 를 눌러요</li>
-                <li>2. '홈 화면에 추가'를 골라요</li>
-              </ol>
-            )}
+            <InstallGuide />
           </div>
         </>
       )}
     </section>
+  )
+}
+
+const LAST_STEP = '홈 화면의 4 Seasons 아이콘으로 열어요'
+
+/** 메뉴 버튼 그림 — 읽을 때는 이름으로 */
+function MenuIcon({ icon: Icon, label }: { icon: typeof Share; label: string }) {
+  return (
+    <Icon size={18} strokeWidth={2} className={styles.stepIcon} role="img" aria-label={label} />
+  )
+}
+
+/**
+ * 펼친 안내(#164): 설치 이벤트가 있으면(크롬·삼성 인터넷) 버튼 하나, 없거나 취소하면 브라우저별 단계.
+ * 메뉴 이름은 브라우저 버전마다 바뀐다 — 실기기에서 맞춘 값(11/23 조사, 백엔드 frontend-notes)
+ */
+function InstallGuide() {
+  const canInstall = useCanInstall()
+  const [installed, setInstalled] = useState(false)
+  const [browser] = useState(browserKind)
+
+  if (installed) {
+    return <p className={styles.lead}>추가했어요. {LAST_STEP}</p>
+  }
+
+  if (canInstall) {
+    return (
+      <div className={styles.install}>
+        <Button
+          block
+          onClick={async () => {
+            if ((await promptInstall()) === 'accepted') setInstalled(true)
+          }}
+        >
+          홈 화면에 추가하기
+        </Button>
+        <p className={styles.note}>누르면 바로 설치 창이 떠요</p>
+      </div>
+    )
+  }
+
+  switch (browser.kind) {
+    case 'inApp':
+      return <InAppGuide app={browser.app} />
+    case 'samsung':
+      return (
+        <ol className={styles.steps}>
+          <li>
+            1. 오른쪽 아래 <MenuIcon icon={Menu} label="줄 세 개 메뉴" /> 를 눌러요
+          </li>
+          <li>2. '현재 페이지 추가'를 골라요</li>
+          <li>3. '홈 화면'을 골라요</li>
+          <li>4. {LAST_STEP}</li>
+        </ol>
+      )
+    case 'iosSafari':
+      return (
+        <ol className={styles.steps}>
+          <li>
+            1. 주소창 옆 <MenuIcon icon={Ellipsis} label="점 세 개 메뉴" /> 를 누르고 '공유'를
+            골라요. 공유 버튼 <MenuIcon icon={Share} label="공유" /> 이 보이면 그것을 눌러요
+          </li>
+          <li>2. 아래로 내려 '홈 화면에 추가'를 골라요</li>
+          <li>3. '추가'를 눌러요</li>
+          <li>4. {LAST_STEP}</li>
+        </ol>
+      )
+    case 'iosOther':
+      return (
+        <>
+          <ol className={styles.steps}>
+            <li>
+              1. 공유 버튼 <MenuIcon icon={Share} label="공유" /> 을 눌러요
+            </li>
+            <li>2. '홈 화면에 추가'를 골라요</li>
+            <li>3. '추가'를 눌러요</li>
+            <li>4. {LAST_STEP}</li>
+          </ol>
+          <p className={styles.note}>메뉴에 없으면 사파리로 열어 주세요</p>
+        </>
+      )
+    case 'other':
+      return (
+        <ol className={styles.steps}>
+          <li>
+            1. 오른쪽 위 <MenuIcon icon={EllipsisVertical} label="점 세 개 메뉴" /> 를 눌러요
+          </li>
+          {/* 크롬 버전에 따라 메뉴 이름이 '앱 설치' 또는 '홈 화면에 추가'(11/24 조사) */}
+          <li>2. '앱 설치' 또는 '홈 화면에 추가'를 골라요</li>
+          <li>3. 창이 뜨면 '설치'를 골라요</li>
+          <li>4. {LAST_STEP}</li>
+        </ol>
+      )
+  }
+}
+
+/** 앱 안 브라우저: 먼저 다른 브라우저로 열기. 주소 복사가 막히면 주소 글자를 길게 눌러 복사(선택 예외, #163) */
+function InAppGuide({ app }: { app: string }) {
+  const [copy, setCopy] = useState<'idle' | 'done' | 'failed'>('idle')
+  const url = siteUrl()
+
+  async function onCopy() {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopy('done')
+    } catch {
+      setCopy('failed')
+    }
+  }
+
+  return (
+    <div className={styles.install}>
+      <p className={styles.lead}>{app} 안에서는 홈 화면에 추가할 수 없어요</p>
+      <ol className={styles.steps}>
+        <li>
+          1. 화면 위나 아래의 메뉴 <MenuIcon icon={EllipsisVertical} label="점 세 개 메뉴" /> 를
+          눌러요
+        </li>
+        <li>2. '다른 브라우저로 열기'를 골라요</li>
+        <li>3. 열린 브라우저에서 다시 이 안내대로 추가해요</li>
+      </ol>
+      <p className={styles.note}>메뉴가 없으면 주소를 복사해 크롬에 붙여 넣어요</p>
+      {/* 주소 + 복사를 한 상자로(11/24 동섭 — 턱 없음, 무엇을 복사하는지 묶어 보이게) */}
+      <div className={styles.copyBox}>
+        <span className={styles.url}>{url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+        <button type="button" className={styles.copyButton} aria-label="주소 복사" onClick={onCopy}>
+          <Copy size={18} strokeWidth={2} aria-hidden />
+          복사
+        </button>
+      </div>
+      <p className={styles.note} role="status">
+        {copy === 'done' && '복사했어요. 다른 브라우저 주소창에 붙여 넣어요'}
+        {copy === 'failed' && '복사하지 못했어요. 주소를 길게 눌러 복사해요'}
+      </p>
+    </div>
   )
 }
 

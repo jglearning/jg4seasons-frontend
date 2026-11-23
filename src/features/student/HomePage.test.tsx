@@ -7,7 +7,9 @@ import { routes } from '../../app/routes'
 import { resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
 import { buildHome } from '../../mocks/studentData'
+import { listenForInstallPrompt, resetInstallPromptForTest } from '../../shared/installPrompt'
 import { hold } from '../../test/hold'
+import { fireInstallPrompt } from '../../test/installPrompt'
 import { createTestQueryClient, renderRoutes } from '../../test/render'
 
 beforeEach(() => {
@@ -440,6 +442,44 @@ describe('S-03 홈 화면에 추가 안내', () => {
     renderHome()
     await heading()
     expect(hint()).not.toBeInTheDocument()
+  })
+
+  describe('크롬·삼성 인터넷이 설치를 허락하면(#164)', () => {
+    beforeEach(() => {
+      resetInstallPromptForTest()
+      listenForInstallPrompt()
+    })
+    afterEach(() => {
+      resetInstallPromptForTest()
+    })
+
+    it('"방법 보기" 대신 "추가하기", 설치하면 카드를 닫는다', async () => {
+      renderHome()
+      await heading()
+      let event!: ReturnType<typeof fireInstallPrompt>
+      act(() => {
+        event = fireInstallPrompt('accepted')
+      })
+      const card = hint()!
+      expect(within(card).queryByRole('link', { name: '방법 보기' })).not.toBeInTheDocument()
+
+      await userEvent.setup().click(within(card).getByRole('button', { name: '추가하기' }))
+      expect(event.prompt).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(hint()).not.toBeInTheDocument())
+      expect({ ...localStorage }).toEqual({ 'jg4s.homeScreenHintDismissed': '1' })
+    })
+
+    it('취소하면 카드는 남고 "방법 보기"로 돌아간다', async () => {
+      renderHome()
+      await heading()
+      act(() => {
+        fireInstallPrompt('dismissed')
+      })
+      await userEvent.setup().click(within(hint()!).getByRole('button', { name: '추가하기' }))
+
+      expect(await within(hint()!).findByRole('link', { name: '방법 보기' })).toBeInTheDocument()
+      expect(localStorage.getItem('jg4s.homeScreenHintDismissed')).toBeNull()
+    })
   })
 
   it('이미 홈 화면 앱으로 열었으면(standalone) 보이지 않는다', async () => {

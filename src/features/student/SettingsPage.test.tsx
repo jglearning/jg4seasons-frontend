@@ -1,5 +1,5 @@
 import { onlineManager } from '@tanstack/react-query'
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,8 @@ import { routes } from '../../app/routes'
 import { AUTH_MOCK, resetAuthMock, setMockSession } from '../../mocks/handlers'
 import { server } from '../../mocks/node'
 import { buildHome } from '../../mocks/studentData'
+import { listenForInstallPrompt, resetInstallPromptForTest } from '../../shared/installPrompt'
+import { fireInstallPrompt } from '../../test/installPrompt'
 import { createTestQueryClient, renderRoutes } from '../../test/render'
 
 // S-07 설정(와이어프레임 S07 v2, 11/9): 내 정보 · 홈 화면에 추가 방법 · 로그아웃(확인 없이 → S-02)
@@ -83,9 +85,13 @@ describe('S-07 설정', () => {
     await user.click(row)
     expect(row).toHaveAttribute('aria-expanded', 'true')
     expect(steps()).toBeVisible()
-    expect(steps()).toHaveTextContent('1. 오른쪽 위 ⋮ 를 눌러요')
-    expect(steps()).toHaveTextContent("2. '홈 화면에 추가'를 골라요")
-    expect(within(steps()).queryByRole('button')).not.toBeInTheDocument() // 설치 버튼 없음(안 B)
+    expect(within(steps()).getByRole('img', { name: '점 세 개 메뉴' })).toBeInTheDocument()
+    expect(steps()).toHaveTextContent('1. 오른쪽 위 를 눌러요')
+    expect(steps()).toHaveTextContent("2. '앱 설치' 또는 '홈 화면에 추가'를 골라요")
+    expect(steps()).toHaveTextContent("3. 창이 뜨면 '설치'를 골라요")
+    expect(steps()).toHaveTextContent('4. 홈 화면의 4 Seasons 아이콘으로 열어요')
+    // 설치 이벤트가 오지 않았으면 설치 버튼 없음(#164)
+    expect(within(steps()).queryByRole('button')).not.toBeInTheDocument()
 
     await user.click(row)
     expect(row).toHaveAttribute('aria-expanded', 'false')
@@ -104,13 +110,132 @@ describe('S-07 설정', () => {
     expect(document.documentElement).toHaveAttribute('data-level', 'black')
   })
 
-  it('아이폰이면 공유 버튼 안내', async () => {
+  it('아이폰 사파리면 ⋯ 또는 공유 버튼 안내', async () => {
     iphone()
     const user = userEvent.setup()
     renderSettings()
     await user.click(await screen.findByRole('button', { name: /홈 화면에 추가/ }))
-    expect(steps()).toHaveTextContent('1. 아래 공유 버튼 을 눌러요')
-    expect(steps()).not.toHaveTextContent('⋮')
+    expect(within(steps()).getByRole('img', { name: '점 세 개 메뉴' })).toBeInTheDocument()
+    expect(within(steps()).getByRole('img', { name: '공유' })).toBeInTheDocument()
+    expect(steps()).toHaveTextContent("2. 아래로 내려 '홈 화면에 추가'를 골라요")
+    expect(steps()).toHaveTextContent("3. '추가'를 눌러요")
+    expect(steps()).not.toHaveTextContent('설치')
+  })
+
+  it('아이폰 크롬 등은 공유 버튼 + 없으면 사파리로', async () => {
+    vi.spyOn(Navigator.prototype, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 CriOS/131.0 Mobile/15E148 Safari/604.1',
+    )
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(await screen.findByRole('button', { name: /홈 화면에 추가/ }))
+    expect(steps()).toHaveTextContent('1. 공유 버튼 을 눌러요')
+    expect(steps()).toHaveTextContent('메뉴에 없으면 사파리로 열어 주세요')
+  })
+
+  it('삼성 인터넷이면 오른쪽 아래 ≡ → 현재 페이지 추가 → 홈 화면', async () => {
+    vi.spyOn(Navigator.prototype, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 SamsungBrowser/27.0 Chrome/125.0.0.0 Mobile Safari/537.36',
+    )
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(await screen.findByRole('button', { name: /홈 화면에 추가/ }))
+    expect(within(steps()).getByRole('img', { name: '줄 세 개 메뉴' })).toBeInTheDocument()
+    expect(steps()).toHaveTextContent('1. 오른쪽 아래 를 눌러요')
+    expect(steps()).toHaveTextContent("2. '현재 페이지 추가'를 골라요")
+    expect(steps()).toHaveTextContent("3. '홈 화면'을 골라요")
+  })
+
+  describe('카카오톡 안에서 열면', () => {
+    beforeEach(() => {
+      vi.spyOn(Navigator.prototype, 'userAgent', 'get').mockReturnValue(
+        'Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36 KAKAOTALK 10.8.0',
+      )
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'clipboard')
+      window.history.replaceState({}, '', '/')
+    })
+
+    it('추가할 수 없다는 안내 + 다른 브라우저로 열기 + 주소 복사(첫 화면 주소)', async () => {
+      // user-event의 setup()이 자기 클립보드를 붙이므로 그 뒤에 바꾼다
+      const user = userEvent.setup()
+      const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText },
+        configurable: true,
+      })
+      // 지금 주소가 아니라 첫 화면 주소를 복사하는지 보려고 브라우저 주소를 다른 곳으로
+      window.history.pushState({}, '', '/settings?from=test')
+      renderSettings()
+      await user.click(await screen.findByRole('button', { name: /홈 화면에 추가/ }))
+
+      expect(steps()).toHaveTextContent('카카오톡 안에서는 홈 화면에 추가할 수 없어요')
+      expect(steps()).toHaveTextContent("2. '다른 브라우저로 열기'를 골라요")
+      await user.click(within(steps()).getByRole('button', { name: '주소 복사' }))
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/`)
+      expect(within(steps()).getByRole('status')).toHaveTextContent('복사했어요')
+    })
+
+    it('복사가 막히면 주소를 길게 눌러 복사하라고', async () => {
+      const user = userEvent.setup()
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+        configurable: true,
+      })
+      renderSettings()
+      await user.click(await screen.findByRole('button', { name: /홈 화면에 추가/ }))
+      await user.click(within(steps()).getByRole('button', { name: '주소 복사' }))
+      expect(within(steps()).getByRole('status')).toHaveTextContent(
+        '복사하지 못했어요. 주소를 길게 눌러 복사해요',
+      )
+    })
+  })
+
+  describe('크롬·삼성 인터넷이 설치를 허락하면(beforeinstallprompt)', () => {
+    beforeEach(() => {
+      resetInstallPromptForTest()
+      listenForInstallPrompt()
+    })
+    afterEach(() => {
+      resetInstallPromptForTest()
+    })
+
+    it('단계 대신 "홈 화면에 추가하기" 버튼 하나, 설치하면 마지막 단계 안내', async () => {
+      const user = userEvent.setup()
+      renderSettings()
+      const row = await screen.findByRole('button', { name: /홈 화면에 추가/ })
+      let event!: ReturnType<typeof fireInstallPrompt>
+      act(() => {
+        event = fireInstallPrompt('accepted')
+      })
+      await user.click(row)
+
+      expect(within(steps()).queryByRole('list')).not.toBeInTheDocument()
+      await user.click(within(steps()).getByRole('button', { name: '홈 화면에 추가하기' }))
+      expect(event.prompt).toHaveBeenCalledTimes(1)
+      expect(await within(steps()).findByText(/추가했어요/)).toHaveTextContent(
+        '추가했어요. 홈 화면의 4 Seasons 아이콘으로 열어요',
+      )
+    })
+
+    it('설치 창에서 취소하면 브라우저별 단계로', async () => {
+      const user = userEvent.setup()
+      renderSettings()
+      const row = await screen.findByRole('button', { name: /홈 화면에 추가/ })
+      act(() => {
+        fireInstallPrompt('dismissed')
+      })
+      await user.click(row)
+      await user.click(within(steps()).getByRole('button', { name: '홈 화면에 추가하기' }))
+
+      expect(await within(steps()).findByRole('list')).toHaveTextContent(
+        "3. 창이 뜨면 '설치'를 골라요",
+      )
+      expect(
+        within(steps()).queryByRole('button', { name: '홈 화면에 추가하기' }),
+      ).not.toBeInTheDocument()
+    })
   })
 
   it('이미 홈 화면 앱으로 열었으면 줄 대신 한 줄 안내', async () => {
