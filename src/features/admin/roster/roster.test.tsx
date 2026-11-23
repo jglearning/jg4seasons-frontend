@@ -265,7 +265,8 @@ describe('A-05 ④ 검사 · 만들기 · ⑥ 결과', () => {
     await user.click(screen.getByRole('button', { name: '다음 · 열 고르기' }))
     await user.click(screen.getByRole('button', { name: '다음 · 반 정하기' }))
     await user.click(screen.getByRole('button', { name: '검사하기' }))
-    await user.click(await screen.findByRole('button', { name: '학생 1명 만들기' }))
+    await screen.findByText('오류가 없습니다')
+    await user.click(screen.getByRole('button', { name: '학생 1명 만들기' }))
     const table = await screen.findByRole('table', { name: '겨울 그린 A반 개인 코드' })
     const code = within(table).getAllByRole('row')[1]!.textContent!.slice(-4)
 
@@ -342,7 +343,9 @@ describe('A-05 ④ 검사 · 만들기 · ⑥ 결과', () => {
     await user.click(await screen.findByRole('button', { name: '3번 줄 빼기' }))
     expect(screen.getByText('이 줄은 뺐습니다')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '다시 검사' }))
-    expect(await screen.findByRole('button', { name: '학생 1명 만들기' })).toBeEnabled()
+    // 버튼은 검사 중에도 (잠긴 채) 있다 — 검사 결과가 나온 뒤에 본다
+    expect(await screen.findByText('오류가 없습니다')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '학생 1명 만들기' })).toBeEnabled()
   })
 
   it('반 설정 오류는 "반 정하기에서 고치기"로 그 카드에', async () => {
