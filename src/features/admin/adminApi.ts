@@ -70,3 +70,10 @@ export function updateTeacher(id: number, body: TeacherUpdate) {
 }
 
 export type AdminTeacher = Awaited<ReturnType<typeof createTeacher>>
+
+/** 새 반에 넣을 수 있는 교사 = 활성 교사·관리자(서버 규칙) — A-01 반 만들기·A-05 새 반 */
+export function activeTeacherOptions(items: readonly AdminTeacher[] | undefined) {
+  return (items ?? [])
+    .filter((t) => t.status === 'active')
+    .map((t) => ({ value: t.id, label: t.name }))
+}

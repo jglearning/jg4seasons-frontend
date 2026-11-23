@@ -1,0 +1,638 @@
+/* A-05 명단 가져오기 — 교사·관리자 화면 규칙(05 디자인가이드): 선과 글자, 그림자·그라데이션 없음, 상태 변화 150ms */
+
+.steps {
+  margin: 0 0 var(--space-5);
+}
+
+.label {
+  display: block;
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--button-h-teacher);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.textButton {
+  padding: var(--space-1) 0;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.textButton:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.textLink {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* 아래 버튼 줄 — 본문 맨 아래(고정 아님) */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: var(--border-card) solid var(--line);
+}
+
+.footerEnd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--danger);
+}
+
+/* ① 붙여넣기 — 왼쪽 붙여넣기 칸, 오른쪽 예시. 좁으면 위아래 */
+.pasteGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.pasteMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 360px;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-control) solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.textarea::placeholder {
+  color: var(--muted);
+}
+
+.example {
+  min-width: 0;
+}
+
+.exampleTable {
+  width: 100%;
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+  border-spacing: 0;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.exampleTable th,
+.exampleTable td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-card) solid var(--line);
+  text-align: left;
+}
+
+.exampleTable th {
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.exampleTable tr:last-child td {
+  border-bottom: none;
+}
+
+.hints {
+  margin: var(--space-3) 0 0;
+  padding-left: var(--space-5);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ② 열 고르기 */
+.columnsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.summary {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* 줄이 많으면 표 안에서 스크롤(머리 칸은 고정), 좁으면 가로 스크롤 */
+.previewScroll {
+  max-height: 560px;
+  overflow: auto;
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+}
+
+.preview {
+  min-width: 100%;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.preview th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-3);
+  border-bottom: var(--border-card) solid var(--line);
+  background: var(--surface);
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.preview td {
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-bottom: var(--border-card) solid var(--line);
+  white-space: nowrap;
+}
+
+.preview tr:last-child td {
+  border-bottom: none;
+}
+
+.preview td[data-skip] {
+  color: var(--muted);
+}
+
+.lineCol {
+  width: 40px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.colLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 140px;
+  font-weight: 400;
+}
+
+.colTitle {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.colSelect {
+  height: var(--button-h-teacher);
+  padding: 0 var(--space-3);
+  border: var(--border-control) solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+th[data-skip] .colSelect {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ③ 반 카드 · ⑥ 결과 묶음 */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card {
+  padding: var(--space-4);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+  background: var(--white);
+  transition: border-color var(--motion);
+}
+
+/* 빈 칸이 있는 카드 — 테두리 + 아래 안내 글(색만으로 구분하지 않음) */
+.card[data-invalid] {
+  border-color: var(--danger-card-line);
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.cardTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  font-size: 13px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.nameList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  font-size: 13px;
+  list-style: none;
+}
+
+.existingRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-4);
+  font-size: 13px;
+}
+
+.existingRow > :first-child {
+  width: 300px;
+}
+
+.newGrid {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(160px, 1fr) 160px;
+  gap: var(--space-3) var(--space-4);
+  align-items: start;
+}
+
+.weekdays,
+.teachers {
+  grid-column: 1 / -1;
+}
+
+.missing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.limitBox {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-card) solid var(--danger-card-line);
+  border-radius: var(--radius-card-teacher);
+  font-size: 13px;
+}
+
+.limitTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.limitBox ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
+
+/* ④ 검사 · 만들기 */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.tile {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+}
+
+.tile dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tile dd {
+  margin: var(--space-1) 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.statusBox,
+.unknownBox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.statusBox p,
+.unknownBox p {
+  margin: 0;
+}
+
+.unknownBox {
+  flex-direction: column;
+  gap: var(--space-2);
+  border-color: var(--danger-card-line);
+  background: var(--white);
+  font-size: 14px;
+}
+
+.statusTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.spinner {
+  flex: none;
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+.statusLine,
+.alertLine,
+.staleLine,
+.okLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+  font-size: 14px;
+}
+
+.okLine {
+  background: var(--surface);
+}
+
+.alertLine {
+  border-color: var(--danger-card-line);
+  color: var(--danger);
+}
+
+.issueBox {
+  margin: 0 0 var(--space-3);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+}
+
+.issueBox[data-kind='error'] {
+  border-color: var(--danger-card-line);
+}
+
+.issueTitle {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-card) solid var(--line);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.issueBox[data-kind='error'] .issueTitle strong {
+  color: var(--danger);
+}
+
+.issueBox[data-kind='warning'] .issueTitle strong {
+  color: var(--warning);
+}
+
+.issueList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issueRow {
+  display: grid;
+  grid-template-columns: 40px 200px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-card) solid var(--line);
+  font-size: 14px;
+}
+
+.issueList > :last-child {
+  border-bottom: none;
+}
+
+.issueKind {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.issueKind[data-kind='error'] {
+  color: var(--danger);
+}
+
+.issueKind[data-kind='warning'] {
+  color: var(--warning);
+}
+
+.issueFix {
+  justify-self: end;
+}
+
+.fix {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fix > :first-child {
+  width: 160px;
+}
+
+.confirm {
+  padding: var(--space-2) var(--space-4);
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ⑥ 결과 */
+.codeNotice {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-card) solid var(--line-strong);
+  border-radius: var(--radius-card-teacher);
+  font-size: 14px;
+}
+
+.codeNotice strong {
+  margin-right: var(--space-2);
+  color: var(--warning);
+}
+
+.tag {
+  padding: 2px var(--space-2);
+  border: var(--border-card) solid var(--line-strong);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.joinCode {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-join-code);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaveBox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-control) solid var(--ink);
+  border-radius: var(--radius-card-teacher);
+  font-size: 14px;
+}
+
+.leaveBox p {
+  margin: 0;
+}
+
+.leaveBox strong {
+  margin-right: var(--space-2);
+}
+
+.leaveActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* 768(사이드바 접힘): 붙여넣기·예시 위아래, 새 반 칸 두 줄, 검사 목록은 위치 위·문구 아래 */
+@media (max-width: 1023px) {
+  .pasteGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .textarea {
+    min-height: 240px;
+  }
+
+  .newGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .issueRow {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .issueRow > :nth-child(3),
+  .issueRow > :nth-child(4) {
+    grid-column: 2;
+  }
+
+  .issueFix {
+    justify-self: start;
+  }
+}

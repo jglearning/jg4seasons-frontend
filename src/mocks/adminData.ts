@@ -319,6 +319,228 @@ function newAccessCode(): string {
 const ids = (value: unknown) =>
   Array.isArray(value) ? value.filter((v): v is number => typeof v === 'number') : []
 
+// ── 명단 가져오기(BE #67, ADR 0036) ──
+// 형식 위반(개수·이름 길이·반 고르기)은 400 VALIDATION, 그 밖은 check 200 목록. 만들기는 같은 검사의 첫 오류 하나를
+// 고정 문구로 돌려준다. dev:mock에서 실패·지연을 보려면 화면 주소에 ?roster=400|500|offline|slow
+
+export const ROSTER_MOCK = {
+  /** 비활성 교사(새 반 교사로 고르면 NOT_FOUND) */
+  inactiveTeacherId: 22,
+  /** 사용 기간이 끝난 권(LICENSE_INACTIVE) */
+  expiredBook: 'L1-B1',
+  slowMs: 4500,
+}
+
+const ROSTER_RECHECK = '명단을 다시 검사해 주세요'
+const ROSTER_STATUS: Record<string, number> = {
+  VALIDATION: 400,
+  NOT_FOUND: 404,
+  CLASS_NOT_ACTIVE: 409,
+  LICENSE_INACTIVE: 403,
+  LICENSE_SEATS_FULL: 409,
+}
+
+type Issue = Schemas['RosterImportIssue']
+type RosterItem = { existingClassId?: unknown; newClass?: unknown; students?: unknown }
+
+function rosterScenario(): string {
+  if (typeof location === 'undefined') return ''
+  return new URLSearchParams(location.search).get('roster') ?? ''
+}
+
+const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+const rosterItems = (body: Record<string, unknown>): RosterItem[] =>
+  Array.isArray(body.classes) ? (body.classes as RosterItem[]) : []
+const rosterStudents = (item: RosterItem): Record<string, unknown>[] =>
+  Array.isArray(item.students) ? (item.students as Record<string, unknown>[]) : []
+
+function checkRosterBody(
+  body: Record<string, unknown>,
+): { format: Array<{ field: string; message: string }> } | Schemas['RosterImportCheckResponse'] {
+  const items = rosterItems(body)
+  const format: Array<{ field: string; message: string }> = []
+  if (items.length === 0 || items.length > 30)
+    format.push({ field: 'classes', message: '반은 1~30개' })
+  let total = 0
+  items.forEach((item, i) => {
+    const list = rosterStudents(item)
+    total += list.length
+    if ((item.existingClassId === undefined) === (item.newClass === undefined))
+      format.push({ field: `classes[${i}]`, message: '기존 반과 새 반 중 하나만 골라 주세요' })
+    if (list.length === 0 || list.length > 50)
+      format.push({ field: `classes[${i}].students`, message: '학생은 반마다 1~50명' })
+    list.forEach((s, j) => {
+      const name = text(s.name)
+      if (name === '' || name.length > 30)
+        format.push({ field: `classes[${i}].students[${j}].name`, message: '이름이 비어 있음' })
+    })
+  })
+  if (total > 500) format.push({ field: 'classes', message: '학생은 한 번에 500명까지' })
+  if (format.length > 0) return { format }
+
+  const errors: Issue[] = []
+  const warnings: Issue[] = []
+  const seen = new Map<string, string>()
+  const newNames = new Set<string>()
+  items.forEach((item, i) => {
+    let className = ''
+    if (item.existingClassId !== undefined) {
+      const found = classes.find((c) => c.id === item.existingClassId)
+      if (!found) {
+        errors.push({
+          code: 'NOT_FOUND',
+          field: `classes[${i}].existingClassId`,
+          message: '반을 찾을 수 없어요',
+        })
+      } else if (found.status !== 'active') {
+        errors.push({
+          code: 'CLASS_NOT_ACTIVE',
+          field: `classes[${i}].existingClassId`,
+          message: '운영 중인 반이 아니에요',
+        })
+      }
+      className = found?.name ?? ''
+    } else {
+      const nc = (item.newClass ?? {}) as Record<string, unknown>
+      className = text(nc.name)
+      const at = (part: string) => `classes[${i}].newClass.${part}`
+      if (className === '' || className.length > 50)
+        errors.push({ code: 'VALIDATION', field: at('name'), message: '반 이름은 1~50자' })
+      const bookCode = text(nc.bookCode)
+      if (!LEVEL_SEASON[bookCode]) {
+        errors.push({ code: 'VALIDATION', field: at('bookCode'), message: '없는 권이에요' })
+      } else if (licenses.licenseEnforced && bookCode === ROSTER_MOCK.expiredBook) {
+        errors.push({
+          code: 'LICENSE_INACTIVE',
+          field: at('bookCode'),
+          message: '이 권은 사용 기간이 아니에요',
+        })
+      }
+      if (ids(nc.weekdays).length === 0)
+        errors.push({
+          code: 'VALIDATION',
+          field: at('weekdays'),
+          message: '수업 요일을 하나 이상 골라 주세요',
+        })
+      const teacherOk = ids(nc.teacherIds).every((id) =>
+        teachers.some((t) => t.id === id && t.status === 'active'),
+      )
+      if (!teacherOk)
+        errors.push({ code: 'NOT_FOUND', field: at('teacherIds'), message: '활성 교사가 아니에요' })
+      const key = className.replace(/\s+/g, '').toLowerCase()
+      if (
+        classes.some(
+          (c) => c.status === 'active' && c.name.replace(/\s+/g, '').toLowerCase() === key,
+        )
+      ) {
+        warnings.push({
+          code: 'SAME_NAME_CLASS',
+          field: `classes[${i}]`,
+          message: `같은 이름의 반 '${className}'이 이미 있어요(진행 중)`,
+        })
+      } else if (newNames.has(key)) {
+        warnings.push({
+          code: 'SAME_NAME_CLASS',
+          field: `classes[${i}]`,
+          message: `이 명단에 반 '${className}'이 두 번 있어요`,
+        })
+      }
+      newNames.add(key)
+    }
+    rosterStudents(item).forEach((s, j) => {
+      const name = text(s.name)
+      const field = `classes[${i}].students[${j}].name`
+      const person = [name, text(s.school), text(s.grade)].join('|')
+      const before = seen.get(person)
+      if (before !== undefined) {
+        errors.push({
+          code: 'VALIDATION',
+          field,
+          message: `${name}이(가) ${before}과(와) ${className}에 모두 있어요. 한 반만 남겨 주세요`,
+        })
+      }
+      seen.set(person, className)
+      const same = students.find(
+        (st) => st.status === 'active' && st.name.toLowerCase() === name.toLowerCase(),
+      )
+      if (same) {
+        const sameClass = classes.find((c) => c.id === same.classId)?.name ?? ''
+        warnings.push({
+          code: 'SAME_NAME_STUDENT',
+          field,
+          message: `같은 이름의 학생 '${name}'이 이미 있어요(${sameClass})`,
+        })
+      }
+    })
+  })
+  return { errors, warnings }
+}
+
+function createRosterFromBody(body: Record<string, unknown>): Schemas['RosterImportResponse'] {
+  let createdClasses = 0
+  let createdStudents = 0
+  const result = rosterItems(body).map((item) => {
+    let klass = classes.find((c) => c.id === item.existingClassId)
+    const created = klass === undefined
+    if (klass === undefined) {
+      const nc = (item.newClass ?? {}) as Record<string, unknown>
+      const bookCode = text(nc.bookCode)
+      const book = LEVEL_SEASON[bookCode] ?? { level: 'L2', season: '겨울' as const }
+      klass = {
+        id: nextId++,
+        name: text(nc.name),
+        bookCode,
+        levelCode: book.level,
+        level: LEVELS[book.level],
+        season: book.season,
+        startDate: text(nc.startDate),
+        weekdays: ids(nc.weekdays).sort((a, b) => a - b),
+        accessCode: newAccessCode(),
+        codeIssuedAt: '2026-11-24T10:00:00Z',
+        allowFutureLessons: false,
+        status: 'active',
+        teachers: [],
+        studentCount: 0,
+      }
+      classes.push(klass)
+      for (const id of ids(nc.teacherIds)) {
+        const teacher = teachers.find((t) => t.id === id)
+        if (teacher) teacher.classIds = [...teacher.classIds, klass.id].sort((a, b) => a - b)
+      }
+      createdClasses += 1
+    }
+    const classId = klass.id
+    const made = rosterStudents(item).map((s) => {
+      const row: StudentRow = {
+        id: nextId++,
+        classId,
+        name: text(s.name),
+        school: text(s.school) || null,
+        grade: text(s.grade) || null,
+        status: 'active',
+        codeIssuedAt: '2026-11-24T10:00:00Z',
+        lastLoginAt: null,
+      }
+      students.push(row)
+      createdStudents += 1
+      return { id: row.id, name: row.name, personalCode: newPersonalCode() }
+    })
+    return {
+      classId,
+      created,
+      name: klass.name,
+      accessCode: klass.accessCode,
+      levelCode: klass.levelCode,
+      level: klass.level,
+      season: klass.season,
+      students: made,
+    }
+  })
+  syncTeachersOfClasses()
+  syncStudentCounts()
+  return { classes: result, createdClasses, createdStudents }
+}
+
 export function adminHandlers({ problem, readJson, currentUser }: Helpers): AnyHandler[] {
   const adminOnly = (request: Request) => {
     const user = currentUser()
@@ -599,6 +821,42 @@ export function adminHandlers({ problem, readJson, currentUser }: Helpers): AnyH
       student.classId = target.id
       syncStudentCounts()
       return HttpResponse.json(studentView(student))
+    }),
+
+    // ── 명단 가져오기(BE #67) ──
+
+    http.post('*/api/v1/admin/roster-imports/check', async ({ request }) => {
+      await delay()
+      const denied = adminOnly(request)
+      if (denied) return denied
+      if (rosterScenario() === '400') {
+        return validation(request, [{ field: 'classes', message: '반은 1~30개' }])
+      }
+      const checked = checkRosterBody(await readJson(request))
+      if ('format' in checked) return validation(request, checked.format)
+      return HttpResponse.json<Schemas['RosterImportCheckResponse']>(checked)
+    }),
+
+    http.post('*/api/v1/admin/roster-imports', async ({ request }) => {
+      const scenario = rosterScenario()
+      await delay(scenario === 'slow' ? ROSTER_MOCK.slowMs : undefined)
+      const denied = adminOnly(request)
+      if (denied) return denied
+      if (scenario === 'offline') return HttpResponse.error()
+      if (scenario === '500') return problem(request, 500, 'INTERNAL', '잠시 후 다시 시도해 주세요')
+      const body = await readJson(request)
+      const checked = checkRosterBody(body)
+      const first = 'format' in checked ? checked.format[0] : checked.errors[0]
+      if (first) {
+        // 서버와 같게: 첫 오류 하나, 문구는 고정(이름 없음) + errors[0].field
+        const code = 'format' in checked ? 'VALIDATION' : (checked.errors[0]?.code ?? 'VALIDATION')
+        return problem(request, ROSTER_STATUS[code] ?? 400, code, ROSTER_RECHECK, {
+          errors: [{ field: first.field, message: ROSTER_RECHECK }],
+        })
+      }
+      return HttpResponse.json<Schemas['RosterImportResponse']>(createRosterFromBody(body), {
+        status: 201,
+      })
     }),
 
     // ── 학원 현황(§5.4) ──

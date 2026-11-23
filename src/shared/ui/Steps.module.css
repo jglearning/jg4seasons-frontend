@@ -1,0 +1,91 @@
+/* 단계 표시 — 번호 동그라미 22 + 글자 14, 단계 사이 가는 선. 교사 화면 규칙(그림자 없음, 상태 변화 150ms) */
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 단계 사이 선 */
+.step + .step::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--button-h-teacher);
+  padding: 0 var(--space-1);
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+}
+
+button.item {
+  cursor: pointer;
+  transition: background var(--motion);
+}
+
+button.item:hover {
+  background: var(--surface-2);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: var(--border-control) solid var(--line-strong);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-state='done'] .item,
+[data-state='current'] .item {
+  color: var(--ink);
+}
+
+[data-state='done'] .mark {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--white);
+}
+
+[data-state='current'] .mark {
+  border-color: var(--ink);
+}
+
+[data-state='current'] .label {
+  font-weight: 700;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
