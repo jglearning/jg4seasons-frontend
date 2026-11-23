@@ -205,6 +205,15 @@
   text-underline-offset: 3px;
 }
 
+/* "추가하기"(#164)는 같은 모양의 버튼 */
+button.hintLink {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
 .hintClose {
   flex: none;
   min-height: var(--touch-min);

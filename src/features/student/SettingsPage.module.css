@@ -103,7 +103,9 @@
   line-height: 1.5;
 }
 
+/* 글자 사이에 넣는 메뉴 그림 — base.css가 svg를 block으로 두어 줄이 끊기지 않게 */
 .stepIcon {
+  display: inline-block;
   vertical-align: -3px;
 }
 
@@ -111,6 +113,40 @@
   margin: 0;
   font-size: 14px;
   color: var(--muted);
+}
+
+.note:empty {
+  display: none;
+}
+
+/* 설치 버튼·인앱 안내 묶음(#164) */
+.install {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lead {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.copyRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* 복사가 막힌 인앱 브라우저에서 길게 눌러 복사할 수 있게 — 학생 화면 선택 막기(#163)의 예외 */
+.url {
+  font-size: 15px;
+  font-weight: 700;
+  -webkit-user-select: all;
+  user-select: all;
+  -webkit-touch-callout: default;
 }
 
 /* 맨 아래 흰 턱 버튼 — 내용이 짧아도 화면 바닥에 붙는다 */
