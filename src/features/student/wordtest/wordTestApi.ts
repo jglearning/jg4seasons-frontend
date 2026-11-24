@@ -1,106 +1,21 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { Client } from 'openapi-fetch'
 import { api } from '../../../api'
 import { ApiError, fallbackTitle, toApiError, unwrap } from '../../../api/errors'
+import type { components } from '../../../api/generated/schema'
 
 // 단어시험 사진 채점 1단계(시연용, #171). 학생 API — 업로드 주소 발급 → S3에 PUT → 제출 → 상태 조회.
-//
-// [임시] 경로 타입을 손으로 선언했다. 백엔드 API가 아직 openapi.json에 없어서(11/24) 백엔드와 합의한
-// 계약(11/24)대로 적었다. 백엔드가 머지되면 `npm run api:sync`의 생성 타입으로 바꾸고 이 선언과 아래 캐스팅을
-// 지운다(생성 타입 교체 이슈). 그 전까지는 계약과 다르게 써도 타입 검사가 잡지 못한다.
-// 앱의 API 인스턴스는 하나라야 refresh 합치기가 된다 — 새 클라이언트를 만들지 않고 같은 인스턴스를 넓혀 쓴다
+// 타입은 생성 타입(BE #71, #179에서 손 선언을 교체). 아래 이름은 화면·목·테스트가 쓰는 별칭
 
-export type WordTestSection = 'A' | 'B' | 'C' | 'D'
-/** 이번에 실제로 오는 값은 pending · grading · graded · failed. confirming · rejected는 2단계 */
-export type WordTestStatus = 'pending' | 'grading' | 'confirming' | 'graded' | 'rejected' | 'failed'
-/**
- * unclear: 글자가 흐려 서버가 맞음·틀림을 판단하지 못한 문항 — 프론트가 제안한 값으로 백엔드 확정 전
- * (확정되면 이 줄 정리). 지금은 목에서만 나온다
- */
-export type WordTestResult = 'correct' | 'wrong' | 'blank' | 'unclear'
+type Schemas = components['schemas']
 
-export type WordTestItem = {
-  no: number
-  /** 문제로 준 쪽 — B 철자 쓰기는 우리말 뜻 */
-  prompt: string
-  /** 학생이 쓴 영어(빈칸이면 "") */
-  written: string
-  result: WordTestResult
-  /** 정답 철자 */
-  answer: string
-}
-
-export type WordTestSubmission = {
-  id: number
-  lessonCode: string
-  section: WordTestSection
-  attemptNo: number
-  status: WordTestStatus
-  /** graded가 아니면 null */
-  score: number | null
-  total: number
-  submittedAt: string
-  gradedAt: string | null
-  /** graded일 때만 있다(정답이 새지 않게 그 밖에는 필드 자체가 없음) */
-  items?: WordTestItem[]
-}
-
-export type UploadTicket = {
-  uploadUrl: string
-  imageKey: string
-  /** PUT 요청 헤더에 그대로 넣는다 */
-  headers: Record<string, string>
-  expiresAt: string
-}
-
-type Problem = { 'application/problem+json': Record<string, unknown> }
-type Json<T> = { 'application/json': T }
-type Responses<Ok> = { 200: { content: Json<Ok> }; default: { content: Problem } }
-type Op<Params, Body, Ok> = {
-  parameters: Params
-  requestBody: { content: Json<Body> }
-  responses: Responses<Ok>
-}
-type GetOp<Params, Ok> = { parameters: Params; requestBody?: never; responses: Responses<Ok> }
-type NoParams = { query?: never; header?: never; path?: never; cookie?: never }
-type Path<Ops> = { parameters: NoParams } & Ops
-
-type WordTestPaths = {
-  '/api/v1/word-tests/uploads': Path<{
-    post: Op<NoParams, { lessonCode: string; contentType: string }, UploadTicket>
-  }>
-  '/api/v1/word-tests/submissions': Path<{
-    post: Op<
-      NoParams,
-      {
-        clientSubmissionId: string
-        lessonCode: string
-        section: WordTestSection
-        imageKey: string
-      },
-      Pick<WordTestSubmission, 'id' | 'status'>
-    >
-  }>
-  '/api/v1/word-tests/submissions/{id}': Path<{
-    get: GetOp<
-      { query?: never; header?: never; path: { id: number }; cookie?: never },
-      WordTestSubmission
-    >
-  }>
-  '/api/v1/word-tests/lessons/{lessonCode}/latest': Path<{
-    get: GetOp<
-      {
-        query: { section: WordTestSection }
-        header?: never
-        path: { lessonCode: string }
-        cookie?: never
-      },
-      WordTestSubmission
-    >
-  }>
-}
-
-const wordTestApi = api as unknown as Client<WordTestPaths>
+export type WordTestSubmission = Schemas['WordTestSubmission']
+export type WordTestItem = Schemas['WordTestItemResult']
+export type UploadTicket = Schemas['WordTestUploadResponse']
+export type WordTestSection = WordTestSubmission['section']
+/** 1단계에 실제로 오는 값은 pending · grading · graded · failed. confirming · rejected는 2단계 */
+export type WordTestStatus = WordTestSubmission['status']
+/** unclear: 글자가 흐려 판단 못 한 문항(score에 들어가지 않음, total에는 포함 — BE #71) */
+export type WordTestResult = WordTestItem['result']
 
 /** 이번에 만드는 영역(B 철자 쓰기). 값으로 다뤄 나중에 영역을 늘린다 */
 export const SECTION_SPELLING: WordTestSection = 'B'
@@ -116,7 +31,7 @@ export function isSettled(status: WordTestStatus): boolean {
 
 export function requestUpload(lessonCode: string) {
   return unwrap(
-    wordTestApi.POST('/api/v1/word-tests/uploads', {
+    api.POST('/api/v1/word-tests/uploads', {
       body: { lessonCode, contentType: 'image/jpeg' },
     }),
   )
@@ -148,7 +63,7 @@ export function submitPhoto(body: {
   section: WordTestSection
   imageKey: string
 }) {
-  return unwrap(wordTestApi.POST('/api/v1/word-tests/submissions', { body }))
+  return unwrap(api.POST('/api/v1/word-tests/submissions', { body }))
 }
 
 /**
@@ -186,7 +101,7 @@ export function submissionQuery(id: number) {
   return queryOptions({
     queryKey: ['student', 'wordTest', 'submission', id],
     queryFn: () =>
-      unwrap(wordTestApi.GET('/api/v1/word-tests/submissions/{id}', { params: { path: { id } } })),
+      unwrap(api.GET('/api/v1/word-tests/submissions/{id}', { params: { path: { id } } })),
   })
 }
 
@@ -195,7 +110,7 @@ export function latestQuery(lessonCode: string, section: WordTestSection = SECTI
   return queryOptions({
     queryKey: ['student', 'wordTest', 'latest', lessonCode, section],
     queryFn: async (): Promise<WordTestSubmission | null> => {
-      const { data, error, response } = await wordTestApi.GET(
+      const { data, error, response } = await api.GET(
         '/api/v1/word-tests/lessons/{lessonCode}/latest',
         { params: { path: { lessonCode }, query: { section } } },
       )
