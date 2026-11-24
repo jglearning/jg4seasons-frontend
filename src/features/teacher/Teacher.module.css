@@ -352,3 +352,99 @@
   color: var(--muted);
   letter-spacing: 0.02em;
 }
+
+/* -- T-05 word test (#175) -- */
+.wordTest {
+  margin-top: var(--space-8);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.wordTestScore {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.wordTestScoreValue {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 1280: photo left, items right. Narrow (768): stacked */
+.wordTestDetail {
+  display: grid;
+  grid-template-columns: minmax(280px, 2fr) 3fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.wordTestPhoto {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* 문항 표(48줄)를 내려도 사진이 옆에 남아 번호로 맞춰 볼 수 있게 */
+  position: sticky;
+  top: var(--space-5);
+}
+
+@media (max-width: 1100px) {
+  .wordTestDetail {
+    grid-template-columns: 1fr;
+  }
+
+  .wordTestPhoto {
+    position: static;
+  }
+}
+
+.wordTestPhoto a {
+  display: block;
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.wordTestPhoto img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+}
+
+.wordTestPhoto figcaption {
+  font-size: 13px;
+}
+
+.wordTestPhotoEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  border: var(--border-card) dashed var(--line-strong);
+  border-radius: var(--radius-card-teacher);
+  background: var(--surface);
+}
+
+.wordTestItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* 위아래로 쌓일 때(768)는 사진이 화면을 다 덮지 않게 절반 높이로 — 크게 보려면 눌러서 새 탭.
+   위 .wordTestPhoto img(80vh)보다 뒤에 둬야 덮어쓴다 */
+@media (max-width: 1100px) {
+  .wordTestPhoto img {
+    max-height: 50vh;
+  }
+}

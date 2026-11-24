@@ -14,6 +14,7 @@ import {
 } from './teacherApi'
 import { StaffLoadState } from '../../shared/ui/StaffLoadState'
 import styles from './Teacher.module.css'
+import { WordTestSection } from './WordTestSection'
 
 // T-05 회차 상세(03 §4.4) — 수업 전에 빠르게 보는 학생 × 지문 표.
 // 트랙은 지문 × 목소리 4개(BE #40)라 지문당 열 하나 — 칸은 서버 지문 요약 rows[].passages(BE #63, 목소리를 섞어
@@ -48,6 +49,7 @@ export function LessonPage() {
           </div>
           <LessonTable classId={classId} data={detail.data} />
           <p className={styles.footnote}>필수 속도 파일만 보입니다. 다른 속도는 학생 상세에서</p>
+          <WordTestSection classId={classId} lessonCode={code} />
         </>
       ) : (
         <StaffLoadState query={detail} />
