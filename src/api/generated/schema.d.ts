@@ -785,6 +785,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/word-tests/lessons/{lessonCode}/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 회차·영역의 내 최근 제출
+         * @description 그 회차·영역의 마지막 시도. 없으면 204. 모양은 제출 조회와 같다. 그 회차·영역 시험지가 없으면 404 NOT_FOUND, 기능 꺼짐 404 FEATURE_DISABLED(진입 버튼을 숨길 신호), 회차 검사는 업로드 주소와 같다
+         */
+        get: operations["getLatestWordTest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/word-tests/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 단어시험 사진 제출
+         * @description 업로드한 사진을 회차·영역의 답안지로 제출한다. 제출과 채점 작업을 함께 만들고 바로 돌아간다(채점 결과는 제출 조회를 2초 간격으로). 같은 clientSubmissionId를 다시 보내면 새로 만들지 않고 기존 제출을 200으로(다른 학생이 쓴 값이면 400 VALIDATION). 남의 imageKey·올라가지 않은 사진·5MB 초과·JPEG·PNG 아님 400 INVALID_IMAGE, 그 회차·영역 시험지가 없으면 404 NOT_FOUND, 학생·회차·영역별 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT. 기능 꺼짐 404 FEATURE_DISABLED, 회차 검사는 업로드 주소와 같다
+         */
+        post: operations["submitWordTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/word-tests/submissions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 단어시험 제출 조회
+         * @description 본인 제출만(다른 학생·다른 학원·없는 제출은 404 NOT_FOUND). graded가 아니면 score·gradedAt은 null이고 items 칸이 없다. items[].result의 unclear는 글자가 흐려 판단 못 한 문항(score에 들어가지 않고 total에는 들어감). 기능 꺼짐 404 FEATURE_DISABLED
+         */
+        get: operations["getWordTestSubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/word-tests/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 단어시험 사진 업로드 주소
+         * @description S3에 바로 PUT할 서명 주소(5분)와 제출에 쓸 imageKey. PUT에는 headers를 그대로 넣고 쿠키는 보내지 않는다. JPEG·PNG만(그 밖 400 INVALID_IMAGE). 크기(5MB)는 제출 때 확인한다. 기능 꺼짐 404 FEATURE_DISABLED, 없는 회차·진도표에 없는 회차 404 NOT_FOUND, 사용 기간 아님 403 LICENSE_INACTIVE, 수업일 전 423 LESSON_LOCKED
+         */
+        post: operations["issueWordTestUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2282,6 +2362,143 @@ export interface components {
             /** Format: int32 */
             spellBest: number;
         };
+        WordTestItemResult: {
+            /**
+             * @description 정답
+             * @example beautiful
+             */
+            answer: string;
+            /**
+             * Format: int32
+             * @description 책의 문항 번호
+             */
+            no: number;
+            /**
+             * @description 문제로 준 쪽(B는 우리말 뜻)
+             * @example 아름다운
+             */
+            prompt: string;
+            /**
+             * @description correct·wrong·blank·unclear. unclear = 글자가 흐려 판단 못 함(score에 들어가지 않음)
+             * @enum {string}
+             */
+            result: "correct" | "wrong" | "blank" | "unclear";
+            /**
+             * @description 학생이 쓴 글자(읽은 그대로). 빈칸·못 읽음이면 ""
+             * @example beautful
+             */
+            written: string;
+        };
+        WordTestSubmission: {
+            /**
+             * Format: int32
+             * @description 그 학생·회차·영역의 몇 번째 제출(1부터)
+             */
+            attemptNo: number;
+            /**
+             * Format: date-time
+             * @description 채점 끝난 시각(UTC). graded가 아니면 null
+             */
+            gradedAt: string | null;
+            /** Format: int64 */
+            id: number;
+            /** @description 문항별 결과, 번호 순. graded일 때만 있다(그 밖에는 칸 자체가 없음) */
+            items?: components["schemas"]["WordTestItemResult"][];
+            /** @example L2-B1-05 */
+            lessonCode: string;
+            /**
+             * Format: int32
+             * @description 맞은(correct) 문항 수. graded가 아니면 null
+             */
+            score: number | null;
+            /** @enum {string} */
+            section: "A" | "B" | "C" | "D";
+            /**
+             * @description pending·grading이면 2초 뒤 다시 조회, graded·failed에서 멈춤. confirming·rejected는 2단계(지금은 오지 않음)
+             * @enum {string}
+             */
+            status: "pending" | "grading" | "confirming" | "graded" | "rejected" | "failed";
+            /**
+             * Format: date-time
+             * @description 제출 시각(UTC)
+             */
+            submittedAt: string;
+            /**
+             * Format: int32
+             * @description 그 회차·영역의 문항 수(unclear 포함)
+             */
+            total: number;
+        };
+        WordTestSubmitRequest: {
+            /**
+             * @description 클라이언트가 만든 UUID(소문자). 같은 값으로 다시 보내면 새로 만들지 않고 기존 제출을 200으로
+             * @example 0b9e1c2d-3f4a-4b5c-8d6e-7f8091a2b3c4
+             */
+            clientSubmissionId: string;
+            /**
+             * @description 업로드 주소 발급(D-1)이 준 키 그대로
+             * @example homework/1/42/0b9e1c2d-3f4a-4b5c-8d6e-7f8091a2b3c4.jpg
+             */
+            imageKey: string;
+            /**
+             * @description 회차 코드
+             * @example L2-B1-05
+             */
+            lessonCode: string;
+            /**
+             * @description 영역. 1단계는 B(철자 쓰기)만 문항이 있다
+             * @example B
+             * @enum {string}
+             */
+            section: "A" | "B" | "C" | "D";
+        };
+        WordTestSubmitResponse: {
+            /**
+             * Format: int64
+             * @description 제출 id
+             */
+            id: number;
+            /**
+             * @description 제출 상태. 새 제출은 pending
+             * @enum {string}
+             */
+            status: "pending" | "grading" | "confirming" | "graded" | "rejected" | "failed";
+        };
+        WordTestUploadRequest: {
+            /**
+             * @description 사진 형식. image/jpeg · image/png만(그 밖은 400 INVALID_IMAGE)
+             * @example image/jpeg
+             */
+            contentType: string;
+            /**
+             * @description 회차 코드
+             * @example L2-B1-05
+             */
+            lessonCode: string;
+        };
+        WordTestUploadResponse: {
+            /**
+             * Format: date-time
+             * @description 주소 만료 시각(UTC)
+             */
+            expiresAt: string;
+            /**
+             * @description PUT 요청에 그대로 넣을 헤더(서명에 포함 — 다르면 S3가 403)
+             * @example {
+             *       "Content-Type": "image/jpeg"
+             *     }
+             */
+            headers: {
+                [key: string]: string;
+            };
+            /**
+             * @description 제출(D-2)에 그대로 보낼 키
+             * @example homework/1/42/0b9e1c2d-3f4a-4b5c-8d6e-7f8091a2b3c4.jpg
+             */
+            imageKey: string;
+            /** @description 사진을 PUT할 서명 주소(5분). 쿠키를 보내지 않는다(credentials omit) */
+            uploadUrl: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -3712,6 +3929,163 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PersonalCodeResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getLatestWordTest: {
+        parameters: {
+            query: {
+                /**
+                 * @description 영역(1단계는 B)
+                 * @example B
+                 */
+                section: "A" | "B" | "C" | "D";
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description 회차 코드
+                 * @example L2-B1-05
+                 */
+                lessonCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 최근 제출 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WordTestSubmission"];
+                };
+            };
+            /** @description 제출한 적 없음 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WordTestSubmission"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    submitWordTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WordTestSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 clientSubmissionId의 기존 제출 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WordTestSubmitResponse"];
+                };
+            };
+            /** @description 새 제출(status pending) */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WordTestSubmitResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getWordTestSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 제출 id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WordTestSubmission"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    issueWordTestUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WordTestUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WordTestUploadResponse"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
