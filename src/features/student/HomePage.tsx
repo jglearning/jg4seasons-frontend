@@ -15,6 +15,7 @@ import { LicenseNotice } from './LicenseNotice'
 import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, type StudentHome } from './studentApi'
+import { WordTestEntry } from './wordtest/WordTestEntry'
 import styles from './HomePage.module.css'
 
 // S-03 홈(STU-01, v0.2 지시문 §6.3 · 와이어프레임 Main·S03_HomeLevels).
@@ -100,6 +101,9 @@ export function HomePage() {
             </div>
           )}
         </div>
+
+        {/* 단어시험 1단계(#173) — 기능이 꺼졌거나 못 받으면 그리지 않는다 */}
+        {data.words !== null && <WordTestEntry lessonCode={data.words.lessonCode} />}
 
         <HomeScreenHint />
       </div>
