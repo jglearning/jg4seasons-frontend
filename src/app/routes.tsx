@@ -23,6 +23,7 @@ import { AcademiesPage } from '../features/system/AcademiesPage'
 import { AcademyNewPage } from '../features/system/AcademyNewPage'
 import { AcademyPage } from '../features/system/AcademyPage'
 import { CardsRedirect, WordsPage } from '../features/words/WordsPage'
+import { SubmitPage as WordTestSubmitPage } from '../features/wordtest/SubmitPage'
 import { ClassesPage as TeacherClassesPage } from '../features/teacher/ClassesPage'
 import { LessonPage as TeacherLessonPage } from '../features/teacher/LessonPage'
 import { MatrixPage } from '../features/teacher/MatrixPage'
@@ -51,6 +52,7 @@ export const routes: RouteObject[] = [
           { path: '/lessons/:code', element: <LessonPage /> },
           { path: '/lessons/:code/words', element: <WordsPage /> },
           { path: '/lessons/:code/cards', element: <CardsRedirect /> },
+          { path: '/lessons/:code/word-test', element: <WordTestSubmitPage /> },
         ],
       },
       {
