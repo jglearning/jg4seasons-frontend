@@ -4,7 +4,7 @@ import type {
   WordTestItem,
   WordTestSection,
   WordTestSubmission,
-} from '../features/wordtest/wordTestApi'
+} from '../features/student/wordtest/wordTestApi'
 import { LESSON_MOCK } from './lessonData'
 import { STUDENT_MOCK } from './studentData'
 import { buildWords } from './wordData'

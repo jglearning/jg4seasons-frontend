@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { Client } from 'openapi-fetch'
-import { api } from '../../api'
-import { ApiError, fallbackTitle, toApiError, unwrap } from '../../api/errors'
+import { api } from '../../../api'
+import { ApiError, fallbackTitle, toApiError, unwrap } from '../../../api/errors'
 
 // 단어시험 사진 채점 1단계(시연용, #171). 학생 API — 업로드 주소 발급 → S3에 PUT → 제출 → 상태 조회.
 //

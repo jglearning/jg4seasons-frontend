@@ -2,22 +2,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ScanText, TriangleAlert } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
-import { ApiError, isPermanentError } from '../../api/errors'
-import { lessonLevelCode } from '../../shared/lessonLabel'
+import { ApiError, isPermanentError } from '../../../api/errors'
+import { lessonLevelCode } from '../../../shared/lessonLabel'
 import {
   loadStateOf,
   RETRY_STATUS,
   useServerErrorLog,
   WAIT_ICON,
   type LoadQuery,
-} from '../../shared/loadState'
-import { Button, ButtonLink } from '../../shared/ui/Button'
-import { Card } from '../../shared/ui/Card'
-import { NumberCircle } from '../../shared/ui/NumberCircle'
-import { ProgressBar } from '../../shared/ui/ProgressBar'
-import { StatusPanel } from '../../shared/ui/StatusPanel'
-import { StudentLayout } from '../../shared/ui/StudentLayout'
+} from '../../../shared/loadState'
+import { Button, ButtonLink } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
+import { NumberCircle } from '../../../shared/ui/NumberCircle'
+import { StatusPanel } from '../../../shared/ui/StatusPanel'
+import { StudentLayout } from '../../../shared/ui/StudentLayout'
 import { resizeImage } from './resizeImage'
+import { ResultView } from './ResultView'
 import {
   isSettled,
   latestQuery,
@@ -123,6 +123,7 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
     <StatusView
       status={status}
       submission={submission ?? undefined}
+      code={code}
       onRetake={() => {
         setSent(null)
         setRetaking(true)
@@ -138,10 +139,12 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
 function StatusView({
   status,
   submission,
+  code,
   onRetake,
 }: {
   status: WordTestStatus
   submission: WordTestSubmission | undefined
+  code: string
   onRetake: () => void
 }) {
   switch (status) {
@@ -150,8 +153,12 @@ function StatusView({
       return <WaitingView />
     case 'graded':
       // 점수 없는 graded는 계약 밖 — 조회가 멈췄으니 갇히지 않게 대기 화면
-      return submission?.score != null ? (
-        <GradedView score={submission.score} total={submission.total} />
+      return submission !== undefined && submission.score !== null ? (
+        <ResultView
+          submission={{ ...submission, score: submission.score }}
+          code={code}
+          onRetry={onRetake}
+        />
       ) : (
         <HeldView />
       )
@@ -346,28 +353,6 @@ function WaitingView() {
         detail={slow ? COPY.gradingSlow : COPY.gradingDetail}
       />
     </div>
-  )
-}
-
-// 1단계 PR 1의 결과 화면은 점수만. 문항 목록·버튼은 다음 PR에서 이 자리에
-function GradedView({ score, total }: { score: number; total: number }) {
-  return (
-    <>
-      <div className={styles.content}>
-        <Card className={styles.score}>
-          <p className={styles.scoreLabel}>{COPY.scoreLabel}</p>
-          <p className={styles.scoreValue}>
-            {score} / {total}
-          </p>
-          <ProgressBar value={score} max={total} label={`${COPY.scoreLabel} 점수`} />
-        </Card>
-      </div>
-      <div className={styles.actions}>
-        <ButtonLink to="/" variant="secondary" block>
-          {COPY.home}
-        </ButtonLink>
-      </div>
-    </>
   )
 }
 
