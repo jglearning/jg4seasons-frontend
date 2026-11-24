@@ -214,6 +214,7 @@ describe('단어시험 제출 상세', () => {
     expect(cells(7)).toEqual(['7', wrong.prompt, wrong.answer, wrong.written, '틀림'])
     expect(cells(11)).toEqual(['11', expected[10].prompt, expected[10].answer, '(빈칸)', '안 씀'])
     expect(cells(13)[4]).toBe('확인 필요')
+    expect(cells(13)[2]).toBe(expected[12].answer) // 교사는 unclear에도 정답(`BE #75`)
     expect(cells(1)[4]).toBe('맞음')
     const unclear = expected.filter((item) => item.result === 'unclear').length
     expect(

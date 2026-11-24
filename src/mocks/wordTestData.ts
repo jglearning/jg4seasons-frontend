@@ -75,7 +75,17 @@ export function mockItemTotal(lessonCode: string): number {
  * 채점 결과 — 7번째마다 틀림(글자 하나 빠짐), 11번째마다 빈칸, 13번째마다 판단 못 함(unclear — 앞 세 글자만 읽힘).
  * unclear는 프론트 제안 값(백엔드 답 대기). 점수는 맞음만 센다(unclear는 total에만 — 제안대로)
  */
-export function buildItems(total: number): WordTestItem[] {
+/** 정답이 늘 있는 문항(교사 응답 모양 — 교사는 unclear에도 정답을 받는다, `BE #75`) */
+type MockItem = Omit<WordTestItem, 'answer'> & { answer: string }
+
+/** 학생 응답 모양: unclear 문항은 정답이 null(`BE #73` — 판정 전이라 주지 않음) */
+export function studentItems(total: number): WordTestItem[] {
+  return buildItems(total).map((item) =>
+    item.result === 'unclear' ? { ...item, answer: null } : item,
+  )
+}
+
+export function buildItems(total: number): MockItem[] {
   const words = buildWords().items
   return Array.from({ length: total }, (_, i) => {
     const word = words[i % words.length]
@@ -116,7 +126,7 @@ function advance(stored: Stored) {
   if (s.status === 'graded' || s.status === 'failed') return
   stored.polls += 1
   if (stored.polls >= WORD_TEST_MOCK.gradedAtPoll) {
-    const items = buildItems(s.total)
+    const items = studentItems(s.total)
     stored.submission = {
       ...s,
       status: 'graded',

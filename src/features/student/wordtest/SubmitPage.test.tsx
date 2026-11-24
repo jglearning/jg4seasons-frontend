@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../../app/routes'
 import { resetAuthMock, setMockSession } from '../../../mocks/handlers'
 import { server } from '../../../mocks/node'
-import { buildItems, resetWordTestMock, WORD_TEST_MOCK } from '../../../mocks/wordTestData'
+import {
+  buildItems,
+  resetWordTestMock,
+  studentItems,
+  WORD_TEST_MOCK,
+} from '../../../mocks/wordTestData'
 import { hold } from '../../../test/hold'
 import { renderRoutes } from '../../../test/render'
 import { resizeImage } from './resizeImage'
@@ -366,7 +371,7 @@ describe('결과(#173)', () => {
     { no: 1, prompt: '아름다운', written: 'beautful', result: 'wrong', answer: 'beautiful' },
     { no: 2, prompt: '도서관', written: 'library', result: 'correct', answer: 'library' },
     { no: 3, prompt: '받다', written: '', result: 'blank', answer: 'receive' },
-    { no: 4, prompt: '조용한', written: 'qui', result: 'unclear', answer: 'quiet' },
+    { no: 4, prompt: '조용한', written: 'qui', result: 'unclear', answer: null },
     { no: 5, prompt: '날씨', written: 'weather', result: 'correct', answer: 'weather' },
   ]
 
@@ -498,7 +503,13 @@ describe('결과(#173)', () => {
   })
 
   it('문항 수는 서버 items 그대로 — 목 48문항 묶음 개수의 합이 48', async () => {
-    const items = buildItems(48)
+    const items = studentItems(48)
+    // 학생 응답의 unclear 문항은 정답이 null(`BE #73`)
+    expect(items.filter((item) => item.result === 'unclear').map((item) => item.answer)).toEqual([
+      null,
+      null,
+      null,
+    ])
     const score = items.filter((item) => item.result === 'correct').length
     renderResult(items, score)
     await screen.findByText(`${score} / 48`)
