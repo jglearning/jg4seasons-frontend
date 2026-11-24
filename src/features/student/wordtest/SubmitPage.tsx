@@ -2,22 +2,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ScanText, TriangleAlert } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
-import { ApiError, isPermanentError } from '../../api/errors'
-import { lessonLevelCode } from '../../shared/lessonLabel'
+import { ApiError, isPermanentError } from '../../../api/errors'
+import { lessonLevelCode } from '../../../shared/lessonLabel'
 import {
   loadStateOf,
   RETRY_STATUS,
   useServerErrorLog,
   WAIT_ICON,
   type LoadQuery,
-} from '../../shared/loadState'
-import { Button, ButtonLink } from '../../shared/ui/Button'
-import { Card } from '../../shared/ui/Card'
-import { NumberCircle } from '../../shared/ui/NumberCircle'
-import { ProgressBar } from '../../shared/ui/ProgressBar'
-import { StatusPanel } from '../../shared/ui/StatusPanel'
-import { StudentLayout } from '../../shared/ui/StudentLayout'
+} from '../../../shared/loadState'
+import { Button, ButtonLink } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
+import { NumberCircle } from '../../../shared/ui/NumberCircle'
+import { StatusPanel } from '../../../shared/ui/StatusPanel'
+import { StudentLayout } from '../../../shared/ui/StudentLayout'
 import { resizeImage } from './resizeImage'
+import { ResultView } from './ResultView'
 import {
   isSettled,
   latestQuery,
@@ -32,7 +32,8 @@ import {
 import styles from './WordTest.module.css'
 import { COPY, POLL_MS, SLOW_MS } from './wordTestCopy'
 
-// 단어시험 사진 제출(#171, 1단계 시연용) — 책의 B 철자 쓰기 쪽을 찍어 올리고 채점 결과를 기다린다.
+// 단어시험 사진 제출(#171)과 결과(#173, 1단계 시연용) — 책의 B 철자 쓰기 쪽을 찍어 올리고,
+// 채점을 기다려 문항별 결과(ResultView)를 보인다.
 // 와이어프레임 없음: v0.2 부품(턱 버튼·번호 동그라미·진행 바·흰 카드·상태 안내)만으로 조립.
 // 화면은 서버 status 하나로 가른다(StatusView). 2단계에서 confirming·rejected 전용 화면을 그 자리에 끼운다.
 // 다시 들어오면 회차의 최근 제출(latest)로 이어 간다 — 채점 중이면 다시 조회, 끝났으면 그 결과
@@ -78,7 +79,7 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
   const latest = useQuery(latestQuery(code, section))
   // 이 화면에서 방금 낸 제출. 있으면 latest보다 먼저
   const [sent, setSent] = useState<Sent | null>(null)
-  // 실패한 제출에서 "다시 찍기"를 누름 → 찍기 화면
+  // 실패 화면 "다시 찍기"나 결과 화면 "다시 풀고 올리기"를 누름 → 찍기 화면
   const [retaking, setRetaking] = useState(false)
 
   const seed = sent === null ? latest.data : undefined
@@ -96,12 +97,16 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
     },
   })
 
-  // 끝난 결과는 최근 제출 캐시에도 — 다시 들어왔을 때(진입 버튼 포함) 같은 결과를 바로 보인다
-  const settled = poll.data !== undefined && isSettled(poll.data.status) ? poll.data : undefined
+  // 조회한 제출(채점 중이든 끝났든 서버 값 그대로)은 최근 제출 캐시에도 — 홈 진입 줄과 다시 들어왔을 때
+  // 옛 제출 대신 이 제출을 보인다(다시 풀고 올린 뒤 옛 결과가 보이던 문제, #173 리뷰)
+  const polled = poll.data
   useEffect(() => {
-    if (settled !== undefined)
-      queryClient.setQueryData(latestQuery(code, section).queryKey, settled)
-  }, [settled, queryClient, code, section])
+    if (polled !== undefined) queryClient.setQueryData(latestQuery(code, section).queryKey, polled)
+  }, [polled, queryClient, code, section])
+
+  // 일시 오류(5xx·끊김)는 2초 조회가 계속 다시 시도하므로 기록만, 다시 해도 같은 오류(4xx)면 아래에서 안내로
+  const pollState = loadStateOf(poll)
+  useServerErrorLog(pollState, poll.error)
 
   if (retaking || (sent === null && latest.data === null)) {
     return (
@@ -109,6 +114,11 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
         code={code}
         section={section}
         onSent={(result) => {
+          // 조회 응답이 오기 전에 떠나도 옛 결과를 새것으로 믿지 않게 — 다음에 쓸 때 다시 받는다
+          void queryClient.invalidateQueries({
+            queryKey: latestQuery(code, section).queryKey,
+            refetchType: 'none',
+          })
           setSent(result)
           setRetaking(false)
         }}
@@ -116,6 +126,10 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
     )
   }
   if (sent === null && latest.data === undefined) return <LatestLoadState query={latest} />
+  // 제출 조회가 다시 해도 같은 오류(지워진 제출 404 등)면 "채점 중"에 갇히지 않게 서버 문구 + 홈으로
+  if (poll.data === undefined && poll.isError && isPermanentError(poll.error)) {
+    return <LatestLoadState query={poll} />
+  }
 
   const submission = poll.data ?? (sent === null ? latest.data : undefined)
   const status = submission?.status ?? sent?.status ?? 'pending'
@@ -123,6 +137,7 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
     <StatusView
       status={status}
       submission={submission ?? undefined}
+      code={code}
       onRetake={() => {
         setSent(null)
         setRetaking(true)
@@ -131,6 +146,15 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
   )
 }
 
+const KNOWN_STATUS = [
+  'pending',
+  'grading',
+  'confirming',
+  'graded',
+  'rejected',
+  'failed',
+] as const satisfies readonly WordTestStatus[]
+
 /**
  * 서버 status 하나로 화면을 가른다. 2단계 confirming·rejected와 모르는 값은 조회를 멈추고(isSettled)
  * 나갈 길이 있는 대기 화면으로 받는다 — 2단계에서 전용 화면을 이 자리에
@@ -138,20 +162,32 @@ function SubmitBody({ code, section }: { code: string; section: WordTestSection 
 function StatusView({
   status,
   submission,
+  code,
   onRetake,
 }: {
   status: WordTestStatus
   submission: WordTestSubmission | undefined
+  code: string
   onRetake: () => void
 }) {
+  // 계약에 없는 status는 화면은 대기로 받고 원인을 알 수 있게 기록만(status 글자는 개인정보가 아니다)
+  useEffect(() => {
+    if (!(KNOWN_STATUS as readonly string[]).includes(status))
+      console.warn('[wordtest] unknown status', status)
+  }, [status])
+
   switch (status) {
     case 'pending':
     case 'grading':
       return <WaitingView />
     case 'graded':
       // 점수 없는 graded는 계약 밖 — 조회가 멈췄으니 갇히지 않게 대기 화면
-      return submission?.score != null ? (
-        <GradedView score={submission.score} total={submission.total} />
+      return submission !== undefined && submission.score !== null ? (
+        <ResultView
+          submission={{ ...submission, score: submission.score }}
+          code={code}
+          onRetry={onRetake}
+        />
       ) : (
         <HeldView />
       )
@@ -164,7 +200,10 @@ function StatusView({
   }
 }
 
-/** 조회를 멈춘 대기 — 1단계에는 오지 않는 상태의 안전장치. 다시 들어오면 최근 제출을 새로 받는다 */
+/**
+ * 조회를 멈춘 대기 — 1단계에는 오지 않는 상태의 안전장치. 다시 들어오면 최근 제출을 받아 이어 간다
+ * (최근 제출 캐시는 30초 staleTime — 그 안이면 캐시 그대로)
+ */
 function HeldView() {
   return (
     <>
@@ -233,7 +272,13 @@ function CaptureView({
     try {
       const blob = await resizeImage(file)
       setPhoto({ blob, url: URL.createObjectURL(blob), clientId: newSubmissionId() })
-    } catch {
+    } catch (err) {
+      // 실기기에서 원인(HEIC 해독 실패·캔버스 한도 등)을 가르려고 이름과 메시지만 남긴다 —
+      // resizeImage의 메시지는 코드에 고정된 글이라 사진·개인 정보가 없다
+      console.error('[wordtest] photo prepare failed', {
+        name: err instanceof Error ? err.name : typeof err,
+        message: err instanceof Error ? err.message : undefined,
+      })
       setError(COPY.badImage)
     } finally {
       setPreparing(false)
@@ -346,28 +391,6 @@ function WaitingView() {
         detail={slow ? COPY.gradingSlow : COPY.gradingDetail}
       />
     </div>
-  )
-}
-
-// 1단계 PR 1의 결과 화면은 점수만. 문항 목록·버튼은 다음 PR에서 이 자리에
-function GradedView({ score, total }: { score: number; total: number }) {
-  return (
-    <>
-      <div className={styles.content}>
-        <Card className={styles.score}>
-          <p className={styles.scoreLabel}>{COPY.scoreLabel}</p>
-          <p className={styles.scoreValue}>
-            {score} / {total}
-          </p>
-          <ProgressBar value={score} max={total} label={`${COPY.scoreLabel} 점수`} />
-        </Card>
-      </div>
-      <div className={styles.actions}>
-        <ButtonLink to="/" variant="secondary" block>
-          {COPY.home}
-        </ButtonLink>
-      </div>
-    </>
   )
 }
 

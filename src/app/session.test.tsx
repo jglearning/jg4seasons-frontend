@@ -88,6 +88,8 @@ describe('들어온 뒤의 세션', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Reading Day 5' })).toBeInTheDocument()
     // 가드의 오류 화면("다시 시도")으로 바뀌지 않는다(홈의 밀린 수업 칸도 role="alert"라 버튼으로 본다)
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+    // 단어시험 진입 줄의 조회 응답까지 받고 끝낸다(#173 — 남기면 다음 테스트로 넘어감)
+    await screen.findByRole('link', { name: /철자 쓰기 제출/ })
   })
 
   it('/me가 401이 아닌 4xx(403)면 다시 시도 대신 입장 화면으로 가는 길을 준다', async () => {
@@ -142,6 +144,8 @@ describe('들어온 뒤의 세션', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' }),
     ).toBeInTheDocument()
+    // 홈이 그려진 뒤 단어시험 진입 줄의 조회도 나간다(#173) — 그 응답까지 받고 끝낸다
+    await screen.findByRole('link', { name: /철자 쓰기 제출/ })
   })
 
   it('/me가 우리 서버 답이 아닌 403(앞단 HTML)이면 입장 화면 대신 다시 시도(#159)', async () => {
@@ -214,6 +218,8 @@ describe('들어온 뒤의 세션', () => {
       await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' }),
     ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
+    // 다음 테스트는 세션 없이 시작 — 단어시험 진입 줄 조회 응답까지 받고 끝낸다(#173)
+    await screen.findByRole('link', { name: /철자 쓰기 제출/ })
   })
 })
 

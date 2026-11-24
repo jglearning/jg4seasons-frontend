@@ -1,14 +1,15 @@
-import { act, screen } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { routes } from '../../app/routes'
-import { resetAuthMock, setMockSession } from '../../mocks/handlers'
-import { server } from '../../mocks/node'
-import { buildItems, resetWordTestMock, WORD_TEST_MOCK } from '../../mocks/wordTestData'
-import { hold } from '../../test/hold'
-import { renderRoutes } from '../../test/render'
-import type { WordTestSubmission } from './wordTestApi'
+import { routes } from '../../../app/routes'
+import { resetAuthMock, setMockSession } from '../../../mocks/handlers'
+import { server } from '../../../mocks/node'
+import { buildItems, resetWordTestMock, WORD_TEST_MOCK } from '../../../mocks/wordTestData'
+import { hold } from '../../../test/hold'
+import { renderRoutes } from '../../../test/render'
+import { resizeImage } from './resizeImage'
+import { latestQuery, type WordTestItem, type WordTestSubmission } from './wordTestApi'
 import { COPY, POLL_MS, SLOW_MS } from './wordTestCopy'
 
 // jsdom은 그림을 읽지 못한다 — 줄이기는 코드로 만든 작은 JPEG 머리 바이트로 대신(답안지 사진을 저장소에 넣지 않는다)
@@ -357,5 +358,252 @@ describe('다시 들어오기', () => {
     expect(await screen.findByText('아직 열리지 않은 회차예요')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: COPY.home })).toHaveAttribute('href', '/')
     expect(screen.queryByRole('button', { name: COPY.take })).not.toBeInTheDocument()
+  })
+})
+
+describe('결과(#173)', () => {
+  const ITEMS: WordTestItem[] = [
+    { no: 1, prompt: '아름다운', written: 'beautful', result: 'wrong', answer: 'beautiful' },
+    { no: 2, prompt: '도서관', written: 'library', result: 'correct', answer: 'library' },
+    { no: 3, prompt: '받다', written: '', result: 'blank', answer: 'receive' },
+    { no: 4, prompt: '조용한', written: 'qui', result: 'unclear', answer: 'quiet' },
+    { no: 5, prompt: '날씨', written: 'weather', result: 'correct', answer: 'weather' },
+  ]
+
+  function renderResult(
+    items: WordTestItem[] | undefined,
+    score: number,
+    total = items?.length ?? 0,
+  ) {
+    server.use(
+      http.get('*/api/v1/word-tests/lessons/:code/latest', () =>
+        HttpResponse.json(
+          submission({ status: 'graded', score, total, gradedAt: '2026-11-26T05:05:21Z', items }),
+        ),
+      ),
+    )
+    const { client } = renderRoutes(routes, { initialEntries: [PATH] })
+    return { user: userEvent.setup(), client }
+  }
+
+  const groupTitles = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+  const row = (prompt: string) => screen.getByText(prompt).closest('li') as HTMLElement
+  /** 문항 줄 안 "내가 쓴 것"·"정답" 이름 칸 옆의 값 */
+  const valueOf = (rowEl: HTMLElement, label: string) =>
+    within(rowEl).getByText(label).nextElementSibling?.textContent
+
+  it('다시 볼 것부터 묶는다: 틀림 → 안 씀 → 잘 안 보임, 맞은 단어는 접혀 있다', async () => {
+    renderResult(ITEMS, 2)
+    expect(await screen.findByText('2 / 5')).toBeInTheDocument()
+    expect(groupTitles()).toEqual(['틀린 단어 1개', '안 쓴 단어 1개', '잘 안 보인 단어 1개'])
+    const toggle = screen.getByRole('button', { name: /맞은 단어 2개/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('도서관')).not.toBeInTheDocument()
+    expect(screen.getByText(COPY.unclearNote(1))).toBeInTheDocument()
+  })
+
+  it('틀림·안 씀은 내가 쓴 것과 정답, 잘 안 보임은 정답 없이 안내', async () => {
+    renderResult(ITEMS, 2)
+    await screen.findByText('2 / 5')
+
+    const wrong = row('아름다운')
+    expect(wrong).toHaveTextContent('1번 아름다운 틀림')
+    expect(valueOf(wrong, COPY.mine)).toBe('beautful')
+    expect(valueOf(wrong, COPY.answer)).toBe('beautiful')
+
+    const blank = row('받다')
+    expect(valueOf(blank, COPY.mine)).toBe(COPY.blank)
+    expect(valueOf(blank, COPY.answer)).toBe('receive')
+
+    const unclear = row('조용한')
+    expect(unclear).toHaveTextContent(COPY.unclearItem)
+    expect(unclear).not.toHaveTextContent('quiet')
+    expect(unclear).not.toHaveTextContent(COPY.answer)
+  })
+
+  it('맞은 단어를 펼치면 쓴 글자만(정답 줄 없음), 다시 누르면 접힌다', async () => {
+    const { user } = renderResult(ITEMS, 2)
+    await screen.findByText('2 / 5')
+    const toggle = screen.getByRole('button', { name: /맞은 단어 2개/ })
+    await user.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const correct = row('도서관')
+    expect(correct).toHaveTextContent('2번 도서관 맞음')
+    expect(correct).toHaveTextContent('library')
+    expect(correct).not.toHaveTextContent(COPY.answer)
+    await user.click(toggle)
+    expect(screen.queryByText('도서관')).not.toBeInTheDocument()
+  })
+
+  it('틀린 단어가 있으면 단어 카드로 가는 주 버튼, 다시 풀고 올리기 → 찍기 화면', async () => {
+    const { user } = renderResult(ITEMS, 2)
+    await screen.findByText('2 / 5')
+    expect(screen.getByRole('link', { name: COPY.reviewWords })).toHaveAttribute(
+      'href',
+      `/lessons/${CODE}/words`,
+    )
+    expect(screen.getByRole('link', { name: COPY.home })).toHaveAttribute('href', '/')
+    expect(screen.getByText(COPY.footnote)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: COPY.retry }))
+    expect(screen.getByRole('button', { name: COPY.take })).toBeInTheDocument()
+  })
+
+  // 리뷰 지적: 새로 낸 뒤에도 최근 제출 캐시에 옛 결과가 남아 홈 진입 줄·다시 들어오기에서 옛 결과가 보였다
+  it('다시 풀고 올리면 새 결과가 보이고 최근 제출 캐시도 새 제출로 바뀐다', async () => {
+    WORD_TEST_MOCK.gradedAtPoll = 1
+    const { user, client } = renderResult(ITEMS, 2)
+    await screen.findByText('2 / 5')
+    await user.click(screen.getByRole('button', { name: COPY.retry }))
+    await user.upload(input(), photo())
+    await user.click(await screen.findByRole('button', { name: COPY.send }))
+
+    expect(await screen.findByText(/ \/ 48$/)).toBeInTheDocument()
+    expect(screen.queryByText('2 / 5')).not.toBeInTheDocument()
+    const cached = client.getQueryData<WordTestSubmission>(latestQuery(CODE).queryKey)
+    expect(cached?.id).toBe(318)
+    expect(cached?.status).toBe('graded')
+  })
+
+  it('제출하고 조회 응답이 오기 전에도 옛 최근 제출은 다시 받을 대상(stale)이 된다', async () => {
+    server.use(http.get('*/api/v1/word-tests/submissions/:id', () => hold()))
+    const { user, client } = renderResult(ITEMS, 2)
+    await screen.findByText('2 / 5')
+    await user.click(screen.getByRole('button', { name: COPY.retry }))
+    await user.upload(input(), photo())
+    await user.click(await screen.findByRole('button', { name: COPY.send }))
+
+    expect(await screen.findByText(COPY.grading)).toBeInTheDocument()
+    expect(client.getQueryState(latestQuery(CODE).queryKey)?.isInvalidated).toBe(true)
+  })
+
+  it('모두 맞으면 "모두 맞았어요", 틀린 단어 묶음과 단어 카드 버튼이 없다', async () => {
+    const all = ITEMS.filter((item) => item.result === 'correct')
+    renderResult(all, all.length)
+    await screen.findByText('2 / 2')
+    expect(screen.getByText(COPY.allCorrect)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: COPY.reviewWords })).not.toBeInTheDocument()
+    expect(screen.queryByText(/잘 안 보인 글자/)).not.toBeInTheDocument()
+  })
+
+  it('잘 안 보인 단어만 있으면 "모두 맞았어요"도 단어 카드 버튼도 없다', async () => {
+    const items = ITEMS.filter((item) => item.result === 'correct' || item.result === 'unclear')
+    renderResult(items, 2)
+    await screen.findByText('2 / 3')
+    expect(screen.queryByText(COPY.allCorrect)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: COPY.reviewWords })).not.toBeInTheDocument()
+    expect(groupTitles()).toEqual(['잘 안 보인 단어 1개'])
+  })
+
+  it('문항 수는 서버 items 그대로 — 목 48문항 묶음 개수의 합이 48', async () => {
+    const items = buildItems(48)
+    const score = items.filter((item) => item.result === 'correct').length
+    renderResult(items, score)
+    await screen.findByText(`${score} / 48`)
+    const counts = [...groupTitles(), screen.getByRole('button', { name: /맞은 단어/ }).textContent]
+      .map((text) => Number(/(\d+)개/.exec(text ?? '')?.[1]))
+      .reduce((a, b) => a + b, 0)
+    expect(counts).toBe(48)
+    expect(screen.getAllByRole('listitem')).toHaveLength(48 - score)
+  })
+
+  // 리뷰 지적: 모르는 result 문항이 묶음에서 빠져 "모두 맞았어요"가 점수와 어긋났다
+  it('모르는 result 문항은 "잘 안 보인 단어"로 보이고 "모두 맞았어요"는 뜨지 않는다', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const items = [
+      ITEMS[1],
+      { ...ITEMS[0], result: 'mystery' as unknown as WordTestItem['result'] },
+    ]
+    renderResult(items, 1)
+    await screen.findByText('1 / 2')
+    expect(screen.queryByText(COPY.allCorrect)).not.toBeInTheDocument()
+    expect(groupTitles()).toEqual(['잘 안 보인 단어 1개'])
+    expect(row('아름다운')).toHaveTextContent(COPY.unclearItem)
+    expect(row('아름다운')).not.toHaveTextContent('beautiful')
+    expect(logged).toHaveBeenCalledWith('[wordtest] unknown item result', 1)
+  })
+
+  it('문항이 모두 맞음이어도 서버 점수가 만점이 아니면 "모두 맞았어요"를 띄우지 않는다', async () => {
+    const all = ITEMS.filter((item) => item.result === 'correct')
+    renderResult(all, 1, 2)
+    await screen.findByText('1 / 2')
+    expect(screen.queryByText(COPY.allCorrect)).not.toBeInTheDocument()
+  })
+
+  it('graded인데 items가 없으면(계약 밖) 점수와 다시 풀기만, 기록을 남긴다', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderResult(undefined, 3, 5)
+    await screen.findByText('3 / 5')
+    expect(screen.queryByText(COPY.allCorrect)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: COPY.reviewWords })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: COPY.retry })).toBeInTheDocument()
+    expect(logged).toHaveBeenCalledWith('[wordtest] graded without items', 500)
+  })
+
+  it('안 쓴 단어만 있어도 단어 카드 버튼이 있다', async () => {
+    const items = ITEMS.filter((item) => item.result !== 'wrong' && item.result !== 'unclear')
+    renderResult(items, 2)
+    await screen.findByText('2 / 3')
+    expect(screen.getByRole('link', { name: COPY.reviewWords })).toBeInTheDocument()
+  })
+})
+
+describe('조회·사진 실패(#173 리뷰)', () => {
+  it('제출 조회가 다시 해도 같은 오류(404)면 채점 중에 갇히지 않고 서버 문구 + 홈으로', async () => {
+    server.use(
+      http.get('*/api/v1/word-tests/lessons/:code/latest', () =>
+        HttpResponse.json(submission({ status: 'grading' })),
+      ),
+      http.get('*/api/v1/word-tests/submissions/:id', () =>
+        problem(404, 'NOT_FOUND', '제출을 찾을 수 없어요'),
+      ),
+    )
+    renderRoutes(routes, { initialEntries: [PATH] })
+    expect(await screen.findByText('제출을 찾을 수 없어요')).toBeInTheDocument()
+    expect(screen.queryByText(COPY.grading)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: COPY.home })).toHaveAttribute('href', '/')
+    expect(polls()).toHaveLength(1)
+  })
+
+  it('모르는 status는 확인 안내로 받고 경고를 남긴다(confirming·rejected는 남기지 않음)', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    server.use(
+      http.get('*/api/v1/word-tests/lessons/:code/latest', () =>
+        HttpResponse.json({ ...submission({}), status: 'cancelled' }),
+      ),
+    )
+    renderRoutes(routes, { initialEntries: [PATH] })
+    expect(await screen.findByText(COPY.held)).toBeInTheDocument()
+    expect(warned).toHaveBeenCalledWith('[wordtest] unknown status', 'cancelled')
+  })
+
+  it('confirming은 경고를 남기지 않는다', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    server.use(
+      http.get('*/api/v1/word-tests/lessons/:code/latest', () =>
+        HttpResponse.json(submission({ status: 'confirming' })),
+      ),
+    )
+    renderRoutes(routes, { initialEntries: [PATH] })
+    expect(await screen.findByText(COPY.held)).toBeInTheDocument()
+    expect(warned).not.toHaveBeenCalled()
+  })
+
+  it('사진을 줄이지 못하면 오류 줄 + 원인 기록(이름·고정 메시지)', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(resizeImage).mockRejectedValueOnce(new Error('image decode failed'))
+    const user = userEvent.setup()
+    renderRoutes(routes, { initialEntries: [PATH] })
+    await screen.findByRole('button', { name: COPY.take })
+    await user.upload(input(), photo())
+
+    await alertWith(COPY.badImage)
+    expect(screen.queryByRole('img', { name: '찍은 답안지' })).not.toBeInTheDocument()
+    expect(logged).toHaveBeenCalledWith('[wordtest] photo prepare failed', {
+      name: 'Error',
+      message: 'image decode failed',
+    })
   })
 })

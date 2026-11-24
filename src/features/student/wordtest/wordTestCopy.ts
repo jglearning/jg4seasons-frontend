@@ -1,4 +1,4 @@
-// 단어시험 제출 화면의 문구와 시간(#171). 화면 파일은 컴포넌트만 내보낸다(fast refresh)
+// 단어시험(제출·결과 화면, 홈 진입 줄)의 문구와 시간(#171·#173). 화면 파일은 컴포넌트만 내보낸다(fast refresh)
 
 /** 채점 상태 조회 간격 */
 export const POLL_MS = 2000
@@ -23,4 +23,17 @@ export const COPY = {
   failedDetail: '잠시 뒤에 다시 해 봐요',
   scoreLabel: '철자 쓰기',
   home: '홈으로',
+  // 결과(#173)
+  unclearNote: (n: number) => `잘 안 보인 글자 ${n}개는 선생님이 확인해요`,
+  allCorrect: '모두 맞았어요',
+  mine: '내가 쓴 것',
+  answer: '정답',
+  blank: '안 썼어요',
+  unclearItem: '선생님이 확인해요',
+  correctHidden: '눌러서 보기',
+  reviewWords: '틀린 단어 다시 보기',
+  retry: '다시 풀고 올리기',
+  footnote: '시험 삼아 여는 기능이에요. 채점이 틀리면 선생님께 말해요',
+  // 홈 진입 줄(#173) — 최근 제출이 없을 때의 보조 글
+  entryNew: '책을 찍어 올리면 채점해 줘요',
 } as const

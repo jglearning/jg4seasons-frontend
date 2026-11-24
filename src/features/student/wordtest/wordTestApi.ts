@@ -1,21 +1,21 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { Client } from 'openapi-fetch'
-import { api } from '../../api'
-import { ApiError, fallbackTitle, toApiError, unwrap } from '../../api/errors'
+import { api } from '../../../api'
+import { ApiError, fallbackTitle, toApiError, unwrap } from '../../../api/errors'
 
 // 단어시험 사진 채점 1단계(시연용, #171). 학생 API — 업로드 주소 발급 → S3에 PUT → 제출 → 상태 조회.
 //
-// [임시] 경로 타입을 손으로 선언했다. 백엔드 API가 아직 openapi.json에 없어서(11/24) 프론트·백엔드가 같이 정한
-// 계약(동섭 지시서 §D + 11/24 답의 변경)대로 적었다. 백엔드가 머지되면 `npm run api:sync`의 생성 타입으로
-// 바꾸고 이 선언과 아래 캐스팅을 지운다(PR 4). 그 전까지는 계약과 다르게 써도 타입 검사가 잡지 못한다.
+// [임시] 경로 타입을 손으로 선언했다. 백엔드 API가 아직 openapi.json에 없어서(11/24) 백엔드와 합의한
+// 계약(11/24)대로 적었다. 백엔드가 머지되면 `npm run api:sync`의 생성 타입으로 바꾸고 이 선언과 아래 캐스팅을
+// 지운다(생성 타입 교체 이슈). 그 전까지는 계약과 다르게 써도 타입 검사가 잡지 못한다.
 // 앱의 API 인스턴스는 하나라야 refresh 합치기가 된다 — 새 클라이언트를 만들지 않고 같은 인스턴스를 넓혀 쓴다
 
 export type WordTestSection = 'A' | 'B' | 'C' | 'D'
 /** 이번에 실제로 오는 값은 pending · grading · graded · failed. confirming · rejected는 2단계 */
 export type WordTestStatus = 'pending' | 'grading' | 'confirming' | 'graded' | 'rejected' | 'failed'
 /**
- * unclear: 글자가 흐려 서버가 맞음·틀림을 판단하지 못한 문항 — 프론트가 제안한 계약 변경(11/24 동섭 승인,
- * 백엔드 답 대기 — handoff "프론트 → 백엔드 질문"). 답이 오기 전까지 목에서만 나온다
+ * unclear: 글자가 흐려 서버가 맞음·틀림을 판단하지 못한 문항 — 프론트가 제안한 값으로 백엔드 확정 전
+ * (확정되면 이 줄 정리). 지금은 목에서만 나온다
  */
 export type WordTestResult = 'correct' | 'wrong' | 'blank' | 'unclear'
 
@@ -108,7 +108,7 @@ export const SECTION_SPELLING: WordTestSection = 'B'
 /**
  * 조회를 멈출 상태 — 채점이 도는 중(pending·grading)이 아닌 모든 값.
  * graded·failed는 끝, confirming·rejected(2단계)와 모르는 값은 서버가 혼자 넘어가지 않을 수 있어
- * 2초 조회를 계속하면 화면에 갇힌다(#171 안전장치). 다시 들어오면 최근 제출을 새로 받는다
+ * 주기 조회(POLL_MS)를 계속하면 화면에 갇힌다(#171 안전장치). 다시 들어오면 최근 제출로 이어 간다
  */
 export function isSettled(status: WordTestStatus): boolean {
   return status !== 'pending' && status !== 'grading'

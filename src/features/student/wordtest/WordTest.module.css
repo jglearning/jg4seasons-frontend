@@ -181,3 +181,169 @@
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
+
+/* ── 결과 문항 목록(#173) ── */
+
+.scoreNote {
+  margin: var(--space-2) 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.allCorrect {
+  margin: var(--space-2) 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.groupTitle {
+  margin: 0 0 0 var(--space-1);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+/* 묶음 하나 = 흰 카드 하나(정보 표시라 턱 없음), 줄 사이 1px 선 */
+.itemList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--white);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-student);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 14px var(--space-4);
+}
+
+.item + .item {
+  border-top: var(--border-card) solid var(--line);
+}
+
+.itemBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* 번호 동그라미(32)와 첫 줄 글자 가운데 맞춤 */
+  padding-top: 4px;
+}
+
+.prompt {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink);
+  word-break: keep-all;
+}
+
+.written {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* 내가 쓴 것 / 정답 — 이름 칸 고정 폭으로 두 줄의 영어가 같은 자리에서 시작 */
+.compare {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compareRow {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 16px;
+}
+
+.compareRow dt {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.compareRow dd {
+  margin: 0;
+  font-weight: 500;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.compareRow dd.muted {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.compareRow dd.answer {
+  font-weight: 800;
+}
+
+/* 결과 아이콘 — 모양(✕ ✓ − ?)이 주된 구분, 색은 덧붙임(--bad는 아이콘에만, DESIGN.md 1.5) */
+.itemIcon {
+  flex: none;
+  margin-top: 5px;
+  color: var(--muted);
+}
+
+.item[data-result='wrong'] .itemIcon {
+  color: var(--bad);
+}
+
+.item[data-result='correct'] .itemIcon,
+.correctIcon,
+.entryIcon {
+  color: var(--L-deep);
+}
+
+/* 결과 버튼 묶음 — 문항 목록과 떨어지게 */
+.resultActions {
+  margin-top: var(--space-6);
+}
+
+.footnote {
+  margin: var(--space-1) 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
