@@ -104,6 +104,51 @@ describe('T-05 단어시험 결과 표', () => {
     expect(screen.queryByText('불러오는 중')).not.toBeInTheDocument()
   })
 
+  // #177: 단어시험 API가 아직 운영에 없을 때(code 없는 404)·시험지 없는 회차(NOT_FOUND)도 숨긴다 — 기록은 남긴다
+  it.each([
+    [
+      'NOT_FOUND',
+      () =>
+        HttpResponse.json(
+          { title: '없음', status: 404, code: 'NOT_FOUND', requestId: 'r404' },
+          { status: 404, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      { code: 'NOT_FOUND', requestId: 'r404' },
+    ],
+    [
+      'code 없는 404(백엔드 배포 전)',
+      () =>
+        new HttpResponse('<html>Not Found</html>', {
+          status: 404,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      { code: undefined, requestId: undefined },
+    ],
+  ])('404 %s도 묶음을 숨기고 경고를 남긴다(기존 표는 그대로)', async (_, respond, logged) => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    server.use(http.get(LIST, respond))
+    renderAt(LESSON_PATH)
+    expect(await screen.findByRole('table', { name: /학생별 지문 완료/ })).toBeInTheDocument()
+    await vi.waitFor(() =>
+      expect(warned).toHaveBeenCalledWith('[wordtest] teacher list 404 — hidden', logged),
+    )
+    expect(screen.queryByRole('heading', { name: '단어시험 · 철자 쓰기' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('기능 꺼짐(FEATURE_DISABLED)은 경고를 남기지 않는다', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    renderAt(`/teacher/classes/${CLASS}/lessons/${TEACHER_WORD_TEST_MOCK.disabledLessonCode}`)
+    expect(await screen.findByRole('table', { name: /학생별 지문 완료/ })).toBeInTheDocument()
+    await vi.waitFor(() => expect(listCalls).toHaveLength(1))
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: '단어시험 · 철자 쓰기' }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(warned).not.toHaveBeenCalled()
+  })
+
   it('그 밖의 오류는 묶음 안에 안내와 다시 시도(기존 표는 그대로)', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     server.use(
