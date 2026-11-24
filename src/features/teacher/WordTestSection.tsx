@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useId } from 'react'
+import { useEffect, useId } from 'react'
 import { Link } from 'react-router'
 import { ApiError } from '../../api/errors'
 import { StaffLoadState } from '../../shared/ui/StaffLoadState'
@@ -12,14 +12,28 @@ import { NOT_SUBMITTED, statusLook } from './wordTestFormat'
 
 // T-05 회차 상세 아래 단어시험 결과(#175, 1단계 시연용) — 학생별 최근 제출 한 줄: 이름 / 점수 / 상태 / 회차 / 제출 시각.
 // 이름을 누르면 제출 상세. 점수·상태는 서버 값 그대로.
-// 기능이 꺼진 학원(404 FEATURE_DISABLED)이면 이 묶음을 통째로 숨겨 기존 T-05 그대로. 그 밖의 오류는 교사에게 보인다
+// 404면 이 묶음을 통째로 숨겨 기존 T-05 그대로(#177): 기능이 꺼진 학원(FEATURE_DISABLED)뿐 아니라, 단어시험 API가
+// 아직 운영에 없을 때(code 없는 404)·시험지가 없는 회차(NOT_FOUND)도 "기능 없음"으로 본다. 그 밖의 오류(5xx·끊김)는
+// 교사가 알아야 하니 안내와 다시 시도
 
 type Row = TeacherWordTestList['students'][number]
 
 export function WordTestSection({ classId, lessonCode }: { classId: number; lessonCode: string }) {
   const headingId = useId()
   const list = useQuery(classWordTestsQuery(classId, lessonCode))
-  if (list.error instanceof ApiError && list.error.code === 'FEATURE_DISABLED') return null
+  const notFound = list.error instanceof ApiError && list.error.status === 404 ? list.error : null
+
+  // 기능 꺼짐이 아닌 404는 숨기되 원인을 볼 수 있게 상태·code·requestId만 기록(메시지·이름 없음)
+  useEffect(() => {
+    if (notFound !== null && notFound.code !== 'FEATURE_DISABLED') {
+      console.warn('[wordtest] teacher list 404 — hidden', {
+        code: notFound.code,
+        requestId: notFound.requestId,
+      })
+    }
+  }, [notFound])
+
+  if (notFound !== null) return null
 
   return (
     <section className={styles.wordTest} aria-labelledby={headingId}>
