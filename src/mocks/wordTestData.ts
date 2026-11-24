@@ -5,6 +5,7 @@ import type {
   WordTestSection,
   WordTestSubmission,
 } from '../features/student/wordtest/wordTestApi'
+import { mockActiveStudents, mockStudent } from './adminData'
 import { LESSON_MOCK } from './lessonData'
 import { STUDENT_MOCK } from './studentData'
 import { buildWords } from './wordData'
@@ -237,5 +238,126 @@ export function wordTestHandlers({ problem, readJson, currentUser }: Helpers): A
       advance(stored)
       return HttpResponse.json(view(stored))
     }),
+  ]
+}
+
+// ── 교사 조회(#175) — D-5 반 결과 목록, D-6 제출 상세 ──
+// 반 학생마다 결과를 섞는다(재원 학생 id 순 i % 5): 0 완료 · 1 완료(사진 지워짐) · 2 채점 중 · 3 실패 · 4 미제출.
+// 제출 id = 9000 + 학생 id. 학생 제출 목(위)과는 따로 — 교사 화면 확인용 고정 데이터
+
+export const TEACHER_WORD_TEST_MOCK = {
+  idBase: 9000,
+  /** 이 회차로 부르면 404 FEATURE_DISABLED(기능 꺼짐 확인용) */
+  disabledLessonCode: 'L2-B1-01',
+  image: '/mock-image/answer-sheet.svg',
+} as const
+
+type TeacherKind = 'graded' | 'gradedNoImage' | 'grading' | 'failed' | 'none'
+const TEACHER_KINDS: TeacherKind[] = ['graded', 'gradedNoImage', 'grading', 'failed', 'none']
+
+function teacherSubmission(studentIndex: number, studentId: number, lessonCode: string) {
+  const kind = TEACHER_KINDS[studentIndex % TEACHER_KINDS.length]
+  if (kind === 'none') return null
+  const total = mockItemTotal(lessonCode)
+  const items = buildItems(total)
+  const graded = kind === 'graded' || kind === 'gradedNoImage'
+  const status = graded ? ('graded' as const) : kind
+  const minute = String(10 + (studentIndex % 40)).padStart(2, '0')
+  return {
+    id: TEACHER_WORD_TEST_MOCK.idBase + studentId,
+    lessonCode,
+    section: 'B' as const,
+    attemptNo: 1 + (studentIndex % 2),
+    status,
+    score: graded ? items.filter((item) => item.result === 'correct').length : null,
+    total,
+    submittedAt: `2026-12-19T10:${minute}:12Z`,
+    gradedAt: graded ? `2026-12-19T10:${minute}:21Z` : null,
+    items: graded ? items : undefined,
+    imageUrl: kind === 'gradedNoImage' ? null : TEACHER_WORD_TEST_MOCK.image,
+  }
+}
+
+/** 코드로 그린 답안지 그림(저장소에 실제 답안지 사진을 넣지 않는다) — 번호와 밑줄 48칸 */
+function answerSheetSvg(): string {
+  const rows = Array.from({ length: 24 }, (_, i) => {
+    const y = 60 + i * 30
+    return [
+      `<text x="40" y="${y}" font-size="14" fill="#555">${i + 1}.</text>`,
+      `<line x1="80" y1="${y + 4}" x2="360" y2="${y + 4}" stroke="#999"/>`,
+      `<text x="420" y="${y}" font-size="14" fill="#555">${i + 25}.</text>`,
+      `<line x1="460" y1="${y + 4}" x2="740" y2="${y + 4}" stroke="#999"/>`,
+    ].join('')
+  }).join('')
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100" viewBox="0 0 800 1100"><rect width="800" height="1100" fill="#fbfaf6"/><text x="40" y="32" font-size="18" fill="#333">B</text>${rows}</svg>`
+}
+
+export function wordTestTeacherHandlers({ problem, currentUser }: Helpers): AnyHandler[] {
+  const staffOnly = (request: Request) => {
+    const user = currentUser()
+    if (!user) return problem(request, 401, 'UNAUTHORIZED', '다시 로그인해 주세요')
+    if (user.role !== 'teacher' && user.role !== 'admin')
+      return problem(request, 403, 'FORBIDDEN', '권한이 없습니다')
+    return undefined
+  }
+
+  return [
+    // D-5 반 결과 목록 — 학생마다 최근 제출 또는 null
+    http.get('*/api/v1/teacher/classes/:classId/word-tests', async ({ request, params }) => {
+      await delay()
+      const denied = staffOnly(request)
+      if (denied) return denied
+      const url = new URL(request.url)
+      const lessonCode = url.searchParams.get('lessonCode') ?? ''
+      if (lessonCode === TEACHER_WORD_TEST_MOCK.disabledLessonCode)
+        return problem(request, 404, 'FEATURE_DISABLED', '이 학원은 단어시험을 쓰지 않습니다')
+      const students = mockActiveStudents(Number(params.classId))
+      return HttpResponse.json({
+        lessonCode,
+        students: students.map((student, i) => {
+          const s = teacherSubmission(i, student.id, lessonCode)
+          return {
+            studentId: student.id,
+            name: student.name,
+            submission:
+              s === null
+                ? null
+                : {
+                    id: s.id,
+                    status: s.status,
+                    score: s.score,
+                    total: s.total,
+                    attemptNo: s.attemptNo,
+                    submittedAt: s.submittedAt,
+                  },
+          }
+        }),
+      })
+    }),
+
+    // D-6 제출 상세 — 학생 제출 조회(D-3) + student, imageUrl
+    http.get('*/api/v1/teacher/word-tests/:id', async ({ request, params }) => {
+      await delay()
+      const denied = staffOnly(request)
+      if (denied) return denied
+      const studentId = Number(params.id) - TEACHER_WORD_TEST_MOCK.idBase
+      const student = mockStudent(studentId)
+      if (student === undefined)
+        return problem(request, 404, 'NOT_FOUND', '제출을 찾을 수 없습니다')
+      const index = mockActiveStudents(student.classId).findIndex((s) => s.id === studentId)
+      const s = teacherSubmission(index, studentId, 'L2-B1-05')
+      if (s === null) return problem(request, 404, 'NOT_FOUND', '제출을 찾을 수 없습니다')
+      const { items, ...rest } = s
+      return HttpResponse.json({
+        ...rest,
+        ...(items === undefined ? {} : { items }),
+        student: { id: student.id, name: student.name },
+      })
+    }),
+
+    // 서명 주소 흉내 — 코드로 그린 답안지 그림
+    http.get('*/mock-image/answer-sheet.svg', () =>
+      HttpResponse.text(answerSheetSvg(), { headers: { 'Content-Type': 'image/svg+xml' } }),
+    ),
   ]
 }

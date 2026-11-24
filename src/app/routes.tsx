@@ -29,6 +29,7 @@ import { LessonPage as TeacherLessonPage } from '../features/teacher/LessonPage'
 import { MatrixPage } from '../features/teacher/MatrixPage'
 import { SessionsPage } from '../features/teacher/SessionsPage'
 import { StudentPage as TeacherStudentPage } from '../features/teacher/StudentPage'
+import { WordTestDetailPage } from '../features/teacher/WordTestDetailPage'
 import { NotFound } from './NotFound'
 import { RouteError } from './RouteError'
 import { SessionRoot } from './SessionRoot'
@@ -69,6 +70,10 @@ export const routes: RouteObject[] = [
               },
               { path: '/teacher/classes/:id/lessons/:code', element: <TeacherLessonPage /> },
               { path: '/teacher/classes/:id/sessions', element: <SessionsPage /> },
+              {
+                path: '/teacher/classes/:id/word-tests/:submissionId',
+                element: <WordTestDetailPage />,
+              },
               {
                 element: <AdminOnly />,
                 children: [
