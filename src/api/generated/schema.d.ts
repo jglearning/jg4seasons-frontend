@@ -765,6 +765,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/teacher/classes/{classId}/word-tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 반 학생별 단어시험 최근 제출
+         * @description 그 반 현재 소속 학생(이름 순, 매트릭스와 같은 학생)마다 그 회차·영역의 마지막 시도. 낸 적이 없으면 submission null. 회차 열림·사용권은 보지 않는다. 기능이 꺼진 학원은 404 FEATURE_DISABLED, 범위 밖 반(교사는 진행 중 담당 반만)·그 반 진도표에 없는 회차·시험지 없는 영역은 404 NOT_FOUND. 요청한 교사가 비활성화됐으면 401
+         */
+        get: operations["listClassWordTests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/teacher/students/{studentId}/personal-code/regenerate": {
         parameters: {
             query?: never;
@@ -779,6 +799,26 @@ export interface paths {
          * @description 교사는 담당 반에 지금 소속인 학생만, 관리자는 학원 안 어느 반이든 지금 소속인 학생 — 그 밖(다른 학원·담당 아님·퇴원·반 없음)은 404. 새 코드(숫자 4자리, 0으로 시작 가능) 평문은 이 응답에서만(다시 볼 수 없음). 옛 코드는 바로 무효, 그 학생의 refresh는 모두 끊긴다(남은 access는 최대 30분). 감사 로그. 요청한 교사가 비활성화됐으면 401. X-CSRF 필요
          */
         post: operations["regeneratePersonalCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teacher/word-tests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 단어시험 제출 상세
+         * @description 답안지 사진 보기 서명 주소(5분)와 문항별 결과(graded일 때만, unclear에도 정답). 교사는 진행 중 담당 반에 지금 소속된 학생의 제출만, 관리자는 학원 학생 전체 — 그 밖·없는 제출은 404 NOT_FOUND. 기능이 꺼진 학원은 404 FEATURE_DISABLED. 요청한 교사가 비활성화됐으면 401
+         */
+        get: operations["getTeacherWordTestSubmission"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2279,6 +2319,127 @@ export interface components {
              */
             status?: "active" | "inactive";
         };
+        TeacherWordTestDetail: {
+            /**
+             * Format: int32
+             * @description 그 학생·회차·영역의 몇 번째 제출(1부터)
+             */
+            attemptNo: number;
+            /**
+             * Format: date-time
+             * @description 채점 끝난 시각(UTC). graded가 아니면 null
+             */
+            gradedAt: string | null;
+            /** Format: int64 */
+            id: number;
+            /** @description 답안지 사진 보기 서명 주소(5분). 쿠키 없이 바로 연다. 사진 키가 없거나 저장소가 보기 주소를 주지 않으면(로컬 서버) null. 서명 실패는 null이 아니라 500 */
+            imageUrl: string | null;
+            /** @description 문항별 결과, 번호 순. graded일 때만 있다(그 밖에는 칸 자체가 없음) */
+            items?: components["schemas"]["TeacherWordTestItem"][];
+            /** @example L2-B1-01 */
+            lessonCode: string;
+            /**
+             * Format: int32
+             * @description 맞은(correct) 문항 수. graded가 아니면 null
+             */
+            score: number | null;
+            /** @enum {string} */
+            section: "A" | "B" | "C" | "D";
+            /**
+             * @description pending·grading이면 채점 중, graded·failed에서 멈춤. confirming·rejected는 2단계(지금은 오지 않음)
+             * @enum {string}
+             */
+            status: "pending" | "grading" | "confirming" | "graded" | "rejected" | "failed";
+            student: components["schemas"]["TeacherWordTestStudentRef"];
+            /**
+             * Format: date-time
+             * @description 제출 시각(UTC)
+             */
+            submittedAt: string;
+            /**
+             * Format: int32
+             * @description 그 회차·영역의 문항 수(unclear 포함)
+             */
+            total: number;
+        };
+        TeacherWordTestItem: {
+            /**
+             * @description 정답(unclear에도)
+             * @example beautiful
+             */
+            answer: string;
+            /**
+             * Format: int32
+             * @description 책의 문항 번호
+             */
+            no: number;
+            /**
+             * @description 문제로 준 쪽(B는 우리말 뜻)
+             * @example 아름다운
+             */
+            prompt: string;
+            /**
+             * @description correct·wrong·blank·unclear. unclear = 글자가 흐려 판정 못 함(score에 들어가지 않음, 화면은 "확인 필요")
+             * @enum {string}
+             */
+            result: "correct" | "wrong" | "blank" | "unclear";
+            /**
+             * @description 서버가 읽은 글자. 빈칸·못 읽음이면 ""
+             * @example beautful
+             */
+            written: string;
+        };
+        TeacherWordTestList: {
+            /** @example L2-B1-01 */
+            lessonCode: string;
+            students: components["schemas"]["TeacherWordTestStudent"][];
+        };
+        TeacherWordTestStudent: {
+            /** @example 김민준 */
+            name: string;
+            /** Format: int64 */
+            studentId: number;
+            /** @description 마지막 시도. 낸 적이 없으면 null */
+            submission: components["schemas"]["TeacherWordTestSummary"] | null;
+        };
+        TeacherWordTestStudentRef: {
+            /** Format: int64 */
+            id: number;
+            /** @example 김민준 */
+            name: string;
+        };
+        TeacherWordTestSummary: {
+            /**
+             * Format: int32
+             * @description 그 학생·회차·영역의 몇 번째 제출(1부터)
+             */
+            attemptNo: number;
+            /**
+             * Format: int64
+             * @description 제출 id(D-6 경로)
+             */
+            id: number;
+            /**
+             * Format: int32
+             * @description 맞은(correct) 문항 수. graded가 아니면 null
+             */
+            score: number | null;
+            /**
+             * @description pending·grading이면 채점 중, graded·failed에서 멈춤. confirming·rejected는 2단계(지금은 오지 않음)
+             * @enum {string}
+             */
+            status: "pending" | "grading" | "confirming" | "graded" | "rejected" | "failed";
+            /**
+             * Format: date-time
+             * @description 제출 시각(UTC)
+             */
+            submittedAt: string;
+            /**
+             * Format: int32
+             * @description 그 회차·영역의 문항 수(unclear 포함)
+             */
+            total: number;
+        };
         UserInfo: {
             /** Format: int64 */
             id: number;
@@ -2364,10 +2525,10 @@ export interface components {
         };
         WordTestItemResult: {
             /**
-             * @description 정답
+             * @description 정답. result가 unclear면 null(판정 전이라 주지 않음)
              * @example beautiful
              */
-            answer: string;
+            answer: string | null;
             /**
              * Format: int32
              * @description 책의 문항 번호
@@ -3911,6 +4072,48 @@ export interface operations {
             };
         };
     };
+    listClassWordTests: {
+        parameters: {
+            query: {
+                /**
+                 * @description 회차 코드
+                 * @example L2-B1-01
+                 */
+                lessonCode: string;
+                /**
+                 * @description 영역(1단계는 B)
+                 * @example B
+                 */
+                section: "A" | "B" | "C" | "D";
+            };
+            header?: never;
+            path: {
+                classId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TeacherWordTestList"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     regeneratePersonalCode: {
         parameters: {
             query?: never;
@@ -3929,6 +4132,37 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PersonalCodeResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getTeacherWordTestSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TeacherWordTestDetail"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
