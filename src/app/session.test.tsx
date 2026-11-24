@@ -218,6 +218,8 @@ describe('들어온 뒤의 세션', () => {
       await screen.findByRole('heading', { level: 1, name: 'Reading Day 5' }),
     ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
+    // 다음 테스트는 세션 없이 시작 — 단어시험 진입 줄 조회 응답까지 받고 끝낸다(#173)
+    await screen.findByRole('link', { name: /철자 쓰기 제출/ })
   })
 })
 

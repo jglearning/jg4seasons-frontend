@@ -9,7 +9,8 @@ import { LESSON_MOCK } from './lessonData'
 import { STUDENT_MOCK } from './studentData'
 import { buildWords } from './wordData'
 
-// 단어시험 사진 채점 목(#171) — 계약(동섭 지시서 §D + 11/24 답) 그대로. 백엔드 openapi.json이 생기면 그 타입으로.
+// 단어시험 사진 채점 목(#171) — 백엔드와 합의한 계약(11/24) 그대로(아래 D-1~D-7은 그 계약의 절 번호).
+// 백엔드 openapi.json이 생기면 그 타입으로.
 // 업로드 주소는 같은 출처 /mock-upload/…(이 PUT도 목이 받는다). 제출 뒤 조회할 때마다 pending → grading → graded.
 // 문항 수는 영역·레벨마다 다르다(B 철자 쓰기: 그린 47~48, 민트 34~35) — 민트(L1)는 35개, 그 밖은 48개.
 // 단어는 wordData의 지어낸 단어를 돌려 쓴다(교재 시험지를 공개 저장소에 넣지 않는다)

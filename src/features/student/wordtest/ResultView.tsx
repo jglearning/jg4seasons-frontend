@@ -1,5 +1,5 @@
 import { Check, CircleHelp, Minus, X, type LucideIcon } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { ActionRow } from '../../../shared/ui/ActionRow'
 import { Button, ButtonLink } from '../../../shared/ui/Button'
 import { Card } from '../../../shared/ui/Card'
@@ -33,6 +33,8 @@ const LOOK: Record<WordTestResult, Look> = {
 /** 펼쳐 보이는 묶음 순서. 맞은 단어는 따로 접어 둔다 */
 const OPEN_ORDER: WordTestResult[] = ['wrong', 'blank', 'unclear']
 
+const isKnown = (result: string): result is WordTestResult => Object.hasOwn(LOOK, result)
+
 export function ResultView({
   submission,
   code,
@@ -42,14 +44,24 @@ export function ResultView({
   code: string
   onRetry: () => void
 }) {
-  const items = submission.items ?? []
-  const byResult = (result: WordTestResult) => items.filter((item) => item.result === result)
-  // 서버가 이 화면이 모르는 result를 보내면(계약 밖) 묶음에서 빠진다 — 개발자 콘솔에만 남긴다
-  const unknown = items.filter((item) => !(item.result in LOOK))
-  if (unknown.length > 0) console.error('[wordtest] unknown item result', unknown.length)
+  // 이 화면이 모르는 result(계약 밖)는 판정을 추측하지 않고 "잘 안 보인 단어"(선생님이 확인)로 보인다 —
+  // 묶음에서 빠지면 학생은 그 문항을 볼 수 없고 "모두 맞았어요"가 점수와 어긋났다(#173 리뷰)
+  const received = submission.items
+  const unknownCount = (received ?? []).filter((item) => !isKnown(item.result)).length
+  const items = (received ?? []).map((item) =>
+    isKnown(item.result) ? item : { ...item, result: 'unclear' as const },
+  )
+  useEffect(() => {
+    // graded면 items가 있어야 한다(계약) — 원인을 알 수 있게 기록만, 문항 내용은 남기지 않는다
+    if (received === undefined) console.error('[wordtest] graded without items', submission.id)
+    if (unknownCount > 0) console.error('[wordtest] unknown item result', unknownCount)
+  }, [received, unknownCount, submission.id])
 
+  const byResult = (result: WordTestResult) => items.filter((item) => item.result === result)
   const wrongCount = byResult('wrong').length + byResult('blank').length
   const unclearCount = byResult('unclear').length
+  // "모두 맞았어요"는 서버 점수가 만점일 때만(묶음 개수로 정하지 않는다)
+  const allCorrect = submission.score === submission.total && items.length > 0 && wrongCount === 0
 
   return (
     <>
@@ -67,9 +79,7 @@ export function ResultView({
           {unclearCount > 0 && <p className={styles.scoreNote}>{COPY.unclearNote(unclearCount)}</p>}
         </Card>
 
-        {wrongCount === 0 && unclearCount === 0 && items.length > 0 && (
-          <p className={styles.allCorrect}>{COPY.allCorrect}</p>
-        )}
+        {allCorrect && unclearCount === 0 && <p className={styles.allCorrect}>{COPY.allCorrect}</p>}
 
         {OPEN_ORDER.map((result) => (
           <ItemGroup key={result} result={result} items={byResult(result)} />

@@ -11,7 +11,7 @@ import { renderRoutes } from '../../../test/render'
 import { latestQuery, type WordTestSubmission } from './wordTestApi'
 import { COPY } from './wordTestCopy'
 
-// S-03 홈의 단어시험 진입 줄(#173) — 최근 제출(D-4) 200·204일 때만, 그 밖은 숨기고 홈은 그대로
+// S-03 홈의 단어시험 진입 줄(#173) — 최근 제출 조회(…/latest) 200·204일 때만, 그 밖은 숨기고 홈은 그대로
 const LATEST = '*/api/v1/word-tests/lessons/:code/latest'
 let latestCalls: string[]
 
@@ -73,7 +73,18 @@ describe('홈 단어시험 진입 줄', () => {
   it.each([
     ['채점 결과', graded, `${COPY.scoreLabel} 35 / 48`],
     ['채점 중', { ...graded, status: 'grading', score: null, items: undefined }, COPY.grading],
+    [
+      '접수(pending)',
+      { ...graded, status: 'pending', score: null, items: undefined },
+      COPY.grading,
+    ],
     ['실패', { ...graded, status: 'failed', score: null, items: undefined }, COPY.failed],
+    [
+      '확인 중(2단계)',
+      { ...graded, status: 'confirming', score: null, items: undefined },
+      COPY.held,
+    ],
+    ['점수 없는 graded(계약 밖)', { ...graded, score: null, items: undefined }, COPY.held],
   ] as const)('최근 제출이 %s이면 보조 글에 서버 상태', async (_, body, text) => {
     server.use(http.get(LATEST, () => HttpResponse.json(body)))
     renderHome()
@@ -114,9 +125,24 @@ describe('홈 단어시험 진입 줄', () => {
     server.use(
       http.get('*/api/v1/student/home', () => HttpResponse.json({ ...buildHome(), words: null })),
     )
-    renderHome()
+    const { client } = renderHome()
     await screen.findByText('다음 수업')
     expect(entry()).not.toBeInTheDocument()
+    // 요청 수(비동기 이벤트) 대신 쿼리 캐시로 — 조회를 만들지 않았다
+    expect(client.getQueryCache().findAll({ queryKey: ['student', 'wordTest'] })).toHaveLength(0)
     expect(latestCalls).toHaveLength(0)
+  })
+
+  it('회차는 오늘 수업이 아니라 오늘 단어 회차를 쓴다', async () => {
+    const home = buildHome()
+    server.use(
+      http.get('*/api/v1/student/home', () =>
+        HttpResponse.json({ ...home, words: { ...home.words!, lessonCode: 'L2-B1-04' } }),
+      ),
+    )
+    renderHome()
+    const link = await screen.findByRole('link', { name: new RegExp(COPY.title) })
+    expect(link).toHaveAttribute('href', '/lessons/L2-B1-04/word-test')
+    expect(latestCalls).toEqual(['/api/v1/word-tests/lessons/L2-B1-04/latest?section=B'])
   })
 })

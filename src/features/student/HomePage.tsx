@@ -102,7 +102,7 @@ export function HomePage() {
           )}
         </div>
 
-        {/* 단어시험 1단계(#173) — 기능이 꺼졌거나 못 받으면 그리지 않는다 */}
+        {/* 단어시험 진입 줄(#173) — 오늘 단어 회차가 있을 때만. 기능 꺼짐·조회 실패면 WordTestEntry가 숨긴다 */}
         {data.words !== null && <WordTestEntry lessonCode={data.words.lessonCode} />}
 
         <HomeScreenHint />
