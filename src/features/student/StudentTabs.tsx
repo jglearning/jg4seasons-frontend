@@ -1,8 +1,9 @@
-import { Copy, House, List } from 'lucide-react'
+import { Copy, House, List, PenLine } from 'lucide-react'
 import { BottomBar, type BottomTab } from '../../shared/ui/BottomBar'
 import type { StudentHome } from './studentApi'
+import { COPY as WORD_TEST_COPY } from './wordtest/wordTestCopy'
 
-// 학생 하단 탭: 홈 · 회차(밀린 수 배지 — 서버 stats, STU-01) · 단어(오늘 회차 단어 S-06).
+// 학생 하단 탭: 홈 · 회차(밀린 수 배지 — 서버 stats, STU-01) · 단어(오늘 회차 단어 S-06) · 시험(단어시험 목록, #185).
 // 홈을 아직 못 받았거나 단어가 없으면 단어 탭은 누를 수 없다
 export function StudentTabs({ home }: { home: StudentHome | undefined }) {
   const overdue = home?.stats.overdueLessons ?? 0
@@ -23,6 +24,7 @@ export function StudentTabs({ home }: { home: StudentHome | undefined }) {
           badge: { count: overdue, label: `밀린 수업 ${overdue}개` },
         },
         words,
+        { label: WORD_TEST_COPY.tab, icon: PenLine, to: '/word-tests', end: true },
       ]}
     />
   )

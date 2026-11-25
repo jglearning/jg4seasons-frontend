@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Camera } from 'lucide-react'
 import { ActionRow } from '../../../shared/ui/ActionRow'
-import { latestQuery, SECTION_SPELLING, type WordTestSubmission } from './wordTestApi'
+import { latestQuery, SECTION_SPELLING, wordTestPath } from './wordTestApi'
 import styles from './WordTest.module.css'
 import { COPY } from './wordTestCopy'
+import { latestDetail } from './wordTestText'
 
 // S-03 홈 "오늘 단어" 아래 단어시험 진입 줄(#173). 회차는 서버가 준 오늘 단어 회차.
 // 회차의 최근 제출 조회(GET /word-tests/lessons/{lessonCode}/latest)가 200·204일 때만 보인다 —
@@ -15,29 +16,10 @@ export function WordTestEntry({ lessonCode }: { lessonCode: string }) {
   if (!latest.isSuccess) return null
   return (
     <ActionRow
-      to={`/lessons/${lessonCode}/word-test`}
+      to={wordTestPath(lessonCode)}
       icon={<Camera size={24} strokeWidth={2} className={styles.entryIcon} />}
       title={COPY.title}
-      detail={entryDetail(latest.data)}
+      detail={latestDetail(latest.data)}
     />
   )
-}
-
-/** 보조 글 — 최근 제출의 서버 상태·점수를 보여 주기만 한다. 제출 화면(StatusView)과 같은 갈래 */
-function entryDetail(latest: WordTestSubmission | null): string {
-  if (latest === null) return COPY.entryNew
-  switch (latest.status) {
-    case 'graded':
-      // 점수 없는 graded(계약 밖)는 제출 화면이 확인 안내로 받으므로 같은 글
-      return latest.score === null
-        ? COPY.held
-        : `${COPY.scoreLabel} ${latest.score} / ${latest.total}`
-    case 'pending':
-    case 'grading':
-      return COPY.grading
-    case 'failed':
-      return COPY.failed
-    default:
-      return COPY.held
-  }
 }
