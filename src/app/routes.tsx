@@ -25,6 +25,7 @@ import { AcademyPage } from '../features/system/AcademyPage'
 import { CardsRedirect, WordsPage } from '../features/words/WordsPage'
 import { SubmitPage as WordTestSubmitPage } from '../features/student/wordtest/SubmitPage'
 import { WordTestsPage } from '../features/student/wordtest/WordTestsPage'
+import { TalkPage } from '../features/student/talk/TalkPage'
 import { ClassesPage as TeacherClassesPage } from '../features/teacher/ClassesPage'
 import { LessonPage as TeacherLessonPage } from '../features/teacher/LessonPage'
 import { MatrixPage } from '../features/teacher/MatrixPage'
@@ -56,6 +57,7 @@ export const routes: RouteObject[] = [
           { path: '/lessons/:code/cards', element: <CardsRedirect /> },
           { path: '/lessons/:code/word-test', element: <WordTestSubmitPage /> },
           { path: '/word-tests', element: <WordTestsPage /> },
+          { path: '/talk', element: <TalkPage /> },
         ],
       },
       {

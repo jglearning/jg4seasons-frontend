@@ -11,6 +11,7 @@ import {
 import { buildHome, buildLessons, STUDENT_MOCK } from './studentData'
 import { systemHandlers } from './systemData'
 import { teacherHandlers } from './teacherData'
+import { talkHandlers } from './talkData'
 import { buildWords, recordWordStudy } from './wordData'
 import { wordTestHandlers, wordTestTeacherHandlers } from './wordTestData'
 
@@ -321,6 +322,7 @@ export const handlers: AnyHandler[] = [
   ...authHandlers,
   ...studentHandlers,
   ...wordTestHandlers({ problem, readJson, currentUser: () => session }),
+  ...talkHandlers({ problem, readJson, currentUser: () => session }),
   ...wordTestTeacherHandlers({ problem, readJson, currentUser: () => session }),
   ...adminHandlers({ problem, readJson, currentUser: () => session }),
   ...teacherHandlers({ problem, readJson, currentUser: () => session }),

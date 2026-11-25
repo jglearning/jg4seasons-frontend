@@ -1,0 +1,511 @@
+/* 캐릭터 프리토킹 1단계(시연용) — 와이어프레임 없음. v0.2 부품(턱 버튼·흰 카드·선택 줄)과 토큰만으로 조립.
+   그림 뒤 크림 면만 "캐릭터는 홈에만"의 예외. 그림자·그라데이션 없음 */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: 22px 0 calc(var(--space-6) + env(safe-area-inset-bottom));
+}
+
+.audio {
+  display: none;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: var(--tracking-title);
+}
+
+/* 시작 전·잠금·요약의 그림 — 배경 없는 상반신을 가운데에(면·상자 없음, 11/25 동섭) */
+.face {
+  display: flex;
+  justify-content: center;
+  height: 300px;
+}
+
+.faceCompact {
+  height: 220px;
+}
+
+.art {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* 잠금·요약 없음 안내 */
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  text-align: center;
+  word-break: keep-all;
+}
+
+.messageTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.messageSub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* 화면 아래 자리 */
+.bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 시작 전 — 주제 카드 3개(하나 고르기). 고른 카드는 ink 2px 테두리 + 굵게(색만으로 구분하지 않음) */
+.topics {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.topic {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 0 var(--space-4);
+  border: var(--border-card) solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+  cursor: pointer;
+}
+
+.topic:has(.topicInput:checked) {
+  border: 2px solid var(--ink);
+  padding: 0 calc(var(--space-4) - 1px);
+}
+
+.topic:has(.topicInput:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.topicInput {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.topicText {
+  font-size: 16px;
+  font-weight: 500;
+  word-break: keep-all;
+}
+
+.topic:has(.topicInput:checked) .topicText {
+  font-weight: 700;
+}
+
+.remaining {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.alert {
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-card) solid var(--danger-card-line);
+  border-radius: 14px;
+  background: var(--white);
+}
+
+.alertTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.alertSub {
+  margin: var(--space-1) 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* 대화 — 위 남은 시간 알약 / 가운데 배경 없는 상반신 / 그 아래 말풍선 / 아래 가운데 끊기.
+   배경 그림 위에 말풍선을 겹쳤더니 안 읽혀서 나눴다(11/25 동섭) */
+.call {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* 흰 패널이 화면 아래 끝까지 — .screen 아래 여백을 넘는다 */
+  margin-bottom: calc(-1 * (var(--space-6) + env(safe-area-inset-bottom)));
+}
+
+.stageTop {
+  display: flex;
+  justify-content: center;
+}
+
+.stage {
+  flex: none;
+  height: clamp(200px, 34svh, 300px);
+  margin: var(--space-2) calc(-1 * var(--gutter-student)) 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.stageArt {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+/* 남은 시간 + 음량 막대 — 흰 알약 */
+.timePill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--white);
+}
+
+.time {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeWarn {
+  color: var(--warning);
+}
+
+.connecting {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.meter {
+  width: 48px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  overflow: hidden;
+}
+
+.meterBar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--L-deep);
+  transform: scaleX(0.04);
+  transform-origin: left center;
+}
+
+/* 흰 대화 패널 — 위 모서리만 둥글게, 화면 좌우·아래 끝까지. 상반신의 잘린 아래 직선이 패널 경계에 붙는다 */
+.chatPanel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 calc(-1 * var(--gutter-student));
+  padding: var(--space-4) var(--gutter-student) calc(var(--space-6) + env(safe-area-inset-bottom));
+  border-top: var(--border-card) solid var(--line);
+  border-radius: 28px 28px 0 0;
+  background: var(--white);
+}
+
+/* 자막 — 채팅 말풍선(11/25 동섭: 지시서의 "말풍선 없음"을 바꿈). 최근 3개, 아래가 지금 말.
+   넘치면 위가 잘린다(스크롤 없음). 그림자 없음. 캐릭터는 레벨 연한 색 면, 나는 흰 면 + 테두리 */
+.captions {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  overflow: hidden;
+}
+
+.lineCharacter,
+.lineStudent {
+  flex: none;
+  margin: 0;
+  max-width: 85%;
+  box-sizing: border-box;
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 캐릭터: 왼쪽 흰 풍선, 말한 쪽 아래 모서리만 덜 둥글게 */
+.lineCharacter {
+  align-self: flex-start;
+  padding: 10px 14px;
+  border: var(--border-card) solid var(--line);
+  border-radius: 18px 18px 18px 6px;
+  background: var(--L-tint);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* 학생: 오른쪽 풍선 — 면은 바탕과 같은 레벨 연한 색이라 테두리로 보인다. 작고 흐리게 — 인식이 틀릴 수 있어서 */
+.lineStudent {
+  align-self: flex-end;
+  padding: 8px 12px;
+  border: var(--border-card) solid var(--line-strong);
+  border-radius: 16px 16px 6px 16px;
+  background: var(--white);
+  font-size: 15px;
+  color: var(--muted);
+}
+
+/* 지나간 말 — 글자만 흐리게(풍선은 그대로). --faint는 풍선 면 위에서 2.4~2.7:1이라 본문 대비 4.5:1을 못 넘어
+   muted(5.3~6.0:1)로 — Impeccable audit 11/25 */
+.linePast {
+  color: var(--muted);
+}
+
+/* 단어가 나타나는 움직임 — 120ms 페이드만. 움직임 줄이기면 없음(문장 단위로 한 번에) */
+.word {
+  animation: wordIn 120ms ease-out;
+}
+
+@keyframes wordIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word {
+    animation: none;
+  }
+}
+
+/* 회차 단어 — 굵게 + 레벨 진한 색 밑줄 2px(색만으로 구분하지 않는다). 글자색은 줄 색 그대로.
+   글자 자리는 그대로 두고 누르는 자리만 44px로 넓힌다 */
+.lessonWord {
+  position: relative;
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 800;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--L-deep);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.lessonWord::after {
+  content: '';
+  position: absolute;
+  inset: calc((44px - 1.45em) / -2) -4px;
+}
+
+.lessonWord:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 뜻 한 줄 */
+.meaning {
+  flex: none;
+  align-self: flex-start;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--white);
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.meaningWord {
+  font-weight: 800;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 아래 가운데 끊기 */
+.callBottom {
+  display: flex;
+  justify-content: center;
+  min-height: 64px;
+}
+
+.hangup {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 2px solid var(--danger-line);
+  border-radius: var(--radius-pill);
+  background: var(--white);
+  color: var(--danger);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--motion-press);
+}
+
+.hangup:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.hangup:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.hangup:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.confirm {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.confirmText {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.confirmButtons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/* 요약 */
+.summaryHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  text-align: center;
+}
+
+.summaryTitle {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.card {
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-student);
+  background: var(--white);
+}
+
+.cardTitle {
+  margin: 0 0 var(--space-2);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.expression {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.correction p {
+  margin: 0;
+}
+
+.said {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.better {
+  margin-top: 2px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.note {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.footnote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.entryIcon {
+  color: var(--L-deep);
+}
