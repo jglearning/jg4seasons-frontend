@@ -36,4 +36,20 @@ export const COPY = {
   footnote: '시험 삼아 여는 기능이에요. 채점이 틀리면 선생님께 말해요',
   // 홈 진입 줄(#173) — 최근 제출이 없을 때의 보조 글
   entryNew: '책을 찍어 올리면 채점해 줘요',
+  // 단어시험 목록(#185, 하단 탭 "시험")
+  tab: '시험',
+  listTitle: '단어시험',
+  listCount: (n: number) => `시험지 ${n}회차`,
+  today: '오늘',
+  featuredNew: '아직 안 냈어요',
+  openResult: '결과 보기',
+  // 도장판 동그라미 아래 짧은 글(12px) — 점수는 "44/48"
+  stampNew: '아직',
+  stampGrading: '채점 중',
+  stampFailed: '다시',
+  stampHeld: '확인 중',
+  stampNone: '시험 없음',
+  listEmpty: '아직 올릴 시험이 없어요',
+  listEmptySub: '선생님이 시험지를 준비하면 여기에 생겨요',
+  listLoading: '불러오는 중이에요',
 } as const

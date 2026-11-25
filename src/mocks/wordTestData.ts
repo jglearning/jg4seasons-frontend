@@ -34,6 +34,8 @@ const DEFAULTS = {
   /** 조회 몇 번째부터 grading · graded인가(제출 직후 첫 조회 = 1). 테스트가 바꿔 쓴다 */
   gradingAtPoll: 1,
   gradedAtPoll: 3,
+  /** 시험지가 없는 회차 — 최근 제출 조회가 404 NOT_FOUND(목록 #185에서 빠지는 회차 확인용) */
+  noSheetCodes: ['L2-B1-02', 'K-B1-02'] as readonly string[],
 }
 
 export const WORD_TEST_MOCK = {
@@ -64,7 +66,9 @@ export function resetWordTestMock() {
 const SECTIONS: readonly WordTestSection[] = ['A', 'B', 'C', 'D']
 const isSection = (value: unknown): value is WordTestSection =>
   SECTIONS.includes(value as WordTestSection)
-const isOpen = (code: string) => (LESSON_MOCK.openCodes as readonly string[]).includes(code)
+// 블랙(dev:mock ?level=black)은 회차 코드가 K-B1-…, 진도표 순서 1~5가 열린 회차(studentData와 같음)
+const isOpen = (code: string) =>
+  (LESSON_MOCK.openCodes as readonly string[]).includes(code) || /^K-B1-0[1-5]$/.test(code)
 
 export function mockItemTotal(lessonCode: string): number {
   const mint = lessonCode.startsWith('L1-') || (STUDENT_MOCK.level.code as string) === 'L1'
@@ -114,6 +118,32 @@ export function buildItems(total: number): MockItem[] {
     }
   })
 }
+
+/**
+ * dev:mock 화면 확인용 예시 제출(#185 목록) — 브라우저 목(browser.ts)에서만 부른다(테스트는 빈 상태에서 시작).
+ * graded는 채점 결과까지, grading은 계속 채점 중으로 둔다(조회해도 넘어가지 않게 polls를 크게 빼 둠)
+ */
+export function seedWordTestSubmission(lessonCode: string, status: 'graded' | 'grading') {
+  const id = nextId++
+  const total = mockItemTotal(lessonCode)
+  const items = studentItems(total)
+  const submission: WordTestSubmission = {
+    id,
+    lessonCode,
+    section: SECTION_B,
+    attemptNo: 1,
+    status,
+    score: status === 'graded' ? items.filter((item) => item.result === 'correct').length : null,
+    total,
+    submittedAt: new Date(Date.now() - 86_400_000).toISOString(),
+    gradedAt: status === 'graded' ? new Date(Date.now() - 86_390_000).toISOString() : null,
+    ...(status === 'graded' ? { items } : {}),
+  }
+  submissions.set(id, { submission, polls: status === 'grading' ? -1_000_000 : 0 })
+  latest.set(`${lessonCode}:${SECTION_B}`, id)
+}
+
+const SECTION_B: WordTestSection = 'B'
 
 /** 조회 응답 — graded가 아니면 score·gradedAt null, items 필드 없음(D-3) */
 function view(stored: Stored): WordTestSubmission {
@@ -242,6 +272,8 @@ export function wordTestHandlers({ problem, readJson, currentUser }: Helpers): A
       const section = new URL(request.url).searchParams.get('section')
       if (!isSection(section)) return problem(request, 400, 'VALIDATION', '요청 형식이 맞지 않아요')
       if (!isOpen(code)) return locked(request)
+      if (WORD_TEST_MOCK.noSheetCodes.includes(code))
+        return problem(request, 404, 'NOT_FOUND', '시험지를 찾을 수 없어요')
       const id = latest.get(`${code}:${section}`)
       if (id === undefined) return new HttpResponse(null, { status: 204 })
       const stored = submissions.get(id)!

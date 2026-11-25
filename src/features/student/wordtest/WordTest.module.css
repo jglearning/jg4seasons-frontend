@@ -347,3 +347,199 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* 단어시험 목록(#185, 하단 탭 "시험") — S-04 회차 목록과 한 가족:
+   머리 56(17/13), 맨 위 카드, 묶음 상자 안 동그라미 4열 */
+.listHeader {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 56px;
+}
+
+.listTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.listSub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.listNote {
+  margin: var(--space-4) 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* 판: S-04 .board와 같은 자리(좌우 12) */
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: var(--space-1) calc((var(--gutter-student) - 12px) * -1) 0;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 맨 위 카드: 흰 면, 반경 20, 1.5px line-strong(S-04 오늘 회차 카드) */
+.featured {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: var(--space-1);
+  padding: 14px var(--space-4);
+  border: var(--border-control) solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--white);
+}
+
+.featuredHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.featuredTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.featuredTag {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.featuredDetail {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 이 카드의 턱 버튼: 높이 44, 반경 12(S-04 .featuredAction) */
+.featuredAction {
+  margin-top: 4px;
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+/* 묶음 상자: 흰 면, 반경 20, 1px line */
+.group {
+  padding: 14px var(--space-4) 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--white);
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.groupTitle {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.groupBar {
+  flex: none;
+  width: 64px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.groupFill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--L-deep);
+}
+
+.groupCount {
+  flex: none;
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  row-gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cell {
+  display: flex;
+}
+
+/* 동그라미 44 + 아래 글 한 줄 16. 누르는 자리는 칸 전체(약 85×70) */
+.stamp {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 70px;
+  padding: 2px 0 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.stampCaption {
+  min-height: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 빈 상태: S-04 빈 도장판과 한 가족(1.5px faint 점선, 반경 20, 면·턱 없음) */
+.listEmpty {
+  box-sizing: border-box;
+  margin: var(--space-2) 0 0;
+  padding: 24px var(--space-4) 28px;
+  border: var(--border-control) dashed var(--faint);
+  border-radius: 20px;
+  text-align: center;
+}
+
+.listEmptyTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.listEmptySub {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  color: var(--muted);
+}

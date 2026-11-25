@@ -20,6 +20,18 @@ export type WordTestResult = WordTestItem['result']
 /** 이번에 만드는 영역(B 철자 쓰기). 값으로 다뤄 나중에 영역을 늘린다 */
 export const SECTION_SPELLING: WordTestSection = 'B'
 
+/** 학생이 낼 수 있는 영역 — 목록(#185)이 회차마다 이 영역들의 최근 제출을 본다. A·C·D는 2차에 여기에 더한다 */
+export const OPEN_SECTIONS: readonly WordTestSection[] = [SECTION_SPELLING]
+
+/**
+ * 제출 화면 주소 — 진입 줄·목록이 같이 쓴다. B는 영역 없는 주소(#171부터 쓰던 주소 그대로).
+ * 다른 영역은 `?section=`으로 — 제출 화면이 그 값을 읽게 하는 것은 영역을 열 때(지금 OPEN_SECTIONS는 B뿐)
+ */
+export function wordTestPath(lessonCode: string, section: WordTestSection = SECTION_SPELLING) {
+  const path = `/lessons/${lessonCode}/word-test`
+  return section === SECTION_SPELLING ? path : `${path}?section=${section}`
+}
+
 /**
  * 조회를 멈출 상태 — 채점이 도는 중(pending·grading)이 아닌 모든 값.
  * graded·failed는 끝, confirming·rejected(2단계)와 모르는 값은 서버가 혼자 넘어가지 않을 수 있어
