@@ -379,8 +379,9 @@ describe('자막', () => {
 })
 
 describe('마무리 인사', () => {
+  /** 마무리 한 번 = 시스템 메시지 한 개(뒤에 response.create가 붙는다) */
   const closingSent = (sent: Record<string, unknown>[]) =>
-    sent.filter((e) => e.type === 'response.create')
+    sent.filter((e) => e.type === 'conversation.item.create')
 
   it('남은 시간 20초에 한 번만 보내고, 그 인사의 소리가 끝나면 timeout으로 끝낸다', async () => {
     const t = setup({ maxSeconds: 30 })
@@ -388,9 +389,19 @@ describe('마무리 인사', () => {
     t.h().onOpen()
     await vi.advanceTimersByTimeAsync((30 - CLOSING_AT_SECONDS) * 1000 + 100)
 
-    expect(closingSent(t.sent)).toEqual([
-      { type: 'response.create', response: { instructions: CLOSING } },
+    // 세션 지시문을 바꾸지 않게 instructions 없이 — 시스템 메시지를 넣고 응답을 만든다(BE #84 요청)
+    expect(t.sent.slice(-2)).toEqual([
+      {
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'system',
+          content: [{ type: 'input_text', text: CLOSING }],
+        },
+      },
+      { type: 'response.create' },
     ])
+    expect(closingSent(t.sent)).toHaveLength(1)
     expect(t.call.state.closing).toBe(true)
     await vi.advanceTimersByTimeAsync(3_000)
     expect(closingSent(t.sent)).toHaveLength(1)

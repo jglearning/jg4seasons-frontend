@@ -477,6 +477,115 @@ describe('TalkPage 연결·이탈(리뷰 11/25)', () => {
   })
 })
 
+describe('TalkPage 실제 계약(BE #84·#85·#87)', () => {
+  /** 세션 생성 요청 본문을 차례로 모은다 */
+  function recordCreates() {
+    const bodies: Record<string, unknown>[] = []
+    server.events.on('request:start', async ({ request }) => {
+      if (new URL(request.url).pathname.endsWith('/talk/sessions'))
+        bodies.push((await request.clone().json()) as Record<string, unknown>)
+    })
+    return bodies
+  }
+
+  const createdWithoutKey = (id: number) =>
+    HttpResponse.json({ id, status: 'expired', maxSeconds: 180, realtime: null })
+
+  it('세션 생성 요청은 clientSessionId · topic code만(목소리는 서버가 정함)', async () => {
+    const bodies = recordCreates()
+    renderTalk()
+    await userEvent.click(await screen.findByRole('radio', { name: '오늘 하루' }))
+    await userEvent.click(await startButton())
+    await waitFor(() => expect(realtime.handlers).toBeDefined())
+    expect(bodies).toHaveLength(1)
+    expect(Object.keys(bodies[0]).sort()).toEqual(['clientSessionId', 'topic'])
+    expect(bodies[0].topic).toBe('day')
+    act(() => realtime.handlers!.onOpen())
+    await hangUp()
+  })
+
+  it('realtime null(끝난 세션·60초 지남)이면 새 clientSessionId로 한 번 더 만들어 연결', async () => {
+    const bodies = recordCreates()
+    let first = true
+    server.use(
+      http.post('*/api/v1/talk/sessions', () => {
+        if (!first) return undefined
+        first = false
+        return createdWithoutKey(70)
+      }),
+    )
+    renderTalk()
+    await userEvent.click(await startButton())
+    await waitFor(() => expect(realtime.calls).toBe(1))
+    expect(bodies).toHaveLength(2)
+    expect(bodies[1].clientSessionId).not.toBe(bodies[0].clientSessionId)
+    act(() => realtime.handlers!.onOpen())
+    await hangUp()
+  })
+
+  it('다시 만들어도 realtime null이면 연결 실패 안내, 연결하지 않고 마이크를 끈다', async () => {
+    const bodies = recordCreates()
+    server.use(http.post('*/api/v1/talk/sessions', () => createdWithoutKey(71)))
+    renderTalk()
+    await userEvent.click(await startButton())
+    expect(await screen.findByText('연결하지 못했어요. 다시 해 봐요')).toBeInTheDocument()
+    expect(realtime.calls).toBe(0)
+    expect(track.stop).toHaveBeenCalled()
+    expect(bodies).toHaveLength(2)
+    // 다음 시도도 또 새 값
+    await userEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await waitFor(() => expect(bodies).toHaveLength(4))
+    expect(new Set(bodies.map((b) => b.clientSessionId)).size).toBe(4)
+    await screen.findByText('연결하지 못했어요. 다시 해 봐요')
+  })
+
+  it('503 REALTIME_UNAVAILABLE이면 연결 실패 안내, 다시 시도는 새 clientSessionId로', async () => {
+    const bodies = recordCreates()
+    let first = true
+    server.use(
+      http.post('*/api/v1/talk/sessions', () => {
+        if (!first) return undefined
+        first = false
+        return HttpResponse.json(
+          { title: '잠시 뒤 다시 해 주세요', status: 503, code: 'REALTIME_UNAVAILABLE' },
+          { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
+        )
+      }),
+    )
+    renderTalk()
+    await userEvent.click(await startButton())
+    expect(await screen.findByText('연결하지 못했어요. 다시 해 봐요')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await waitFor(() => expect(realtime.calls).toBe(1))
+    expect(bodies).toHaveLength(2)
+    expect(bodies[1].clientSessionId).not.toBe(bodies[0].clientSessionId)
+    act(() => realtime.handlers!.onOpen())
+    await hangUp()
+  })
+
+  it('종료 응답의 시간·문장 수가 null이면 요약 머리 줄 없이', async () => {
+    server.use(
+      http.post('*/api/v1/talk/sessions/:id/end', ({ params }) =>
+        HttpResponse.json({
+          id: Number(params.id),
+          status: 'created',
+          durationSec: null,
+          studentTurnCount: null,
+          summary: null,
+        }),
+      ),
+    )
+    renderTalk()
+    await userEvent.click(await startButton())
+    await waitFor(() => expect(realtime.handlers).toBeDefined())
+    act(() => realtime.handlers!.onOpen())
+    await hangUp()
+    expect(screen.getByText('오늘 대화는 여기까지예요')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /동안 말했어요/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/내가 말한 문장/)).not.toBeInTheDocument()
+  })
+})
+
 /** 캐릭터가 한 마디를 끝까지 말함(글자 → 소리 시작 → 소리 끝) */
 function say(id: string, text: string) {
   const h = realtime.handlers!

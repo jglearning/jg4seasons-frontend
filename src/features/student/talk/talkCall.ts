@@ -11,8 +11,9 @@ import type { TalkEndBody, TalkEndReason, TalkRole, TalkSessionResult, TalkTurn 
 //   conversation.item.truncate는 보내지 않는다
 // - 학생 말은 말이 끝난 자리(speech_stopped)에 줄 자리를 잡고, 받아쓰기 글자가 오면 채운다. 비어 오면 줄을 지운다
 //
-// 마무리(나-3): 남은 시간이 CLOSING_AT_SECONDS가 되면 closingInstruction을 한 번만 보낸다(response.create의
-// response.instructions — 그 응답에만 세션 설정을 덮어쓴다, 공식 client-events). 응답은 한 번에 하나만 쓸 수 있어
+// 마무리(나-3): 남은 시간이 CLOSING_AT_SECONDS가 되면 closingInstruction을 한 번만 보낸다 — 시스템 메시지
+// (conversation.item.create, role system)를 넣고 response.create. response.instructions는 그 응답 동안 세션 지시문
+// (캐릭터 설정·안전 규칙)을 대신하므로 쓰지 않는다(BE #84 요청). 응답은 한 번에 하나만 쓸 수 있어
 // 학생이 말하는 중·응답이 도는 중·소리가 나는 중에는 기다린다. 그 응답의 소리가 끝나면 종료(timeout).
 // 시간이 0이 됐는데 캐릭터가 말하는 중이면 기다리고, maxSeconds + GRACE_SECONDS에는 무조건 끊는다.
 //
@@ -507,7 +508,15 @@ export class TalkCall {
     if (!instructions || !this.connection) return
     clearTimeout(this.closingTimer)
     this.closingSent = true
-    this.connection.send({ type: 'response.create', response: { instructions } })
+    this.connection.send({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'system',
+        content: [{ type: 'input_text', text: instructions }],
+      },
+    })
+    this.connection.send({ type: 'response.create' })
     this.update({ closing: true })
   }
 
