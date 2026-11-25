@@ -2,11 +2,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { ApiError } from '../../../api/errors'
-import { bustArt, levelEnglish } from '../../../shared/level'
+import { coverArt, levelEnglish } from '../../../shared/level'
 import { Button, ButtonLink } from '../../../shared/ui/Button'
 import { StudentLayout } from '../../../shared/ui/StudentLayout'
 import { LoadState } from '../LoadState'
 import { homeQuery } from '../studentApi'
+import { ArrowRight, Check, Lock } from 'lucide-react'
 import { CallView } from './CallView'
 import { connectRealtime } from './realtime'
 import {
@@ -17,12 +18,13 @@ import {
   type TalkSessionResult,
 } from './talkApi'
 import { TalkCall, type TalkSnapshot } from './talkCall'
+import { TalkCover, type Art } from './TalkCover'
 import { holdScreen, isMicDenied, LevelMeter, requestMic } from './talkDevice'
 import styles from './Talk.module.css'
 
 // 캐릭터 프리토킹 1단계(시연용). 시작 전 → 대화 → 요약 / 잠금(구독 없음). 탭 바 없음.
-// "캐릭터는 홈에만" 규칙의 예외 화면 — 배경 없는 상반신(움직이지 않음). 말하는 쪽은 시간 알약 안 음량 막대로만,
-// 자막은 흰 대화 패널 안 말풍선(최근 3개). 대화 화면은 CallView.tsx.
+// "캐릭터는 홈에만" 규칙의 예외 화면 — 홈 표지와 같은 그림을 레벨 바탕 위에(움직이지 않음, 시안 11/26 · TalkCover.tsx).
+// 대화 화면(연결 중·대화·끝내기 확인)은 CallView.tsx.
 // 기능이 꺼진 학원(404 FEATURE_DISABLED)은 홈으로 보낸다(홈에도 진입 줄이 없다).
 // 목소리는 고르지 않는다 — 캐릭터(레벨)에 맞춰 서버가 정한다(11/25 동섭)
 
@@ -49,25 +51,37 @@ export function TalkPage() {
   const level = home.data.class.level
   const english = levelEnglish(level.code)
   const art = {
-    src: bustArt(level.code, home.data.class.book.season),
+    src: coverArt(level.code, home.data.class.book.season),
     alt: `${english ? `${english} ` : ''}${level.nameKo} 단계 캐릭터`,
   }
+  // 시작 전 큰 카드의 "Reading Day 5 단어가 대화에 나와요" — 홈 머리와 같은 회차(오늘, 개강 전이면 첫 수업)
+  const lessonTitle = (home.data.today?.lesson ?? home.data.next?.lesson)?.title
   return (
     <StudentLayout levelCode={level.code}>
-      <Talk config={config.data} art={art} />
+      <Talk config={config.data} art={art} lessonTitle={lessonTitle} />
     </StudentLayout>
   )
 }
 
-type Art = { src: string | undefined; alt: string }
+/** 큰 카드로 그리는 주제(서버 topics의 code) — 나머지는 알약 버튼 */
+const LESSON_TOPIC = 'lesson'
 
-function Talk({ config, art }: { config: TalkConfig; art: Art }) {
+/** 처음 고른 주제: 회차 단어 주제. 회차 단어가 없으면 다른 주제의 첫 번째(시안 11/26) */
+function firstTopic(config: TalkConfig): string {
+  const others = config.topics.filter((t) => t.code !== LESSON_TOPIC)
+  if (config.lessonWords.length === 0 && others.length > 0) return others[0].code
+  return config.topics[0]?.code ?? ''
+}
+
+type TalkProps = { config: TalkConfig; art: Art; lessonTitle: string | undefined }
+
+function Talk({ config, art, lessonTitle }: TalkProps) {
   const queryClient = useQueryClient()
   const [stage, setStage] = useState<Stage>('before')
   const [lockedByServer, setLockedByServer] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
   const [starting, setStarting] = useState(false)
-  const [topic, setTopic] = useState(config.topics[0]?.code ?? '')
+  const [topic, setTopic] = useState(() => firstTopic(config))
   const [snapshot, setSnapshot] = useState<TalkSnapshot | undefined>()
   const [result, setResult] = useState<TalkSessionResult | null>(null)
 
@@ -76,7 +90,6 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const callRef = useRef<TalkCall | undefined>(undefined)
   const meterRef = useRef<LevelMeter | undefined>(undefined)
-  const barRef = useRef<HTMLSpanElement>(null)
   const micRef = useRef<MediaStream | undefined>(undefined)
   const alive = useRef(true)
   const navigate = useNavigate()
@@ -237,10 +250,10 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
     setStarting(false)
   }, [starting, topic, ended, navigate])
 
-  // 음량 막대 요소가 그려진 뒤 붙인다
-  useEffect(() => {
-    meterRef.current?.attachBar(barRef.current)
-  }, [stage])
+  // 음량 막대 요소는 연결된 뒤(③④)에야 그려진다 — 그려지는 순간 붙인다(콜백 ref)
+  const barRef = useCallback((bar: HTMLSpanElement | null) => {
+    meterRef.current?.attachBar(bar)
+  }, [])
 
   // 음량 막대: 캐릭터가 말하는 중이면 캐릭터 소리, 아니면 학생 마이크
   const speaking = snapshot?.phase === 'speaking'
@@ -252,14 +265,16 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
     meterRef.current?.listen(speaking ? remote : (micRef.current ?? null))
   }, [speaking])
 
+  const topicTitle = config.topics.find((t) => t.code === topic)?.title
+
   return (
-    <div className={styles.screen}>
+    <div className={stage === 'call' && !locked ? styles.screenCall : styles.screen}>
       {/* 캐릭터 소리 — 보이지 않는 요소. 탭 안에서 play()를 불러 둬야 아이폰에서 소리가 난다 */}
       <audio ref={audioRef} autoPlay playsInline className={styles.audio} />
       {locked ? (
         <LockedView art={art} />
       ) : stage === 'summary' ? (
-        <SummaryView art={art} result={result} />
+        <SummaryView result={result} topicTitle={topicTitle} />
       ) : stage === 'call' && snapshot ? (
         <CallView
           art={art}
@@ -272,6 +287,7 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
         <BeforeView
           art={art}
           config={config}
+          lessonTitle={lessonTitle}
           topic={topic}
           onTopic={setTopic}
           failure={failure}
@@ -283,26 +299,26 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
   )
 }
 
-function Character({ art, compact = false }: { art: Art; compact?: boolean }) {
-  return (
-    <div className={compact ? `${styles.face} ${styles.faceCompact}` : styles.face}>
-      {art.src && <img className={styles.art} src={art.src} alt={art.alt} />}
-    </div>
-  )
-}
-
+/** ⑦ 잠금 — 위 레벨 바탕 면(그림 + 뒤로), 아래 "프리미엄" 칩 + 안내, 맨 아래 홈으로 */
 function LockedView({ art }: { art: Art }) {
   return (
     <>
-      <Character art={art} />
-      <div className={styles.message}>
-        <p className={styles.messageTitle}>구독하면 캐릭터와 영어로 말할 수 있어요</p>
-        <p className={styles.messageSub}>선생님께 물어봐요</p>
-      </div>
-      <div className={styles.bottom}>
-        <ButtonLink to="/" variant="secondary" block>
-          홈으로
-        </ButtonLink>
+      <TalkCover art={art} variant="stage" back />
+      <div className={styles.body}>
+        <p className={styles.premium}>
+          <Lock size={16} strokeWidth={2} aria-hidden />
+          프리미엄
+        </p>
+        <h1 className={styles.lockTitle}>
+          구독하면 캐릭터와 <br />
+          영어로 말할 수 있어요
+        </h1>
+        <p className={styles.lockSub}>선생님께 물어봐요</p>
+        <div className={styles.bottom}>
+          <ButtonLink to="/" variant="secondary" block>
+            홈으로
+          </ButtonLink>
+        </div>
       </div>
     </>
   )
@@ -311,6 +327,7 @@ function LockedView({ art }: { art: Art }) {
 type BeforeProps = {
   art: Art
   config: TalkConfig
+  lessonTitle: string | undefined
   topic: string
   onTopic: (code: string) => void
   failure: Failure | null
@@ -318,46 +335,126 @@ type BeforeProps = {
   onStart: () => void
 }
 
-function BeforeView({ art, config, topic, onTopic, failure, starting, onStart }: BeforeProps) {
+/** 큰 카드에 미리 보이는 회차 단어 수 — 나머지는 "+54"처럼 수로 */
+const PREVIEW_WORDS = 3
+
+/**
+ * ① 시작 전 — 레벨 바탕 머리(그림·뒤로·제목) / 주제 고르기: 회차 단어 주제는 큰 카드, 다른 주제는 알약 버튼 나란히.
+ * 셋 다 한 radiogroup(같은 name의 radio — 화살표로 이동). 고른 것은 2px 레벨 진한 색 테두리 + 눌린 자리(턱 없음)
+ */
+function BeforeView({
+  art,
+  config,
+  lessonTitle,
+  topic,
+  onTopic,
+  failure,
+  starting,
+  onStart,
+}: BeforeProps) {
   const noneLeft = config.remainingToday <= 0 || failure === 'limit'
+  const lesson = config.topics.find((t) => t.code === LESSON_TOPIC)
+  const others = config.topics.filter((t) => t.code !== LESSON_TOPIC)
+  const words = config.lessonWords
+  const more = words.length - PREVIEW_WORDS
+
   return (
     <>
-      <h1 className={styles.title}>프리토킹</h1>
-      <Character art={art} compact />
-      <fieldset className={styles.topics}>
-        <legend className={styles.label}>무엇을 이야기할까요</legend>
-        {config.topics.map((item) => (
-          <label key={item.code} className={styles.topic}>
-            <input
-              type="radio"
-              name="talk-topic"
-              value={item.code}
-              checked={topic === item.code}
-              onChange={() => onTopic(item.code)}
-              className={styles.topicInput}
-            />
-            <span className={styles.topicText}>{item.title}</span>
-          </label>
-        ))}
-      </fieldset>
-      {failure === 'mic' && (
-        <div role="alert" className={styles.alert}>
-          <p className={styles.alertTitle}>마이크를 켜야 말할 수 있어요</p>
-          <p className={styles.alertSub}>주소창 옆 설정에서 마이크를 허용하고 다시 눌러요</p>
+      <TalkCover art={art} variant="head" back>
+        <div className={styles.headText}>
+          <h1 className={styles.headTitle}>프리토킹</h1>
+          <p className={styles.headSub}>
+            {duration(config.maxSeconds)} 동안
+            <br />
+            영어로 말해요
+          </p>
         </div>
-      )}
-      {failure === 'connect' && (
-        <div role="alert" className={styles.alert}>
-          <p className={styles.alertTitle}>연결하지 못했어요. 다시 해 봐요</p>
+      </TalkCover>
+
+      <div className={styles.body}>
+        <fieldset className={styles.topics}>
+          <legend className={styles.label}>무엇을 이야기할까요</legend>
+          {lesson && (
+            <label className={styles.lessonCard}>
+              <input
+                type="radio"
+                name="talk-topic"
+                value={lesson.code}
+                checked={topic === lesson.code}
+                onChange={() => onTopic(lesson.code)}
+                className={styles.topicInput}
+              />
+              <span className={styles.lessonCardHead}>
+                <span className={styles.lessonCardText}>
+                  <span className={styles.lessonCardTitle}>{lesson.title}</span>
+                  <span className={styles.lessonCardSub}>
+                    {words.length === 0
+                      ? '오늘 회차 단어가 아직 없어요'
+                      : `${lessonTitle ?? '오늘 회차'} 단어가 대화에 나와요`}
+                  </span>
+                </span>
+                <Check size={24} strokeWidth={3} className={styles.check} aria-hidden />
+              </span>
+              {words.length > 0 && (
+                <span className={styles.chips} aria-hidden>
+                  {words.slice(0, PREVIEW_WORDS).map((word) => (
+                    <span key={word.english} className={styles.chip}>
+                      {word.english}
+                    </span>
+                  ))}
+                  {more > 0 && <span className={styles.chipMore}>+{more}</span>}
+                </span>
+              )}
+            </label>
+          )}
+          {others.length > 0 && (
+            <div className={styles.otherTopics}>
+              {lesson && (
+                <span className={styles.otherLabel} aria-hidden>
+                  다른 주제
+                </span>
+              )}
+              <div className={styles.pills}>
+                {others.map((item) => (
+                  <label key={item.code} className={styles.pill}>
+                    <input
+                      type="radio"
+                      name="talk-topic"
+                      value={item.code}
+                      checked={topic === item.code}
+                      onChange={() => onTopic(item.code)}
+                      className={styles.topicInput}
+                    />
+                    <span>{item.title}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </fieldset>
+
+        {failure === 'mic' && (
+          <div role="alert" className={styles.alert}>
+            <p className={styles.alertTitle}>마이크를 켜야 말할 수 있어요</p>
+            <p className={styles.alertSub}>주소창 옆 설정에서 마이크를 허용하고 다시 눌러요</p>
+          </div>
+        )}
+        {failure === 'connect' && (
+          <div role="alert" className={styles.alert}>
+            <p className={styles.alertTitle}>연결하지 못했어요. 다시 해 봐요</p>
+          </div>
+        )}
+
+        <div className={styles.bottom}>
+          <p className={styles.remaining}>
+            {noneLeft
+              ? '오늘은 세 번 다 했어요'
+              : `오늘 ${config.remainingToday}번 더 할 수 있어요`}
+          </p>
+          <Button block onClick={onStart} disabled={noneLeft || starting}>
+            {failure === 'connect' ? '다시 시도' : '시작하기'}
+          </Button>
         </div>
-      )}
-      <div className={styles.bottom}>
-        <p className={styles.remaining}>
-          {noneLeft ? '오늘은 세 번 다 했어요' : `오늘 ${config.remainingToday}번 더 할 수 있어요`}
-        </p>
-        <Button block onClick={onStart} disabled={noneLeft || starting}>
-          {failure === 'connect' ? '다시 시도' : '시작하기'}
-        </Button>
       </div>
     </>
   )
@@ -370,15 +467,22 @@ function duration(seconds: number): string {
   return s === 0 ? `${m}분` : `${m}분 ${s}초`
 }
 
-function SummaryView({ art, result }: { art: Art; result: TalkSessionResult | null }) {
+type SummaryProps = { result: TalkSessionResult | null; topicTitle: string | undefined }
+
+/** ⑥ 요약 — 그림 없음. 말한 시간·문장 수·주제 → 잘 쓴 표현(칩) → 이렇게도 말해 봐요(내 문장 → 고친 문장 → 설명) */
+function SummaryView({ result, topicTitle }: SummaryProps) {
   const summary = result?.summary ?? null
   return (
-    <>
-      <Character art={art} compact />
+    <div className={`${styles.body} ${styles.summary}`}>
       {result && (
         <div className={styles.summaryHead}>
-          <h1 className={styles.summaryTitle}>{duration(result.durationSec)} 동안 말했어요</h1>
-          <p className={styles.messageSub}>내가 말한 문장 {result.studentTurnCount}개</p>
+          <h1 className={styles.summaryTitle}>
+            {duration(result.durationSec)} 동안 <br />
+            말했어요
+          </h1>
+          <p className={styles.summarySub}>
+            내가 말한 문장 {result.studentTurnCount}개{topicTitle ? ` · ${topicTitle}` : ''}
+          </p>
         </div>
       )}
       {summary ? (
@@ -386,7 +490,7 @@ function SummaryView({ art, result }: { art: Art; result: TalkSessionResult | nu
           {summary.goodExpressions.length > 0 && (
             <section className={styles.card}>
               <h2 className={styles.cardTitle}>잘 쓴 표현</h2>
-              <ul className={styles.list}>
+              <ul className={styles.expressions}>
                 {summary.goodExpressions.map((expression) => (
                   <li key={expression} className={styles.expression}>
                     {expression}
@@ -398,11 +502,20 @@ function SummaryView({ art, result }: { art: Art; result: TalkSessionResult | nu
           {summary.corrections.length > 0 && (
             <section className={styles.card}>
               <h2 className={styles.cardTitle}>이렇게도 말해 봐요</h2>
-              <ul className={styles.list}>
+              <ul className={styles.corrections}>
                 {summary.corrections.map((item) => (
                   <li key={item.said} className={styles.correction}>
                     <p className={styles.said}>{item.said}</p>
-                    <p className={styles.better}>{item.better}</p>
+                    <p className={styles.better}>
+                      <ArrowRight
+                        size={18}
+                        strokeWidth={2.5}
+                        className={styles.betterIcon}
+                        aria-hidden
+                      />
+                      <span className={styles.srOnly}>고친 문장: </span>
+                      <span>{item.better}</span>
+                    </p>
                     <p className={styles.note}>{item.note}</p>
                   </li>
                 ))}
@@ -411,7 +524,7 @@ function SummaryView({ art, result }: { art: Art; result: TalkSessionResult | nu
           )}
         </>
       ) : (
-        <p className={styles.messageTitle}>오늘 대화는 여기까지예요</p>
+        <p className={styles.summaryEmpty}>오늘 대화는 여기까지예요</p>
       )}
       <div className={styles.bottom}>
         <ButtonLink to="/" block>
@@ -419,6 +532,6 @@ function SummaryView({ art, result }: { art: Art; result: TalkSessionResult | nu
         </ButtonLink>
         <p className={styles.footnote}>시험 삼아 여는 기능이에요</p>
       </div>
-    </>
+    </div>
   )
 }

@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -109,19 +109,43 @@ function renderTalk() {
 const startButton = () => screen.findByRole('button', { name: '시작하기' })
 
 describe('TalkPage', () => {
-  it('시작 전: 주제 3개(첫 번째 선택) · 남은 횟수, 목소리 선택 없음', async () => {
+  it('시작 전: 주제 3개(회차 단어 카드 선택) · 단어 칩 3개 + 남은 수 · 남은 횟수, 목소리 선택 없음', async () => {
     renderTalk()
     await startButton()
+    expect(screen.getByRole('heading', { name: '프리토킹' })).toBeInTheDocument()
+    expect(screen.getByText(/3분 동안/)).toBeInTheDocument()
     const topics = screen.getAllByRole('radio')
     expect(topics).toHaveLength(3)
-    expect(topics[0]).toBeChecked()
+    expect(screen.getByRole('radio', { name: /오늘 배운 단어로/ })).toBeChecked()
+    expect(screen.getByText('Reading Day 5 단어가 대화에 나와요')).toBeInTheDocument()
+    // 단어 4개 중 앞 3개는 칩, 나머지는 수로
+    expect(screen.getByText('cheerful')).toBeInTheDocument()
+    expect(screen.getByText('visit')).toBeInTheDocument()
+    expect(screen.queryByText('play soccer')).not.toBeInTheDocument()
+    expect(screen.getByText('+1')).toBeInTheDocument()
+    // 다른 주제를 고르면 그쪽만 선택
+    await userEvent.click(screen.getByRole('radio', { name: '좋아하는 것' }))
+    expect(screen.getByRole('radio', { name: '좋아하는 것' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /오늘 배운 단어로/ })).not.toBeChecked()
     // 목소리는 고르지 않는다(캐릭터에 맞춰 서버가 정함)
     expect(screen.queryByRole('button', { name: /목소리/ })).not.toBeInTheDocument()
     expect(screen.getByText('오늘 3번 더 할 수 있어요')).toBeInTheDocument()
+    // 홈 표지와 같은 그림, 뒤로는 홈으로
     expect(screen.getByRole('img', { name: 'Green 그린 단계 캐릭터' })).toHaveAttribute(
       'src',
-      '/art/green/winter/bust.webp',
+      '/art/green/winter/cover.webp',
     )
+    expect(screen.getByRole('link', { name: '뒤로' })).toHaveAttribute('href', '/')
+  })
+
+  it('회차 단어가 없으면: 카드 부제가 바뀌고 칩 없음, 처음 선택은 "오늘 하루"', async () => {
+    TALK_MOCK.lessonWords = []
+    renderTalk()
+    await startButton()
+    expect(screen.getByText('오늘 회차 단어가 아직 없어요')).toBeInTheDocument()
+    expect(screen.queryByText(/단어가 대화에 나와요/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^\+/)).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '오늘 하루' })).toBeChecked()
   })
 
   it('구독 없음(entitled: false): 잠금 안내 + 홈으로, 시작 버튼 없음', async () => {
@@ -216,14 +240,30 @@ describe('TalkPage', () => {
     // 머리 줄의 "끝내기" 글자 버튼은 없다
     expect(screen.queryByRole('button', { name: '끝내기' })).not.toBeInTheDocument()
 
-    // 끊기 → 확인 → 계속하기면 그대로
+    // 끊기 → 확인 시트 → 계속 말하기면 그대로
     await userEvent.click(screen.getByRole('button', { name: '대화 끝내기' }))
-    expect(screen.getByText('대화를 끝낼까요')).toBeInTheDocument()
-    // 누른 끊기 버튼이 사라지므로 포커스는 "계속하기"로, 계속하면 끊기 버튼으로 돌아온다
-    expect(screen.getByRole('button', { name: '계속하기' })).toHaveFocus()
-    await userEvent.click(screen.getByRole('button', { name: '계속하기' }))
-    expect(screen.queryByText('대화를 끝낼까요')).not.toBeInTheDocument()
+    const sheet = screen.getByRole('dialog', { name: '대화를 끝낼까요' })
+    expect(sheet).toHaveAttribute('aria-modal', 'true')
+    expect(sheet).toHaveAccessibleDescription('지금까지 말한 내용을 정리해서 보여 드려요')
+    // 열리면 "계속 말하기"에 포커스, 뒤 화면은 inert. 닫으면 끊기 버튼으로 돌아온다
+    expect(screen.getByRole('button', { name: '계속 말하기' })).toHaveFocus()
+    expect(
+      screen.getByRole('button', { name: '대화 끝내기', hidden: true }).closest('[inert]'),
+    ).not.toBeNull()
+    // Tab은 시트 안에서만 돈다
+    await userEvent.tab()
+    expect(screen.getByRole('button', { name: '끝내기' })).toHaveFocus()
+    await userEvent.tab()
+    expect(screen.getByRole('button', { name: '계속 말하기' })).toHaveFocus()
+    await userEvent.click(screen.getByRole('button', { name: '계속 말하기' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(track.stop).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: '대화 끝내기' })).toHaveFocus()
+
+    // Esc도 계속 말하기
+    await userEvent.click(screen.getByRole('button', { name: '대화 끝내기' }))
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '대화 끝내기' })).toHaveFocus()
 
     await userEvent.click(screen.getByRole('button', { name: '대화 끝내기' }))
@@ -231,7 +271,8 @@ describe('TalkPage', () => {
 
     expect(await screen.findByText('오늘 대화는 여기까지예요')).toBeInTheDocument()
     expect(screen.queryByText('잘 쓴 표현')).not.toBeInTheDocument()
-    expect(screen.getByText('내가 말한 문장 1개')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /동안 말했어요/ })).toBeInTheDocument()
+    expect(screen.getByText('내가 말한 문장 1개 · 오늘 배운 단어로')).toBeInTheDocument()
     expect(screen.getByText('시험 삼아 여는 기능이에요')).toBeInTheDocument()
     expect(track.stop).toHaveBeenCalled()
     expect(ended).toMatchObject({
@@ -240,7 +281,7 @@ describe('TalkPage', () => {
     })
   })
 
-  it('캐릭터 말 속 회차 단어는 버튼 — 누르면 자막 아래 뜻 한 줄, 3초 뒤 사라진다. 학생 말은 강조 없음', async () => {
+  it('캐릭터 말 속 회차 단어는 강조 글자(버튼 아님, 뜻 없음). 학생 말은 강조 없음', async () => {
     renderTalk()
     await userEvent.click(await startButton())
     await waitFor(() => expect(realtime.handlers).toBeDefined())
@@ -252,26 +293,13 @@ describe('TalkPage', () => {
       realtime.handlers!.onStudentText('i1', 'I visited my cheerful grandma.')
     })
 
-    const cheerful = await screen.findByRole('button', { name: 'cheerful 뜻 보기' })
-    expect(screen.getByRole('button', { name: 'visit 뜻 보기' })).toHaveTextContent('visit')
-    expect(screen.getByRole('button', { name: 'weekend 뜻 보기' })).toBeInTheDocument()
-    // 학생 줄에는 버튼이 없다(cheerful 버튼은 캐릭터 줄의 하나뿐)
-    expect(screen.getAllByRole('button', { name: /뜻 보기/ })).toHaveLength(3)
-
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    fireEvent.click(cheerful)
-    expect(screen.getByText('쾌활한')).toBeInTheDocument()
-    // 화면 낭독기가 읽게 — 뜻 줄은 status 영역
-    expect(screen.getByRole('status')).toHaveTextContent('cheerful쾌활한')
-    act(() => vi.advanceTimersByTime(3_100))
+    const character = await screen.findByText(
+      line('You sound cheerful! Did you visit anyone this weekend?'),
+    )
+    expect(highlighted(character)).toEqual(['cheerful', 'visit', 'weekend'])
+    expect(highlighted(screen.getByText('I visited my cheerful grandma.'))).toEqual([])
+    expect(screen.queryByRole('button', { name: /뜻 보기/ })).not.toBeInTheDocument()
     expect(screen.queryByText('쾌활한')).not.toBeInTheDocument()
-    vi.useRealTimers()
-
-    // 다른 곳을 누르면 바로 사라진다
-    await userEvent.click(screen.getByRole('button', { name: 'visit 뜻 보기' }))
-    expect(screen.getByText('방문하다')).toBeInTheDocument()
-    await userEvent.click(screen.getByText('I visited my cheerful grandma.'))
-    expect(screen.queryByText('방문하다')).not.toBeInTheDocument()
     await hangUp()
   })
 
@@ -284,8 +312,30 @@ describe('TalkPage', () => {
       realtime.handlers!.onOpen()
       say('r1', 'You sound cheerful!')
     })
-    expect(await screen.findByText(line('You sound cheerful!'))).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /뜻 보기/ })).not.toBeInTheDocument()
+    expect(highlighted(await screen.findByText(line('You sound cheerful!')))).toEqual([])
+    await hangUp()
+  })
+
+  it('상태 줄: 캐릭터가 말하면 "말하고 있어요", 아니면 "듣고 있어요"', async () => {
+    renderTalk()
+    await userEvent.click(await startButton())
+    await waitFor(() => expect(realtime.handlers).toBeDefined())
+    act(() => realtime.handlers!.onOpen())
+    expect(await screen.findByText('듣고 있어요')).toBeInTheDocument()
+    act(() => {
+      const h = realtime.handlers!
+      h.onResponseCreated('r1')
+      h.onTextDelta('r1', 'Hello there')
+      h.onAudioStarted('r1')
+    })
+    expect(await screen.findByText('말하고 있어요')).toBeInTheDocument()
+    act(() => {
+      const h = realtime.handlers!
+      h.onTextDone('r1', 'Hello there')
+      h.onAudioStopped('r1')
+      h.onResponseDone('r1', 'completed')
+    })
+    expect(await screen.findByText('듣고 있어요')).toBeInTheDocument()
     await hangUp()
   })
 
@@ -436,6 +486,13 @@ function say(id: string, text: string) {
   h.onAudioStarted(id)
   h.onAudioStopped(id)
   h.onResponseDone(id, 'completed')
+}
+
+/** 자막 줄에서 강조된 회차 단어(강조 span > 단어 span) — 강조 없는 단어는 줄 바로 아래 span */
+function highlighted(lineElement: HTMLElement): string[] {
+  return [...lineElement.querySelectorAll(':scope > span')]
+    .filter((span) => span.querySelector('span') !== null)
+    .map((span) => span.textContent ?? '')
 }
 
 /** 단어마다 span으로 나뉜 자막 줄을 전체 글자로 찾는다 */

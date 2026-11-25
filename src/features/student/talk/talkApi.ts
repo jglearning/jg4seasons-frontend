@@ -24,7 +24,7 @@ export type TalkConfig = {
   maxSeconds: number
   remainingToday: number
   topics: TalkTopic[]
-  /** 그 반 현재 회차 단어(캐릭터 자막에서 강조, 누르면 뜻). 없으면 빈 배열 — 추가 지시 11/25 밤 */
+  /** 그 반 현재 회차 단어(캐릭터 자막에서 강조, 시작 전 카드의 칩). 없으면 빈 배열 — 추가 지시 11/25 밤 */
   lessonWords: LessonWord[]
 }
 

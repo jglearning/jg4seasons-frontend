@@ -68,9 +68,10 @@ export function mockTalkConfig(): TalkConfig {
     maxSeconds: TALK_MOCK.maxSeconds,
     remainingToday: Math.max(0, TALK_MOCK.dailyLimit - usedToday),
     topics: [
-      { code: 'lesson', title: '오늘 배운 단어로 이야기하기' },
+      // 제목은 시안(11/26) 글자 — 회차 단어 주제(lesson)는 시작 전 큰 카드, 나머지는 알약 버튼
+      { code: 'lesson', title: '오늘 배운 단어로' },
       { code: 'day', title: '오늘 하루' },
-      { code: 'likes', title: '내가 좋아하는 것' },
+      { code: 'likes', title: '좋아하는 것' },
     ],
     lessonWords: TALK_MOCK.lessonWords,
   }

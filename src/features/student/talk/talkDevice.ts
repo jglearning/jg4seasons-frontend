@@ -38,7 +38,7 @@ export function isMicDenied(error: unknown): boolean {
 }
 
 /**
- * 음량 막대 — 지금 소리(학생 마이크 또는 캐릭터 소리)의 크기를 0~1로 막대 요소의 scaleX에 넣는다.
+ * 음량 막대 — 지금 소리(학생 마이크 또는 캐릭터 소리)의 크기를 0~1로 막대 묶음의 scaleY에 넣는다(조용해도 45%는 보이게).
  * AudioContext는 "시작하기" 탭 안에서 만들어야 아이폰에서 멈춰 있지 않다(그래서 생성자를 탭 핸들러에서 부른다)
  */
 export class LevelMeter {
@@ -112,6 +112,6 @@ export class LevelMeter {
   }
 
   private paint(level: number) {
-    if (this.bar) this.bar.style.transform = `scaleX(${Math.max(0.04, level).toFixed(3)})`
+    if (this.bar) this.bar.style.transform = `scaleY(${Math.max(0.45, level).toFixed(3)})`
   }
 }
