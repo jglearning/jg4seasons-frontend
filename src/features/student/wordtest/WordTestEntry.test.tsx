@@ -1,6 +1,6 @@
 import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../../app/routes'
 import { resetAuthMock, setMockSession } from '../../../mocks/handlers'
 import { server } from '../../../mocks/node'
@@ -10,6 +10,9 @@ import { hold } from '../../../test/hold'
 import { renderRoutes } from '../../../test/render'
 import { latestQuery, type WordTestSubmission } from './wordTestApi'
 import { COPY } from './wordTestCopy'
+
+// 진입점은 비용 문제로 꺼 두었다(WORD_TEST_ENABLED, #191) — 진입점 자체를 보는 테스트라 켠 채로 돈다
+vi.mock('../../../shared/features', () => ({ WORD_TEST_ENABLED: true }))
 
 // S-03 홈의 단어시험 진입 줄(#173) — 최근 제출 조회(…/latest) 200·204일 때만, 그 밖은 숨기고 홈은 그대로
 const LATEST = '*/api/v1/word-tests/lessons/:code/latest'
