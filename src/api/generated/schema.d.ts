@@ -625,6 +625,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/talk/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 프리토킹 설정
+         * @description 시작 화면 재료: 구독 여부, 레벨, 시간 제한, 오늘 남은 횟수, 주제 카드, 오늘 회차 단어. 구독이 없으면 200에 entitled false(lessonWords는 빈 배열). 기능 꺼짐 404 FEATURE_DISABLED(진입 버튼을 숨길 신호), 반이 없으면 404 NOT_FOUND
+         */
+        get: operations["talkConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/talk/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 프리토킹 세션 시작
+         * @description 세션을 기록하고 서버가 조립한 지시문(레벨·오늘 회차 단어·주제·안전 규칙)과 목소리(반의 레벨 캐릭터 성별 — 학생이 고르지 않음)를 묶은 임시 키를 준다. 같은 clientSessionId를 다시 보내면 새로 만들지 않는다: 그 세션이 created이고 만든 지 60초(임시 키 수명) 안이면 임시 키만 새로 200, 그 밖(끝난 세션·60초 지남)은 200에 realtime null(새 clientSessionId로 다시 시작), 다른 학생이 쓴 값이면 400 VALIDATION. 기능 꺼짐 404 FEATURE_DISABLED, 구독 없음 403 SUBSCRIPTION_REQUIRED, 반이 없으면 404 NOT_FOUND, 사용 기간 아님 403 LICENSE_INACTIVE, 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT(발급에 실패한 세션·연결 전에 떠난 0초 세션은 세지 않음), 모델 서비스에서 임시 키를 받지 못하면 503 REALTIME_UNAVAILABLE
+         */
+        post: operations["createTalkSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/talk/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 프리토킹 세션 조회
+         * @description 종료 응답과 같은 모양. 종료 전이면 durationSec·studentTurnCount·summary null, 종료 직후 요약 중이면 summary null. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 기능 꺼짐 404 FEATURE_DISABLED
+         */
+        get: operations["getTalkSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/talk/sessions/{id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 프리토킹 세션 종료
+         * @description 글자 기록·대화 시간·종료 이유를 저장하고 요약(잘 쓴 표현·고쳐볼 문장)을 만들어 돌려준다(최대 20초). 저장은 공백 줄을 버리고 앞에서부터 200줄·한 줄 500자, durationSec는 maxSeconds까지 자른다. 요약을 만들지 못하면 summary null(세션은 ended). 종료할 수 있는 건 created뿐 — 이미 ended면 저장된 결과를 그대로 200(다시 저장·요약하지 않음), 발급에 실패한(failed)·정리된(expired) 세션도 저장하지 않고 그대로. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 기능 꺼짐 404 FEATURE_DISABLED, 입력 형식 400 VALIDATION(usage는 JSON 객체 16KB까지)
+         */
+        post: operations["endTalkSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/teacher/classes": {
         parameters: {
             query?: never;
@@ -2115,6 +2195,148 @@ export interface components {
              * @enum {string}
              */
             status?: "active" | "inactive";
+        };
+        TalkConfigResponse: {
+            /** @description 구독이 있는가. false면 잠금 화면(나머지 칸은 그대로, lessonWords는 빈 배열). 세션 생성은 403 SUBSCRIPTION_REQUIRED */
+            entitled: boolean;
+            /** @description 오늘 회차 단어 전부(교재 순서, 숙어 포함). 캐릭터가 대화에 쓰도록 지시받은 단어와 같은 목록. 오늘 회차가 없거나(개강 전) 단어가 없거나 entitled가 false면 빈 배열 */
+            lessonWords: components["schemas"]["TalkLessonWord"][];
+            /**
+             * @description 학생 반의 레벨
+             * @enum {string}
+             */
+            level: "mint" | "green" | "blue" | "navy" | "black";
+            /**
+             * Format: int32
+             * @description 한 세션의 시간 제한(초). 이 시간에 마무리 신호를 보내고 연결을 끊는다
+             * @example 180
+             */
+            maxSeconds: number;
+            /**
+             * Format: int32
+             * @description 오늘(학원 날짜) 남은 횟수 0~3. 발급에 실패한 세션·연결 전에 떠난 0초 세션은 세지 않는다
+             * @example 2
+             */
+            remainingToday: number;
+            /** @description 주제 카드(순서대로) */
+            topics: components["schemas"]["TalkTopic"][];
+        };
+        TalkCorrection: {
+            /** @description 더 자연스러운 문장 */
+            better: string;
+            /** @description 한국어 해요체 한 줄 설명 */
+            note: string;
+            /** @description 학생이 말한 문장 그대로 */
+            said: string;
+        };
+        TalkLessonWord: {
+            /** @example cheerful */
+            english: string;
+            /** @example 쾌활한 */
+            korean: string;
+        };
+        TalkRealtime: {
+            /** @description 임시 키(ek_…). 브라우저가 SDP 교환에 Bearer로 쓴다. 저장·로그 금지 */
+            clientSecret: string;
+            /** @description 시간이 다 됐을 때 연결된 세션에 시스템 메시지로 넣을 문장(문구를 바꾸지 않고 그대로). 넣은 뒤 응답을 시작시키면 캐릭터가 인사하고 끝낸다 */
+            closingInstruction: string;
+            /**
+             * Format: date-time
+             * @description 임시 키 만료 시각(UTC). 이 전에 연결을 시작해야 한다. 시작한 대화는 만료 뒤에도 이어진다
+             */
+            expiresAt: string;
+            /**
+             * @description 연결할 모델 이름
+             * @example gpt-realtime-2.1-mini
+             */
+            model: string;
+        };
+        TalkSessionCreateRequest: {
+            /**
+             * @description 클라이언트가 만든 UUID(소문자). 같은 값으로 다시 보내면 새로 만들지 않고 그 세션을 200으로
+             * @example 0b9e1c2d-3f4a-4b5c-8d6e-7f8091a2b3c4
+             */
+            clientSessionId: string;
+            /**
+             * @description 주제 카드 code
+             * @enum {string}
+             */
+            topic: "lesson" | "day" | "likes";
+        };
+        TalkSessionCreatedResponse: {
+            /**
+             * Format: int64
+             * @description 세션 id(종료·조회에 쓴다)
+             */
+            id: number;
+            /**
+             * Format: int32
+             * @description 이 세션의 시간 제한(초)
+             * @example 180
+             */
+            maxSeconds: number;
+            /** @description 모델 연결 정보. 새 세션과 만든 지 60초 안의 재전송에만 있고, 그 밖(끝난 세션·60초 지난 created 재전송)은 null(새 clientSessionId로 다시 시작) */
+            realtime: components["schemas"]["TalkRealtime"] | null;
+            /**
+             * @description 세션 상태. 새 세션은 created. 이미 끝난 세션의 clientSessionId를 다시 보내면 그 상태 그대로
+             * @enum {string}
+             */
+            status: "created" | "ended" | "expired" | "failed";
+        };
+        TalkSessionEndRequest: {
+            /**
+             * Format: int32
+             * @description 실제 대화 시간(초). 그 세션의 maxSeconds를 넘으면 서버가 잘라 저장
+             * @example 168
+             */
+            durationSec: number;
+            /**
+             * @description 끝난 이유
+             * @enum {string}
+             */
+            endReason: "user" | "timeout" | "left" | "disconnected";
+            /** @description 대화 글자 기록(순서대로). 서버는 공백만 있는 줄을 버리고 앞에서부터 200줄, 한 줄 500자까지 저장 */
+            turns: components["schemas"]["TalkTurn"][];
+            /** @description 모델이 이벤트로 알려준 사용량을 합한 값 그대로(모양은 서비스에 따름). JSON 객체만, 16KB까지. 없으면 생략 */
+            usage?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        TalkSessionResultResponse: {
+            /**
+             * Format: int32
+             * @description 저장된 대화 시간(초, maxSeconds로 자른 값). 종료 전이면 null
+             */
+            durationSec: number | null;
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            status: "created" | "ended" | "expired" | "failed";
+            /**
+             * Format: int32
+             * @description 학생이 말한 줄 수(자른 뒤). 종료 전이면 null
+             */
+            studentTurnCount: number | null;
+            /** @description 대화 요약. 종료 전·요약 실패·요약 중(종료 직후 조회)·학생이 말한 줄이 없으면 null */
+            summary: components["schemas"]["TalkSummary"] | null;
+        };
+        TalkSummary: {
+            /** @description 고쳐볼 문장 0~3개. said는 학생이 실제로 말한 문장(학생 줄이 2개 미만이면 빈 배열) */
+            corrections: components["schemas"]["TalkCorrection"][];
+            /** @description 잘 쓴 표현 0~2개(학생이 실제로 쓴 표현만) */
+            goodExpressions: string[];
+        };
+        TalkTopic: {
+            /** @enum {string} */
+            code: "lesson" | "day" | "likes";
+            /** @example 오늘 하루 */
+            title: string;
+        };
+        TalkTurn: {
+            /** @enum {string} */
+            role: "student" | "character";
+            /** @example I go to school and play soccer. */
+            text: string;
         };
         TeacherClassBook: {
             /** @example L2-B1 */
@@ -3821,6 +4043,143 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["LicenseItem"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    talkConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TalkConfigResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    createTalkSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TalkSessionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 clientSessionId의 기존 세션 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TalkSessionCreatedResponse"];
+                };
+            };
+            /** @description 새 세션(status created) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TalkSessionCreatedResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getTalkSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TalkSessionResultResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    endTalkSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TalkSessionEndRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TalkSessionResultResponse"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */

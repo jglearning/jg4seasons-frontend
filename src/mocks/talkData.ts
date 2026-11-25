@@ -7,10 +7,8 @@ import type {
 } from '../features/student/talk/talkApi'
 import { STUDENT_MOCK } from './studentData'
 
-// 캐릭터 프리토킹 목 — 동섭 지시서 §D 계약 그대로(D-1~D-5). 백엔드 openapi.json이 생기면 그 타입으로.
-// 세션 생성의 임시 키: 로컬 `.env.local`의 VITE_TALK_DEV_SECRET(개발용 — 커밋 안 함)이 있으면 그 값을 줘서
-// dev:mock에서도 모델에 실제로 연결된다. 없으면 가짜 값이라 연결 단계에서 실패한다(화면 흐름 확인용).
-// [임시] 이 개발용 키 경로는 실제 API로 바꿀 때(PR 2) 지운다
+// 캐릭터 프리토킹 목 — 백엔드 명세(BE #84·#85·#87) 그대로. 임시 키는 가짜 값이라 dev:mock에서는 연결 단계에서
+// 실패한다(화면 흐름 확인용). 실제 연결은 로컬 백엔드(`JG4SEASONS_TALK_REALTIME=openai`)에 붙여서
 
 type Helpers = {
   problem: (request: Request, status: number, code: string, title: string) => Response
@@ -18,7 +16,7 @@ type Helpers = {
   currentUser: () => { id: number; role: string } | null
 }
 
-const LEVEL_NAMES: Record<string, string> = {
+const LEVEL_NAMES: Record<string, TalkConfig['level']> = {
   L1: 'mint',
   L2: 'green',
   L3: 'blue',
@@ -50,7 +48,10 @@ const CLOSING_INSTRUCTION =
 
 let nextId = 77
 let usedToday = 0
-const byClientId = new Map<string, number>()
+/** clientSessionId → 세션 id와 만든 시각(60초 지나면 키를 다시 주지 않는다 — BE #84) */
+const byClientId = new Map<string, { id: number; at: number }>()
+const TOPICS = ['lesson', 'day', 'likes']
+const KEY_LIFETIME_MS = 60_000
 const ended = new Map<number, TalkSessionResult>()
 
 export function resetTalkMock() {
@@ -68,18 +69,13 @@ export function mockTalkConfig(): TalkConfig {
     maxSeconds: TALK_MOCK.maxSeconds,
     remainingToday: Math.max(0, TALK_MOCK.dailyLimit - usedToday),
     topics: [
-      // 제목은 시안(11/26) 글자 — 회차 단어 주제(lesson)는 시작 전 큰 카드, 나머지는 알약 버튼
+      // 제목은 서버 값(BE #87, 시안 글자) — 회차 단어 주제(lesson)는 시작 전 큰 카드, 나머지는 알약 버튼
       { code: 'lesson', title: '오늘 배운 단어로' },
       { code: 'day', title: '오늘 하루' },
       { code: 'likes', title: '좋아하는 것' },
     ],
     lessonWords: TALK_MOCK.lessonWords,
   }
-}
-
-function devSecret(): string {
-  const value: unknown = import.meta.env.VITE_TALK_DEV_SECRET
-  return typeof value === 'string' && value !== '' ? value : 'ek_mock'
 }
 
 export function talkHandlers({ problem, readJson, currentUser }: Helpers): AnyHandler[] {
@@ -106,25 +102,34 @@ export function talkHandlers({ problem, readJson, currentUser }: Helpers): AnyHa
       if (denied) return denied
       const body = await readJson(request)
       const clientSessionId = body.clientSessionId
-      if (typeof clientSessionId !== 'string' || typeof body.topic !== 'string')
+      // 모르는 필드(예: 예전 계약의 voice)도 400 — 서버와 같게
+      const unknownField = Object.keys(body).some((k) => k !== 'clientSessionId' && k !== 'topic')
+      if (
+        typeof clientSessionId !== 'string' ||
+        typeof body.topic !== 'string' ||
+        !TOPICS.includes(body.topic) ||
+        unknownField
+      )
         return problem(request, 400, 'VALIDATION', '요청 형식이 맞지 않아요')
       if (!TALK_MOCK.entitled)
         return problem(request, 403, 'SUBSCRIPTION_REQUIRED', '구독하면 쓸 수 있어요')
       await delay()
       const realtime = {
-        clientSecret: devSecret(),
-        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        clientSecret: 'ek_mock',
+        expiresAt: new Date(Date.now() + KEY_LIFETIME_MS).toISOString(),
         model: 'gpt-realtime',
         closingInstruction: CLOSING_INSTRUCTION,
       }
-      // 같은 clientSessionId면 200 + 임시 키 새로(D-2)
+      // 같은 clientSessionId: 60초 안의 created면 200 + 임시 키 새로, 끝났거나 60초 지났으면 realtime null
       const existing = byClientId.get(clientSessionId)
       if (existing !== undefined) {
+        const done = ended.get(existing.id)
+        const fresh = done === undefined && Date.now() - existing.at < KEY_LIFETIME_MS
         const again: TalkSessionCreated = {
-          id: existing,
-          status: 'created',
+          id: existing.id,
+          status: done?.status ?? (fresh ? 'created' : 'expired'),
           maxSeconds: TALK_MOCK.maxSeconds,
-          realtime,
+          realtime: fresh ? realtime : null,
         }
         return HttpResponse.json(again)
       }
@@ -132,7 +137,7 @@ export function talkHandlers({ problem, readJson, currentUser }: Helpers): AnyHa
         return problem(request, 429, 'DAILY_LIMIT', '오늘은 세 번 다 했어요')
       usedToday += 1
       const id = nextId++
-      byClientId.set(clientSessionId, id)
+      byClientId.set(clientSessionId, { id, at: Date.now() })
       const created: TalkSessionCreated = {
         id,
         status: 'created',
@@ -146,7 +151,7 @@ export function talkHandlers({ problem, readJson, currentUser }: Helpers): AnyHa
       const denied = studentOnly(request)
       if (denied) return denied
       const id = Number(params.id)
-      if (![...byClientId.values()].includes(id))
+      if (![...byClientId.values()].some((item) => item.id === id))
         return problem(request, 404, 'NOT_FOUND', '대화를 찾을 수 없어요')
       const saved = ended.get(id)
       if (saved) return HttpResponse.json(saved)

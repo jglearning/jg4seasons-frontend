@@ -15,7 +15,9 @@ import {
   endTalkSession,
   talkConfigQuery,
   type TalkConfig,
+  type TalkSessionCreated,
   type TalkSessionResult,
+  type TalkTopicCode,
 } from './talkApi'
 import { TalkCall, type TalkSnapshot } from './talkCall'
 import { TalkCover, type Art } from './TalkCover'
@@ -64,13 +66,13 @@ export function TalkPage() {
 }
 
 /** 큰 카드로 그리는 주제(서버 topics의 code) — 나머지는 알약 버튼 */
-const LESSON_TOPIC = 'lesson'
+const LESSON_TOPIC: TalkTopicCode = 'lesson'
 
 /** 처음 고른 주제: 회차 단어 주제. 회차 단어가 없으면 다른 주제의 첫 번째(시안 11/26) */
-function firstTopic(config: TalkConfig): string {
+function firstTopic(config: TalkConfig): TalkTopicCode {
   const others = config.topics.filter((t) => t.code !== LESSON_TOPIC)
   if (config.lessonWords.length === 0 && others.length > 0) return others[0].code
-  return config.topics[0]?.code ?? ''
+  return config.topics[0]?.code ?? 'day'
 }
 
 type TalkProps = { config: TalkConfig; art: Art; lessonTitle: string | undefined }
@@ -85,7 +87,8 @@ function Talk({ config, art, lessonTitle }: TalkProps) {
   const [snapshot, setSnapshot] = useState<TalkSnapshot | undefined>()
   const [result, setResult] = useState<TalkSessionResult | null>(null)
 
-  // 다시 시도해도 같은 값(D-2 — 같은 세션에 임시 키만 새로). 대화가 끝나면 새로 만든다
+  // 다시 시도해도 같은 값(D-2 — 60초 안이면 같은 세션에 임시 키만 새로). 대화가 끝나면, 서버가 realtime null을
+  // 주면(끝난 세션·60초 지남), 503이면(같은 값이면 failed로 돌아옴) 새로 만든다(BE #84)
   const clientSessionId = useRef(crypto.randomUUID())
   const audioRef = useRef<HTMLAudioElement>(null)
   const callRef = useRef<TalkCall | undefined>(undefined)
@@ -166,22 +169,27 @@ function Talk({ config, art, lessonTitle }: TalkProps) {
       return
     }
 
-    let created
+    const create = () => createTalkSession({ clientSessionId: clientSessionId.current, topic })
+    let created: TalkSessionCreated
     try {
-      created = await createTalkSession({
-        clientSessionId: clientSessionId.current,
-        topic,
-      })
+      created = await create()
+      // 같은 clientSessionId의 세션이 끝났거나 60초가 지났으면 키 없이 온다 — 새 값으로 한 번 더(BE #84)
+      if (created.realtime === null) {
+        clientSessionId.current = crypto.randomUUID()
+        created = await create()
+      }
     } catch (error) {
       stopMic(mic)
       const code = error instanceof ApiError ? error.code : undefined
+      // 키 발급 실패(503) 뒤 같은 값으로 다시 보내면 failed + 키 없음 — 다음 시도는 새 값으로
+      if (code === 'REALTIME_UNAVAILABLE') clientSessionId.current = crypto.randomUUID()
       if (code === 'FEATURE_DISABLED') {
         meter.close()
         void navigate('/', { replace: true })
       } else if (code === 'SUBSCRIPTION_REQUIRED') giveUp('locked')
       else if (code === 'DAILY_LIMIT') giveUp('limit')
       else {
-        // 사용 기간 아님(LICENSE_INACTIVE)·5xx·끊김 등 — 학생에게는 연결 실패 문구, 원인은 기록(임시 키가 든 응답은 찍지 않는다)
+        // 사용 기간 아님(LICENSE_INACTIVE)·키 발급 실패(REALTIME_UNAVAILABLE)·5xx·끊김 등 — 학생에게는 연결 실패 문구, 원인은 기록(임시 키가 든 응답은 찍지 않는다)
         console.error('[talk] 세션 생성 실패', {
           status: error instanceof ApiError ? error.status : undefined,
           code,
@@ -203,16 +211,24 @@ function Talk({ config, art, lessonTitle }: TalkProps) {
       ).catch(() => undefined)
       return
     }
+    const realtime = created.realtime
+    if (realtime === null) {
+      // 새 값으로 다시 만들어도 키가 없음 — 서버 이상. 연결 실패로 안내하고 다음 시도는 또 새 값으로
+      stopMic(mic)
+      console.error('[talk] 임시 키 없음', { sessionId: created.id, status: created.status })
+      clientSessionId.current = crypto.randomUUID()
+      giveUp('connect')
+      return
+    }
 
     const call = new TalkCall({
       sessionId: created.id,
       maxSeconds: created.maxSeconds,
       mic,
-      closingInstruction: created.realtime.closingInstruction,
+      closingInstruction: realtime.closingInstruction,
       connect: (handlers) =>
         connectRealtime({
-          clientSecret: created.realtime.clientSecret,
-          url: created.realtime.url,
+          clientSecret: realtime.clientSecret,
           mic,
           audio,
           handlers,
@@ -328,8 +344,8 @@ type BeforeProps = {
   art: Art
   config: TalkConfig
   lessonTitle: string | undefined
-  topic: string
-  onTopic: (code: string) => void
+  topic: TalkTopicCode
+  onTopic: (code: TalkTopicCode) => void
   failure: Failure | null
   starting: boolean
   onStart: () => void
@@ -472,17 +488,22 @@ type SummaryProps = { result: TalkSessionResult | null; topicTitle: string | und
 /** ⑥ 요약 — 그림 없음. 말한 시간·문장 수·주제 → 잘 쓴 표현(칩) → 이렇게도 말해 봐요(내 문장 → 고친 문장 → 설명) */
 function SummaryView({ result, topicTitle }: SummaryProps) {
   const summary = result?.summary ?? null
+  // 종료 전 세션이면 시간·문장 수가 null(BE #85) — 머리 줄 없이
+  const seconds = result?.durationSec ?? null
+  const turns = result?.studentTurnCount ?? null
   return (
     <div className={`${styles.body} ${styles.summary}`}>
-      {result && (
+      {seconds !== null && (
         <div className={styles.summaryHead}>
           <h1 className={styles.summaryTitle}>
-            {duration(result.durationSec)} 동안 <br />
+            {duration(seconds)} 동안 <br />
             말했어요
           </h1>
-          <p className={styles.summarySub}>
-            내가 말한 문장 {result.studentTurnCount}개{topicTitle ? ` · ${topicTitle}` : ''}
-          </p>
+          {turns !== null && (
+            <p className={styles.summarySub}>
+              내가 말한 문장 {turns}개{topicTitle ? ` · ${topicTitle}` : ''}
+            </p>
+          )}
         </div>
       )}
       {summary ? (
