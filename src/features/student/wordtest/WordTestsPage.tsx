@@ -159,7 +159,7 @@ function TestStamp({ lesson, section }: { lesson: WordTestLesson; section: WordT
   if (test === undefined) {
     return (
       <span className={styles.stamp} role="img" aria-label={`${lesson.title}, ${COPY.stampNone}`}>
-        <NumberCircle state="lockedSoft" size={44} fontSize={18}>
+        <NumberCircle state="lockedSoft" size={48} fontSize={20}>
           {no}
         </NumberCircle>
         <span className={styles.stampCaption} aria-hidden />
@@ -172,10 +172,11 @@ function TestStamp({ lesson, section }: { lesson: WordTestLesson; section: WordT
     <Link
       to={wordTestPath(lesson.code, section)}
       className={styles.stamp}
-      aria-label={`${lesson.title} ${sectionLabel(section)}, ${latestDetail(test.latest)}`}
+      // 영역 이름은 머리("철자 쓰기 · …")에 있고, 점수 글에도 들어 있어 두 번 읽지 않는다
+      aria-label={`${lesson.title}, ${latestDetail(test.latest)}`}
       aria-current={lesson.state === 'today' ? 'date' : undefined}
     >
-      <NumberCircle state={stamp.done ? 'done' : 'open'} size={44} fontSize={18} pressable>
+      <NumberCircle state={stamp.done ? 'done' : 'open'} size={48} fontSize={20} pressable>
         {no}
       </NumberCircle>
       <span className={styles.stampCaption} aria-hidden>

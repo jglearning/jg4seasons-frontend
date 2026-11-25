@@ -40,7 +40,7 @@ function renderList() {
 const group = async (label = '겨울 1') =>
   (await screen.findByRole('heading', { name: label })).closest('section') as HTMLElement
 const stamp = (box: HTMLElement, day: number) =>
-  within(box).getByRole('link', { name: new RegExp(`^Reading Day ${day} ${COPY.scoreLabel},`) })
+  within(box).getByRole('link', { name: new RegExp(`^Reading Day ${day},`) })
 const featured = () =>
   screen.getByRole('heading', { level: 2, name: /Reading Day/ }).closest('section') as HTMLElement
 
@@ -122,9 +122,8 @@ describe('단어시험 목록(#185)', () => {
     const box = await group()
 
     expect(stamp(box, 3)).toHaveTextContent('35/48')
-    expect(stamp(box, 3)).toHaveAccessibleName(
-      `Reading Day 3 ${COPY.scoreLabel}, ${COPY.scoreLabel} 35 / 48`,
-    )
+    expect(stamp(box, 3)).toHaveAccessibleName(`Reading Day 3, ${COPY.scoreLabel} 35 / 48`)
+    expect(stamp(box, 1)).toHaveAccessibleName(`Reading Day 1, ${COPY.entryNew}`)
     expect(stamp(box, 3).querySelector('[data-state]')).toHaveAttribute('data-state', 'done')
     expect(stamp(box, 4)).toHaveTextContent(COPY.stampGrading)
     expect(stamp(box, 4).querySelector('[data-state]')).toHaveAttribute('data-state', 'open')
