@@ -16,6 +16,7 @@ import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, type StudentHome } from './studentApi'
 import { WORD_TEST_ENABLED } from '../../shared/features'
+import { TalkEntry } from './talk/TalkEntry'
 import { WordTestEntry } from './wordtest/WordTestEntry'
 import styles from './HomePage.module.css'
 
@@ -108,6 +109,7 @@ export function HomePage() {
         {WORD_TEST_ENABLED && data.words !== null && (
           <WordTestEntry lessonCode={data.words.lessonCode} />
         )}
+        <TalkEntry />
 
         <HomeScreenHint />
       </div>
