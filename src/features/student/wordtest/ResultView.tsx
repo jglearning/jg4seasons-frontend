@@ -5,6 +5,7 @@ import { Button, ButtonLink } from '../../../shared/ui/Button'
 import { Card } from '../../../shared/ui/Card'
 import { NumberCircle, type NumberCircleState } from '../../../shared/ui/NumberCircle'
 import { ProgressBar } from '../../../shared/ui/ProgressBar'
+import { wordsPath } from '../../../shared/wordsPath'
 import type { WordTestItem, WordTestResult, WordTestSubmission } from './wordTestApi'
 import styles from './WordTest.module.css'
 import { COPY } from './wordTestCopy'
@@ -62,6 +63,11 @@ export function ResultView({
   const unclearCount = byResult('unclear').length
   // "모두 맞았어요"는 서버 점수가 만점일 때만(묶음 개수로 정하지 않는다)
   const allCorrect = submission.score === submission.total && items.length > 0 && wrongCount === 0
+  // 틀림·안 씀 문항의 정답 철자만 넘겨 단어 카드에서 그 단어만 다시 본다(#187). 판정 전(unclear)은 정답이 없어 빠진다
+  const reviewPath = wordsPath(
+    code,
+    [...byResult('wrong'), ...byResult('blank')].flatMap((item) => item.answer ?? []),
+  )
 
   return (
     <>
@@ -91,7 +97,7 @@ export function ResultView({
       {/* 흰 버튼은 반쪽 폭이면 "다시 풀고 올리기"가 두 줄로 꺾여(390, 19px) 한 줄씩 쌓는다 */}
       <div className={`${styles.actions} ${styles.resultActions}`}>
         {wrongCount > 0 && (
-          <ButtonLink to={`/lessons/${code}/words`} block>
+          <ButtonLink to={reviewPath} block>
             {COPY.reviewWords}
           </ButtonLink>
         )}

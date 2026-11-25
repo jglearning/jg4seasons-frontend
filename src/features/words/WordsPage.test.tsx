@@ -703,6 +703,51 @@ describe('S-06 단어 카드', () => {
     expect(saved).toEqual([{ cardsViewed: WORD_MOCK.total }])
   })
 
+  // #187: 단어시험 결과의 "틀린 단어 다시 보기" — 주소의 철자(?only=)와 같은 단어만
+  describe('거른 단어만 보기(?only=, #187)', () => {
+    const items = () => buildWords().items
+    function renderOnly(only: string) {
+      return renderRoutes(routes, {
+        initialEntries: [`/lessons/L2-B1-05/words?${new URLSearchParams({ only })}`],
+      })
+    }
+
+    it('그 철자의 단어만 회차 순서대로 — 머리 "다시 볼 단어 n개", 진행 1 / n', async () => {
+      const [a, b] = [items()[5], items()[2]]
+      const user = userEvent.setup()
+      // 순서를 뒤집고 대소문자·공백을 섞어도 회차 순서·같은 철자로 맞춘다
+      renderOnly(` ${a.english.toUpperCase()} ,${b.english}`)
+      await counter('1 / 2')
+
+      expect(screen.getByText(`L2-B1-05 · 다시 볼 단어 2개`)).toBeInTheDocument()
+      expect(within(card()).getByText(b.english)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: '다음' }))
+      expect(within(card()).getByText(a.english)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '완료' })).toBeInTheDocument()
+    })
+
+    it('거른 화면은 본 카드 수를 저장하지 않는다 — 회차 학습 기록은 전체 카드 기준', async () => {
+      const user = userEvent.setup()
+      const { router } = renderOnly(`${items()[0].english},${items()[1].english}`)
+      await counter('1 / 2')
+      await user.click(screen.getByRole('button', { name: '다음' }))
+
+      await act(() => router.navigate('/lessons'))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(saved).toEqual([])
+    })
+
+    it('맞는 단어가 없으면 전체 단어 + 안내 한 줄(저장은 평소처럼)', async () => {
+      renderOnly('zzzz-not-a-word')
+      await counter(`1 / ${WORD_MOCK.total}`)
+
+      expect(screen.getByRole('status')).toHaveTextContent(
+        '다시 볼 단어를 찾지 못해 전체 단어를 보여요',
+      )
+      expect(screen.getByText(`L2-B1-05 · 단어 ${WORD_MOCK.total}개`)).toBeInTheDocument()
+    })
+  })
+
   // #154: 못 받은 상태는 S-05(받기 전 화면, 명세 S04_S05_빈상태 §2)와 같은 상태 안내
   describe('단어를 못 받았을 때 — S-05와 같은 상태 안내(StatusPanel)', () => {
     const problem = (status: number, code: string, title: string, detail?: string) =>

@@ -105,3 +105,13 @@
   padding: var(--space-6);
   text-align: center;
 }
+
+/* 거르기 안내(#187): 다시 볼 단어를 찾지 못해 전체를 보일 때 카드 위 한 줄 */
+.notice {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: center;
+}

@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, House, Play, Volume2 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
+import { onlySpellings, sameSpelling } from '../../shared/wordsPath'
 import { Button } from '../../shared/ui/Button'
 import { ProgressBar } from '../../shared/ui/ProgressBar'
 import { StudentLayout } from '../../shared/ui/StudentLayout'
@@ -21,6 +22,8 @@ import styles from './Words.module.css'
 export function WordsPage() {
   const { code = '' } = useParams()
   const words = useQuery(wordsQuery(code))
+  const [search] = useSearchParams()
+  const only = onlySpellings(search)
 
   const level = lessonLevelCode(code)
   if (words.data === undefined) {
@@ -43,7 +46,23 @@ export function WordsPage() {
       </StudentLayout>
     )
   }
-  return <WordsBody code={code} items={words.data.items} />
+  // 거르기(#187, 단어시험 결과의 "틀린 단어 다시 보기"): 주소의 철자와 같은 단어만, 회차 순서 그대로.
+  // 맞는 단어가 하나도 없으면(철자가 어긋남) 전체를 보이고 한 줄 안내 — 빈 화면에 갇히지 않게
+  const all = words.data.items
+  const picked =
+    only === undefined ? [] : all.filter((w) => only.some((s) => sameSpelling(s, w.english)))
+  const filtered = picked.length > 0
+  return (
+    <WordsBody
+      key={filtered ? 'only' : 'all'}
+      code={code}
+      items={filtered ? picked : all}
+      filtered={filtered}
+      notice={
+        only !== undefined && !filtered ? '다시 볼 단어를 찾지 못해 전체 단어를 보여요' : undefined
+      }
+    />
+  )
 }
 
 /** 카드 학습(S-06b)은 11/11 삭제 — 옛 주소로 오면 단어 카드로 */
@@ -52,7 +71,18 @@ export function CardsRedirect() {
   return <Navigate to={`/lessons/${code}/words`} replace />
 }
 
-function WordsBody({ code, items }: { code: string; items: Word[] }) {
+function WordsBody({
+  code,
+  items,
+  filtered = false,
+  notice,
+}: {
+  code: string
+  items: Word[]
+  /** 거른 단어만 보는 중 — 본 카드 수를 저장하지 않는다(회차 학습 기록은 전체 카드 기준) */
+  filtered?: boolean
+  notice?: string
+}) {
   const navigate = useNavigate()
   const total = items.length
   const [index, setIndex] = useState(0)
@@ -66,8 +96,8 @@ function WordsBody({ code, items }: { code: string; items: Word[] }) {
   const { record } = saver
   useEffect(() => {
     play(items[index].audio?.audioUrl)
-    record({ cardsViewed: index + 1 })
-  }, [index, items, play, record])
+    if (!filtered) record({ cardsViewed: index + 1 })
+  }, [index, items, play, record, filtered])
 
   function go(next: number) {
     setIndex(Math.min(Math.max(next, 0), total - 1))
@@ -83,10 +113,16 @@ function WordsBody({ code, items }: { code: string; items: Word[] }) {
       <div className={styles.screen}>
         <WordsHead
           code={code}
-          sub={`${code} · 단어 ${total}개`}
+          sub={filtered ? `${code} · 다시 볼 단어 ${total}개` : `${code} · 단어 ${total}개`}
           counter={`${index + 1} / ${total}`}
           bar={<ProgressBar value={index + 1} max={total} label="단어 카드" size="word" />}
         />
+
+        {notice !== undefined && (
+          <p className={styles.notice} role="status">
+            {notice}
+          </p>
+        )}
 
         {/* key — 카드가 바뀌면 덮개가 닫힌 새 카드. 자동 재생은 표시 없이 위 useEffect가 한다(v0.2) */}
         <WordCard

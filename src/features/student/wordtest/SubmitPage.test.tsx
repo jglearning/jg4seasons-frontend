@@ -441,13 +441,14 @@ describe('결과(#173)', () => {
     expect(screen.queryByText('도서관')).not.toBeInTheDocument()
   })
 
-  it('틀린 단어가 있으면 단어 카드로 가는 주 버튼, 다시 풀고 올리기 → 찍기 화면', async () => {
+  it('틀린 단어가 있으면 그 단어만 보는 단어 카드로 가는 주 버튼(#187), 다시 풀고 올리기 → 찍기 화면', async () => {
     const { user } = renderResult(ITEMS, 2)
     await screen.findByText('2 / 5')
-    expect(screen.getByRole('link', { name: COPY.reviewWords })).toHaveAttribute(
-      'href',
-      `/lessons/${CODE}/words`,
-    )
+    // 틀림(beautiful)·안 씀(receive)의 정답 철자만 — 맞음·판단 못 함(정답 null)은 빠진다
+    const href = screen.getByRole('link', { name: COPY.reviewWords }).getAttribute('href')!
+    const url = new URL(href, 'http://x')
+    expect(url.pathname).toBe(`/lessons/${CODE}/words`)
+    expect(url.searchParams.get('only')).toBe('beautiful,receive')
     expect(screen.getByRole('link', { name: COPY.home })).toHaveAttribute('href', '/')
     expect(screen.getByText(COPY.footnote)).toBeInTheDocument()
 
