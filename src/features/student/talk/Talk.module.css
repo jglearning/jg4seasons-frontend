@@ -1,5 +1,5 @@
 /* 캐릭터 프리토킹 1단계(시연용) — 와이어프레임 없음. v0.2 부품(턱 버튼·흰 카드·선택 줄)과 토큰만으로 조립.
-   그림 뒤 크림 면만 "캐릭터는 홈에만"의 예외. 그림자·그라데이션 없음 */
+   배경 없는 캐릭터 상반신을 쓰는 것이 "캐릭터는 홈에만"의 예외. 그림자·그라데이션 없음 */
 
 .screen {
   display: flex;
@@ -41,7 +41,7 @@
   object-fit: contain;
 }
 
-/* 잠금·요약 없음 안내 */
+/* 잠금 안내 */
 .message {
   display: flex;
   flex-direction: column;
@@ -73,7 +73,7 @@
   gap: var(--space-3);
 }
 
-/* 시작 전 — 주제 카드 3개(하나 고르기). 고른 카드는 ink 2px 테두리 + 굵게(색만으로 구분하지 않음) */
+/* 시작 전 — 주제 카드(서버 topics, 하나 고르기). 고른 카드는 ink 2px 테두리 + 굵게(색만으로 구분하지 않음) */
 .topics {
   margin: 0;
   padding: 0;
@@ -271,7 +271,7 @@
   overflow-wrap: anywhere;
 }
 
-/* 캐릭터: 왼쪽 흰 풍선, 말한 쪽 아래 모서리만 덜 둥글게 */
+/* 캐릭터: 왼쪽 레벨 연한 색 풍선, 말한 쪽 아래 모서리만 덜 둥글게 */
 .lineCharacter {
   align-self: flex-start;
   padding: 10px 14px;
@@ -283,7 +283,7 @@
   color: var(--ink);
 }
 
-/* 학생: 오른쪽 풍선 — 면은 바탕과 같은 레벨 연한 색이라 테두리로 보인다. 작고 흐리게 — 인식이 틀릴 수 있어서 */
+/* 학생: 오른쪽 흰 풍선 — 흰 패널 위라 테두리(line-strong)로 구분. 작고 흐리게 — 인식이 틀릴 수 있어서 */
 .lineStudent {
   align-self: flex-end;
   padding: 8px 12px;
@@ -318,7 +318,8 @@
 }
 
 /* 회차 단어 — 굵게 + 레벨 진한 색 밑줄 2px(색만으로 구분하지 않는다). 글자색은 줄 색 그대로.
-   글자 자리는 그대로 두고 누르는 자리만 44px로 넓힌다 */
+   글자 자리는 그대로 두고 누르는 자리만 48px 이상으로 넓힌다(학생 터치 기준). 인라인 상자 높이는 글꼴에 따라
+   1em보다 크므로 1em 기준으로 넓히면 늘 48px을 넘는다(줄 높이 1.45em 기준이던 계산은 약 40px이었다 — 리뷰 11/25) */
 .lessonWord {
   position: relative;
   display: inline;
@@ -338,7 +339,7 @@
 .lessonWord::after {
   content: '';
   position: absolute;
-  inset: calc((44px - 1.45em) / -2) -4px;
+  inset: calc((48px - 1em) / -2) -4px;
 }
 
 .lessonWord:focus-visible {
@@ -347,12 +348,13 @@
   border-radius: 4px;
 }
 
-/* 뜻 한 줄 */
+/* 뜻 한 줄 — 흰 패널 위라 테두리로 경계(리뷰 11/25) */
 .meaning {
   flex: none;
   align-self: flex-start;
   margin: 0;
   padding: 8px 14px;
+  border: var(--border-card) solid var(--line-strong);
   border-radius: var(--radius-pill);
   background: var(--white);
   display: flex;

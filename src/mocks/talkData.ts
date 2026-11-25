@@ -34,7 +34,7 @@ const DEFAULTS = {
   dailyLimit: 3,
   /** true면 요약을 만들지 못한 경우(summary: null) */
   summaryFails: false,
-  /** 회차 단어 — 지어낸 목록(교재 단어를 공개 저장소에 넣지 않는다). 개발용 키 스크립트의 지시문도 이 단어를 쓴다 */
+  /** 회차 단어 — 지어낸 목록(교재 단어를 공개 저장소에 넣지 않는다). 로컬 개발용 키의 세션 지시문에 이 단어를 넣으면 강조가 보인다 */
   lessonWords: [
     { english: 'cheerful', korean: '쾌활한' },
     { english: 'weekend', korean: '주말' },

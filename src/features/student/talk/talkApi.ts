@@ -10,8 +10,7 @@ import type { LessonWord } from './lessonWords'
 // 계약(동섭 지시서 §D)대로 적었다. 백엔드가 머지되면 `npm run api:sync`의 생성 타입으로 바꾸고
 // 이 선언과 아래 캐스팅을 지운다(PR 2). 단어시험 1단계(#171)와 같은 방식 — 앱의 API 인스턴스를 넓혀 쓴다
 
-/** 캐릭터 목소리 — 서버가 레벨(캐릭터)에 맞춰 정한다. 프론트는 보내지 않는다(11/25 계약 변경 제안) */
-export type TalkVoice = 'female' | 'male'
+// 목소리(voice)는 요청에 없다 — 캐릭터(레벨)에 맞춰 서버가 정한다(11/25 계약 변경 제안)
 export type TalkRole = 'student' | 'character'
 export type TalkEndReason = 'user' | 'timeout' | 'left' | 'disconnected'
 export type TalkStatus = 'created' | 'ended' | 'expired' | 'failed'
@@ -36,7 +35,7 @@ export type TalkRealtime = {
   model: string
   /** 연결 주소가 기본값과 다를 때만(handoff 질문 3) */
   url?: string
-  /** 남은 시간 20초에 모델에 한 번 보낼 마무리 지시 — 추가 지시 11/25 밤 */
+  /** 남은 시간이 CLOSING_AT_SECONDS(talkCall.ts)가 되면 모델에 한 번 보낼 마무리 지시 — 추가 지시 11/25 밤 */
   closingInstruction: string
 }
 

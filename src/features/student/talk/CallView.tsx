@@ -14,10 +14,10 @@ import type { TalkSnapshot } from './talkCall'
 import styles from './Talk.module.css'
 
 // 대화 화면(추가 지시 나-1·나-2, 11/25 밤) — 캐릭터와 통화하는 구조.
-// 위: 남은 시간만 / 가운데: 상반신(화면 높이 절반 이상, 크림 면, 움직이지 않음) / 상태 줄 + 음량 막대 /
-// 자막(말풍선 없이 줄글, 최대 3줄, 지금 줄만 또렷) / 아래 가운데: 끊기 버튼(누르면 확인 한 번).
-// 캐릭터 말 속 회차 단어는 굵게 + 밑줄(색만으로 구분하지 않음), 누르면 자막 아래 한 줄로 뜻(3초).
-// 화면 낭독기: 단어마다 읽히지 않게 자막 영역은 알리지 않고, 완성된 문장만 따로 한 번(aria-live)
+// 위: 남은 시간 + 음량 막대 알약 / 가운데: 배경 없는 상반신(움직이지 않음) /
+// 아래: 흰 대화 패널 — 말풍선 최근 3개(지난 것은 글자만 흐리게) + 끊기 버튼(누르면 확인 한 번).
+// 캐릭터 말 속 회차 단어는 굵게 + 밑줄(색만으로 구분하지 않음), 누르면 말풍선 아래 한 줄로 뜻(3초, role="status").
+// 화면 낭독기: 단어마다 읽히지 않게 말풍선 영역은 알리지 않고, 완성된 캐릭터 줄만 따로 한 번(aria-live)
 
 const STATUS: Record<TalkSnapshot['phase'], string> = {
   connecting: '연결하고 있어요',
@@ -154,12 +154,15 @@ export function CallView({ art, snapshot, lessonWords, barRef, onEnd }: CallView
               )}
             </p>
           ))}
-          {meaning && (
-            <p className={styles.meaning}>
-              <span className={styles.meaningWord}>{meaning.english}</span>
-              {meaning.korean}
-            </p>
-          )}
+          {/* 늘 그려 두고 안의 글자만 바꾼다 — 화면 낭독기가 뜻을 읽게(리뷰 11/25) */}
+          <p className={meaning ? styles.meaning : styles.srOnly} role="status">
+            {meaning && (
+              <>
+                <span className={styles.meaningWord}>{meaning.english}</span>
+                {meaning.korean}
+              </>
+            )}
+          </p>
         </div>
 
         {/* 화면 낭독기: 지금 상태(알리지 않음)와 완성된 문장(한 번 알림) */}
@@ -210,7 +213,10 @@ type CharacterTextProps = {
   onWord: (word: LessonWord) => void
 }
 
-/** 단어마다 span(새 단어만 120ms 페이드 — 글자 위치가 key라 이미 보인 단어는 다시 움직이지 않는다) */
+/**
+ * 단어마다 span(새 단어만 120ms 페이드 — 글자 위치가 key라 이미 보인 단어는 다시 움직이지 않는다.
+ * 예외: 숙어가 완성되는 순간 앞 낱말이 버튼 안으로 옮겨져 한 번 더 페이드)
+ */
 function CharacterText({ text, words, onWord }: CharacterTextProps) {
   const segments = findLessonWords(text, words)
   const starts = segments.map((_, i) =>
