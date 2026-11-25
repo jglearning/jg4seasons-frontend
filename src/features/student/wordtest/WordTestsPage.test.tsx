@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '../../../app/routes'
 import { resetAuthMock, setMockSession } from '../../../mocks/handlers'
 import { server } from '../../../mocks/node'
@@ -10,6 +10,9 @@ import { hold } from '../../../test/hold'
 import { renderRoutes } from '../../../test/render'
 import type { WordTestSubmission } from './wordTestApi'
 import { COPY } from './wordTestCopy'
+
+// 진입점은 비용 문제로 꺼 두었다(WORD_TEST_ENABLED, #191) — 진입점 자체를 보는 테스트라 켠 채로 돈다
+vi.mock('../../../shared/features', () => ({ WORD_TEST_ENABLED: true }))
 
 // 단어시험 목록(#185) — 하단 탭 "시험", S-04와 같은 모양(맨 위 카드 + 묶음 도장판).
 // 목: 열린 회차 1~5(오늘 5강, 6~ 잠김), 2강은 시험지 없음(404 NOT_FOUND)
