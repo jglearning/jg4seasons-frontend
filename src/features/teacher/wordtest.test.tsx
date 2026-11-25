@@ -10,6 +10,9 @@ import { resetTeacherMock, TEACHER_MOCK } from '../../mocks/teacherData'
 import { buildItems, TEACHER_WORD_TEST_MOCK } from '../../mocks/wordTestData'
 import { renderRoutes } from '../../test/render'
 
+// 진입점은 비용 문제로 꺼 두었다(WORD_TEST_ENABLED, #191) — 진입점 자체를 보는 테스트라 켠 채로 돈다
+vi.mock('../../shared/features', () => ({ WORD_TEST_ENABLED: true }))
+
 // T-05 아래 단어시험 결과 표와 제출 상세(#175). 목: 반 학생(id 순) i % 5 — 완료 · 완료(사진 지워짐) · 채점 중 · 실패 · 미제출
 
 const CLASS = TEACHER_MOCK.classId

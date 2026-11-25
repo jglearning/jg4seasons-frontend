@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
 import { Link, useParams } from 'react-router'
+import { WORD_TEST_ENABLED } from '../../shared/features'
 import { levelProps } from '../../shared/level'
 import { StatusPill, type Status } from '../../shared/ui/StatusPill'
 import { Table, type Column } from '../../shared/ui/Table'
@@ -49,7 +50,8 @@ export function LessonPage() {
           </div>
           <LessonTable classId={classId} data={detail.data} />
           <p className={styles.footnote}>필수 속도 파일만 보입니다. 다른 속도는 학생 상세에서</p>
-          <WordTestSection classId={classId} lessonCode={code} />
+          {/* 단어시험 결과 묶음(#175) — 비용 문제로 꺼 둠(WORD_TEST_ENABLED, #191) */}
+          {WORD_TEST_ENABLED && <WordTestSection classId={classId} lessonCode={code} />}
         </>
       ) : (
         <StaffLoadState query={detail} />

@@ -15,6 +15,7 @@ import { LicenseNotice } from './LicenseNotice'
 import { LoadState } from './LoadState'
 import { StudentTabs } from './StudentTabs'
 import { homeQuery, type StudentHome } from './studentApi'
+import { WORD_TEST_ENABLED } from '../../shared/features'
 import { TalkEntry } from './talk/TalkEntry'
 import { WordTestEntry } from './wordtest/WordTestEntry'
 import styles from './HomePage.module.css'
@@ -103,8 +104,11 @@ export function HomePage() {
           )}
         </div>
 
-        {/* 단어시험 진입 줄(#173) — 오늘 단어 회차가 있을 때만. 기능 꺼짐·조회 실패면 WordTestEntry가 숨긴다 */}
-        {data.words !== null && <WordTestEntry lessonCode={data.words.lessonCode} />}
+        {/* 단어시험 진입 줄(#173) — 오늘 단어 회차가 있을 때만. 기능 꺼짐·조회 실패면 WordTestEntry가 숨긴다.
+            비용 문제로 꺼 둠(WORD_TEST_ENABLED, #191) */}
+        {WORD_TEST_ENABLED && data.words !== null && (
+          <WordTestEntry lessonCode={data.words.lessonCode} />
+        )}
         <TalkEntry />
 
         <HomeScreenHint />

@@ -403,19 +403,19 @@ describe('S-03 홈', () => {
   })
 
   // 학생 이름·가입 코드·개인 코드는 쿼리 키에 넣지 않는다(TanStack Query가 개발 콘솔에 키를 찍는 경로가 있다).
-  // 회차 코드(L2-B1-05)는 교재 회차 식별자라 허용 — 단어·회차 상세와 같은 기준(#173 단어시험 진입 줄이 씀).
+  // 회차 코드(L2-B1-05)는 교재 회차 식별자라 허용 — 단어·회차 상세와 같은 기준.
   // 반의 권 코드(L2-B1)가 키 값 하나로 들어가는 것은 막는다(반을 가리키는 값은 숫자 id만)
   it('쿼리 키에 학생 이름·가입 코드·개인 코드가 없다', async () => {
     const { client } = renderHome()
     await heading()
-    await screen.findByRole('link', { name: /철자 쓰기 제출/ })
 
     const keys = client
       .getQueryCache()
       .getAll()
       .map((q) => JSON.stringify(q.queryKey))
     expect(keys).toContain('["student","home"]')
-    expect(keys).toContain('["student","wordTest","latest","L2-B1-05","B"]')
+    // 단어시험 진입 줄은 꺼 두어(WORD_TEST_ENABLED, #191) 조회도 없다
+    expect(keys.filter((key) => key.includes('wordTest'))).toEqual([])
     for (const key of keys) {
       expect(key).not.toMatch(
         new RegExp(`김민준|${AUTH_MOCK.joinCode}|${AUTH_MOCK.personalCode}|L2-B1"`),
