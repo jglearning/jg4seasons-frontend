@@ -49,3 +49,14 @@ export function coverArt(code: string | undefined, season: string): string | und
   const dir = SEASON_DIR[season]
   return name === undefined || dir === undefined ? undefined : `/art/${name}/${dir}/cover.webp`
 }
+
+// 프리토킹 화면의 캐릭터 상반신 — 배경을 지운 그림(bust.webp, 폭 640)을 화면 가운데에. 이 화면만 "캐릭터는 홈에만" 규칙의 예외.
+// 배경이 있는 표지 원화는 말풍선이 안 읽혀서 뺐다(11/25 동섭). 상반신이 있는 계절만(지금은 겨울), 없으면 표지 그림
+const BUST_SEASONS: ReadonlySet<string> = new Set(['winter'])
+
+export function bustArt(code: string | undefined, season: string): string | undefined {
+  const name = levelName(code)
+  const dir = SEASON_DIR[season]
+  if (name === undefined || dir === undefined) return undefined
+  return BUST_SEASONS.has(dir) ? `/art/${name}/${dir}/bust.webp` : coverArt(code, season)
+}
