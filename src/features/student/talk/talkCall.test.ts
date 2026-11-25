@@ -6,6 +6,7 @@ import {
   firstWords,
   GRACE_SECONDS,
   HIDDEN_LIMIT_MS,
+  OPEN_TIMEOUT_MS,
   TalkCall,
   WORDS_PER_SECOND,
 } from './talkCall'
@@ -23,7 +24,13 @@ const RESULT: TalkSessionResult = {
 
 const CLOSING = 'Say goodbye.'
 
-function setup({ maxSeconds = 180, connectFails = false, closingInstruction = CLOSING } = {}) {
+function setup({
+  maxSeconds = 180,
+  connectFails = false,
+  closingInstruction = CLOSING,
+  /** true면 connect가 resolveConnect()를 부를 때까지 끝나지 않는다(연결하는 중 상황) */
+  deferConnect = false,
+} = {}) {
   const track = { stop: vi.fn() }
   const mic = { getTracks: () => [track], getAudioTracks: () => [track] } as unknown as MediaStream
   const sent: Record<string, unknown>[] = []
@@ -38,6 +45,7 @@ function setup({ maxSeconds = 180, connectFails = false, closingInstruction = CL
   >(() => Promise.resolve(RESULT))
   const release = vi.fn()
   const holdScreen = vi.fn(() => release)
+  let resolveConnect: () => void = () => undefined
   const call = new TalkCall({
     sessionId: 77,
     maxSeconds,
@@ -45,7 +53,12 @@ function setup({ maxSeconds = 180, connectFails = false, closingInstruction = CL
     closingInstruction,
     connect: (h) => {
       handlers = h
-      return connectFails ? Promise.reject(new Error('sdp 500')) : Promise.resolve(connection)
+      if (connectFails) return Promise.reject(new Error('sdp 500'))
+      if (deferConnect)
+        return new Promise<RealtimeConnection>((resolve) => {
+          resolveConnect = () => resolve(connection)
+        })
+      return Promise.resolve(connection)
     },
     end,
     onChange: () => undefined,
@@ -61,7 +74,19 @@ function setup({ maxSeconds = 180, connectFails = false, closingInstruction = CL
   }
   const visible = () =>
     call.state.lines.filter((l) => l.text !== '').map((l) => `${l.role}:${l.text}`)
-  return { call, track, connection, end, release, holdScreen, sent, h, characterSays, visible }
+  return {
+    call,
+    track,
+    connection,
+    end,
+    release,
+    holdScreen,
+    sent,
+    h,
+    characterSays,
+    visible,
+    resolveConnect: () => resolveConnect(),
+  }
 }
 
 beforeEach(() => {
@@ -153,10 +178,65 @@ describe('종료', () => {
   it('타이머는 연결되기 전에는 세지 않는다', async () => {
     const t = setup({ maxSeconds: 10 })
     await t.call.start()
-    await vi.advanceTimersByTimeAsync(20_000)
+    await vi.advanceTimersByTimeAsync(OPEN_TIMEOUT_MS - 1_000)
     expect(t.call.state.remaining).toBe(10)
     await t.call.finish('user')
     expect(t.end.mock.calls[0][0].durationSec).toBe(0)
+  })
+})
+
+describe('연결 단계', () => {
+  it('채널이 기한 안에 열리지 않으면 연결 실패 — 마이크·연결 정리, 종료 요청 없음(같은 세션으로 다시 시도)', async () => {
+    const t = setup()
+    await t.call.start()
+    const opened = t.call.whenOpen()
+    const failed = expect(opened).rejects.toThrow('채널이 열리지 않음')
+    await vi.advanceTimersByTimeAsync(OPEN_TIMEOUT_MS + 100)
+    await failed
+    expect(t.track.stop).toHaveBeenCalled()
+    expect(t.connection.close).toHaveBeenCalledTimes(1)
+    expect(t.end).not.toHaveBeenCalled()
+    // 늦게 열려도 대화가 시작되지 않는다
+    t.h().onOpen()
+    expect(t.holdScreen).not.toHaveBeenCalled()
+  })
+
+  it('채널이 열리기 전에 끊기면 연결 실패(요약으로 가지 않음)', async () => {
+    const t = setup()
+    await t.call.start()
+    const failed = expect(t.call.whenOpen()).rejects.toThrow('채널이 열리기 전에 끊김')
+    t.h().onLost()
+    await failed
+    expect(t.end).not.toHaveBeenCalled()
+    expect(t.track.stop).toHaveBeenCalled()
+  })
+
+  it('열리면 whenOpen이 끝나고 기한은 더 세지 않는다', async () => {
+    const t = setup()
+    await t.call.start()
+    t.h().onOpen()
+    await expect(t.call.whenOpen()).resolves.toBeUndefined()
+    await vi.advanceTimersByTimeAsync(OPEN_TIMEOUT_MS + 1_000)
+    expect(t.connection.close).not.toHaveBeenCalled()
+    expect(t.track.stop).not.toHaveBeenCalled()
+  })
+
+  it('연결하는 중에 끊으면 0초로 한 번 끝내고, 늦게 온 연결은 바로 닫고 열림은 무시한다', async () => {
+    const t = setup({ deferConnect: true })
+    const starting = t.call.start()
+    const opened = expect(t.call.whenOpen()).rejects.toThrow()
+    await t.call.finish('user')
+    await opened
+    expect(t.end).toHaveBeenCalledTimes(1)
+    expect(t.end.mock.calls[0][0]).toMatchObject({ endReason: 'user', durationSec: 0, turns: [] })
+    expect(t.track.stop).toHaveBeenCalled()
+
+    t.resolveConnect()
+    await starting
+    expect(t.connection.close).toHaveBeenCalledTimes(1)
+    t.h().onOpen()
+    expect(t.holdScreen).not.toHaveBeenCalled()
+    expect(t.call.state.phase).toBe('ended')
   })
 
   it('화면 이탈: 30초 넘게 숨겨지면 left로 keepalive 한 번, 그 전에 돌아오면 이어서', async () => {

@@ -72,12 +72,20 @@ export class LevelMeter {
       this.paint(0)
       return
     }
-    if (!this.analyser) {
-      this.analyser = this.context.createAnalyser()
-      this.analyser.fftSize = 512
+    // 장식이라 실패해도 대화는 이어진다 — 닫힌 AudioContext·샘플레이트 불일치 등에서 막대만 끈다(리뷰 11/25)
+    try {
+      if (!this.analyser) {
+        this.analyser = this.context.createAnalyser()
+        this.analyser.fftSize = 512
+      }
+      this.source = this.context.createMediaStreamSource(stream)
+      this.source.connect(this.analyser)
+    } catch (error) {
+      console.warn('[talk] 음량 막대 끔', { name: (error as { name?: string }).name })
+      this.source = undefined
+      this.paint(0)
+      return
     }
-    this.source = this.context.createMediaStreamSource(stream)
-    this.source.connect(this.analyser)
     if (this.frame === 0) this.loop()
   }
 

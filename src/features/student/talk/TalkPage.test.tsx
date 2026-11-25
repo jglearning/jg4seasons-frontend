@@ -14,23 +14,65 @@ import type { RealtimeHandlers } from './realtime'
 
 const realtime = vi.hoisted(() => ({
   handlers: undefined as RealtimeHandlers | undefined,
-  close: () => undefined as void,
+  /** 연결을 몇 번 시도했나 */
+  calls: 0,
+  /** 있으면 이번 연결 결과를 이걸로(실패·붙잡기). 없으면 바로 성공 */
+  next: undefined as (() => Promise<void>) | undefined,
 }))
 
 vi.mock('./realtime', async (importOriginal) => {
   const original = await importOriginal<typeof import('./realtime')>()
   return {
     ...original,
-    connectRealtime: (options: { handlers: RealtimeHandlers }) => {
+    connectRealtime: async (options: { handlers: RealtimeHandlers }) => {
+      realtime.calls += 1
       realtime.handlers = options.handlers
-      return Promise.resolve({
-        close: () => realtime.close(),
-        send: () => undefined,
-        usage: () => ({}),
-      })
+      const next = realtime.next
+      realtime.next = undefined
+      if (next) await next()
+      return { close: () => undefined, send: () => undefined, usage: () => ({}) }
     },
   }
 })
+
+// 종료 요청의 keepalive는 MSW가 요청을 다시 만들며 잃으므로(authFetch.test 참고) 호출에서 본다
+const endCalls = vi.hoisted(() => [] as { body: Record<string, unknown>; keepalive: boolean }[])
+
+vi.mock('./talkApi', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./talkApi')>()
+  return {
+    ...original,
+    endTalkSession: (...args: Parameters<typeof original.endTalkSession>) => {
+      const [, body, options] = args
+      endCalls.push({ body, keepalive: options?.keepalive ?? false })
+      return original.endTalkSession(...args)
+    },
+  }
+})
+
+/** 붙잡아 두었다가 풀거나 실패시키는 약속 */
+function deferred() {
+  let resolve: () => void = () => undefined
+  let reject: (error: Error) => void = () => undefined
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+/** 종료 요청 호출(본문 + keepalive) — 이번 테스트 것만 */
+function recordEnds() {
+  endCalls.length = 0
+  return endCalls
+}
+
+/** 대화를 끊고 요약까지 — 테스트가 대화를 연 채 끝나 종료 요청이 다음 테스트로 새지 않게 */
+async function hangUp() {
+  await userEvent.click(screen.getByRole('button', { name: '대화 끝내기' }))
+  await userEvent.click(screen.getByRole('button', { name: '끝내기' }))
+  await screen.findByRole('link', { name: '홈으로' })
+}
 
 const track = { stop: vi.fn() }
 
@@ -40,6 +82,8 @@ beforeEach(() => {
   resetTalkMock()
   setMockSession('student')
   realtime.handlers = undefined
+  realtime.calls = 0
+  realtime.next = undefined
   track.stop.mockClear()
   // jsdom 30의 play()는 Promise가 아니고 "Not implemented"를 찍는다(CLAUDE.md 테스트 설정)
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
@@ -55,6 +99,7 @@ beforeEach(() => {
 
 afterEach(() => {
   Reflect.deleteProperty(navigator, 'mediaDevices')
+  server.events.removeAllListeners()
 })
 
 function renderTalk() {
@@ -193,7 +238,6 @@ describe('TalkPage', () => {
       endReason: 'user',
       turns: [{ role: 'character' }, { role: 'student' }],
     })
-    server.events.removeAllListeners()
   })
 
   it('캐릭터 말 속 회차 단어는 버튼 — 누르면 자막 아래 뜻 한 줄, 3초 뒤 사라진다. 학생 말은 강조 없음', async () => {
@@ -217,6 +261,8 @@ describe('TalkPage', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     fireEvent.click(cheerful)
     expect(screen.getByText('쾌활한')).toBeInTheDocument()
+    // 화면 낭독기가 읽게 — 뜻 줄은 status 영역
+    expect(screen.getByRole('status')).toHaveTextContent('cheerful쾌활한')
     act(() => vi.advanceTimersByTime(3_100))
     expect(screen.queryByText('쾌활한')).not.toBeInTheDocument()
     vi.useRealTimers()
@@ -226,6 +272,7 @@ describe('TalkPage', () => {
     expect(screen.getByText('방문하다')).toBeInTheDocument()
     await userEvent.click(screen.getByText('I visited my cheerful grandma.'))
     expect(screen.queryByText('방문하다')).not.toBeInTheDocument()
+    await hangUp()
   })
 
   it('회차 단어가 없으면 강조 없이 그대로', async () => {
@@ -239,6 +286,7 @@ describe('TalkPage', () => {
     })
     expect(await screen.findByText(line('You sound cheerful!'))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /뜻 보기/ })).not.toBeInTheDocument()
+    await hangUp()
   })
 
   it('요약이 있으면 잘 쓴 표현 · 이렇게도 말해 봐요', async () => {
@@ -252,6 +300,130 @@ describe('TalkPage', () => {
     expect(await screen.findByText('잘 쓴 표현')).toBeInTheDocument()
     expect(screen.getByText('I went to school and played soccer.')).toBeInTheDocument()
     expect(screen.getByText('지난 일은 과거형으로 말해요')).toBeInTheDocument()
+  })
+})
+
+describe('TalkPage 연결·이탈(리뷰 11/25)', () => {
+  it('세션을 만드는 중에 화면을 떠나면 연결하지 않고 마이크를 끄고, 만든 세션은 left로 닫는다', async () => {
+    const ends = recordEnds()
+    const create = deferred()
+    server.use(
+      http.post('*/api/v1/talk/sessions', async () => {
+        await create.promise
+        return HttpResponse.json(
+          {
+            id: 91,
+            status: 'created',
+            maxSeconds: 180,
+            realtime: {
+              clientSecret: 'ek_test',
+              expiresAt: '2026-11-26T00:00:00Z',
+              model: 'm',
+              closingInstruction: 'Bye',
+            },
+          },
+          { status: 201 },
+        )
+      }),
+      http.post('*/api/v1/talk/sessions/:id/end', () =>
+        HttpResponse.json({
+          id: 91,
+          status: 'ended',
+          durationSec: 0,
+          studentTurnCount: 0,
+          summary: null,
+        }),
+      ),
+    )
+    const { router } = renderTalk()
+    await userEvent.click(await startButton())
+    await waitFor(() => expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalled())
+    await act(() => router.navigate('/'))
+    create.resolve()
+
+    await waitFor(() => expect(ends).toHaveLength(1))
+    expect(ends[0]).toEqual({
+      body: { durationSec: 0, endReason: 'left', turns: [] },
+      keepalive: true,
+    })
+    expect(track.stop).toHaveBeenCalled()
+    expect(realtime.calls).toBe(0)
+  })
+
+  it('연결 실패 → "다시 시도"는 같은 clientSessionId로, 실패한 시도의 마이크는 끈다', async () => {
+    const ids: string[] = []
+    server.events.on('request:start', async ({ request }) => {
+      if (new URL(request.url).pathname.endsWith('/talk/sessions'))
+        ids.push(((await request.clone().json()) as { clientSessionId: string }).clientSessionId)
+    })
+    realtime.next = () => Promise.reject(new Error('realtime calls 500'))
+    renderTalk()
+    await userEvent.click(await startButton())
+
+    expect(await screen.findByText('연결하지 못했어요. 다시 해 봐요')).toBeInTheDocument()
+    expect(track.stop).toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await waitFor(() => expect(realtime.calls).toBe(2))
+    expect(ids).toHaveLength(2)
+    expect(ids[1]).toBe(ids[0])
+    act(() => realtime.handlers!.onOpen())
+    await hangUp()
+  })
+
+  it('연결하는 중에 끊고 그 뒤 연결이 실패해도 요약 화면이 그대로', async () => {
+    const connect = deferred()
+    realtime.next = () => connect.promise
+    renderTalk()
+    await userEvent.click(await startButton())
+    await waitFor(() => expect(realtime.calls).toBe(1))
+    await hangUp()
+    expect(await screen.findByText('잘 쓴 표현')).toBeInTheDocument()
+
+    await act(async () => connect.reject(new Error('realtime calls 500')))
+    expect(screen.getByText('잘 쓴 표현')).toBeInTheDocument()
+    expect(screen.queryByText('연결하지 못했어요. 다시 해 봐요')).not.toBeInTheDocument()
+  })
+
+  it('대화 중 탭을 닫으면(pagehide) left로 keepalive 종료 요청 한 번', async () => {
+    const ends = recordEnds()
+    renderTalk()
+    await userEvent.click(await startButton())
+    await waitFor(() => expect(realtime.handlers).toBeDefined())
+    act(() => realtime.handlers!.onOpen())
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'))
+    })
+    await waitFor(() => expect(ends).toHaveLength(1))
+    expect(ends[0].body).toMatchObject({ endReason: 'left' })
+    expect(ends[0].keepalive).toBe(true)
+    expect(track.stop).toHaveBeenCalled()
+    await screen.findByRole('link', { name: '홈으로' })
+  })
+
+  it('대화 중 다른 화면으로 가면 left로 keepalive 종료 요청', async () => {
+    const ends = recordEnds()
+    const { router } = renderTalk()
+    await userEvent.click(await startButton())
+    await waitFor(() => expect(realtime.handlers).toBeDefined())
+    act(() => realtime.handlers!.onOpen())
+    await act(() => router.navigate('/'))
+    await waitFor(() => expect(ends).toHaveLength(1))
+    expect(ends[0]).toMatchObject({ body: { endReason: 'left' }, keepalive: true })
+  })
+
+  it('사용 기간 아님(403 LICENSE_INACTIVE)은 구독 잠금이 아니라 연결 실패 안내', async () => {
+    server.use(
+      http.post('*/api/v1/talk/sessions', () =>
+        HttpResponse.json(
+          { title: '사용 기간이 아니에요', status: 403, code: 'LICENSE_INACTIVE' },
+          { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    )
+    renderTalk()
+    await userEvent.click(await startButton())
+    expect(await screen.findByText('연결하지 못했어요. 다시 해 봐요')).toBeInTheDocument()
+    expect(screen.queryByText('구독하면 캐릭터와 영어로 말할 수 있어요')).not.toBeInTheDocument()
   })
 })
 

@@ -112,8 +112,13 @@ export async function connectRealtime(options: ConnectOptions): Promise<Realtime
 
   pc.ontrack = (event) => {
     audio.srcObject = event.streams[0] ?? new MediaStream([event.track])
-    // 마이크를 잡고 있는 페이지는 원격 스트림 자동 재생이 된다(WebKit). 막혀도 다음 트랙에서 다시
-    void audio.play()?.catch(() => undefined)
+    // 마이크를 잡고 있는 페이지는 원격 스트림 자동 재생이 된다(WebKit). 막히면 시작 탭에서 미리 부른
+    // play()(TalkPage)에 기댄다 — 원격 트랙은 보통 하나라 다시 올 기회가 없어 이름만 남긴다
+    void audio
+      .play()
+      ?.catch((error: unknown) =>
+        console.warn('[talk] 캐릭터 소리 재생 막힘', { name: (error as { name?: string }).name }),
+      )
   }
   for (const track of mic.getAudioTracks()) pc.addTrack(track, mic)
 
@@ -185,9 +190,16 @@ export async function connectRealtime(options: ConnectOptions): Promise<Realtime
         addUsage(usage.transcription, event.usage)
         handlers.onStudentText(itemId, str(event.transcript))
         break
-      case 'error':
-        log('모델 서비스 오류', { error: event.error })
+      case 'error': {
+        // 거절된 요청(첫 response.create·마무리 지시 등)이 여기로 온다. 메시지에 발화가 섞일 수 있어 type·code만
+        const error = event.error as { type?: unknown; code?: unknown } | undefined
+        console.error('[talk] 모델 오류', {
+          type: str(error?.type),
+          code: str(error?.code),
+          eventId: str(event.event_id),
+        })
         break
+      }
     }
   }
   pc.onconnectionstatechange = () => {

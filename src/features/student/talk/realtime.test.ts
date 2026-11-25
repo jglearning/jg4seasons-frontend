@@ -65,8 +65,10 @@ function handlers() {
   }
 }
 
-async function connect(fetchFn = vi.fn(() => Promise.resolve(new Response('v=0 answer')))) {
-  const peer = new FakePeer()
+async function connect(
+  fetchFn = vi.fn(() => Promise.resolve(new Response('v=0 answer'))),
+  peer = new FakePeer(),
+) {
   const h = handlers()
   const track = { kind: 'audio' }
   const mic = { getAudioTracks: () => [track] } as unknown as MediaStream
@@ -180,7 +182,11 @@ describe('connectRealtime', () => {
 
   it('SDP 요청이 실패하면 연결을 닫고 던진다', async () => {
     const fetchFn = vi.fn(() => Promise.resolve(new Response('no', { status: 401 })))
-    await expect(connect(fetchFn)).rejects.toThrow('realtime calls 401')
+    const peer = new FakePeer()
+    await expect(connect(fetchFn, peer)).rejects.toThrow('realtime calls 401')
+    // 닫지 않으면 RTCPeerConnection·채널이 남는다
+    expect(peer.close).toHaveBeenCalled()
+    expect(peer.channel.close).toHaveBeenCalled()
   })
 
   it('임시 키를 로그에 남기지 않는다', async () => {

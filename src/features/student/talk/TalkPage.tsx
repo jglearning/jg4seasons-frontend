@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Navigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { ApiError } from '../../../api/errors'
 import { bustArt, levelEnglish } from '../../../shared/level'
 import { Button, ButtonLink } from '../../../shared/ui/Button'
@@ -21,8 +21,8 @@ import { holdScreen, isMicDenied, LevelMeter, requestMic } from './talkDevice'
 import styles from './Talk.module.css'
 
 // 캐릭터 프리토킹 1단계(시연용). 시작 전 → 대화 → 요약 / 잠금(구독 없음). 탭 바 없음.
-// "캐릭터는 홈에만" 규칙의 예외 화면 — 상반신 그림을 크림 면 위에. 그림은 움직이지 않고
-// 말하는 중임은 그림 아래 상태 줄과 음량 막대로만. 말풍선 없이 자막 줄(최근 3줄).
+// "캐릭터는 홈에만" 규칙의 예외 화면 — 배경 없는 상반신(움직이지 않음). 말하는 쪽은 시간 알약 안 음량 막대로만,
+// 자막은 흰 대화 패널 안 말풍선(최근 3개). 대화 화면은 CallView.tsx.
 // 기능이 꺼진 학원(404 FEATURE_DISABLED)은 홈으로 보낸다(홈에도 진입 줄이 없다).
 // 목소리는 고르지 않는다 — 캐릭터(레벨)에 맞춰 서버가 정한다(11/25 동섭)
 
@@ -78,6 +78,8 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
   const meterRef = useRef<LevelMeter | undefined>(undefined)
   const barRef = useRef<HTMLSpanElement>(null)
   const micRef = useRef<MediaStream | undefined>(undefined)
+  const alive = useRef(true)
+  const navigate = useNavigate()
 
   const locked = !config.entitled || lockedByServer
 
@@ -95,13 +97,17 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
     [queryClient],
   )
 
-  // 화면 이탈: 30초 넘게 숨김 · 탭 닫기(pagehide) · 다른 화면으로(언마운트) — 모두 finish('left')
+  // 화면 이탈: 30초 넘게 숨김 · 탭 닫기(pagehide) · 다른 화면으로(언마운트) — 모두 finish('left').
+  // start()는 마이크 허락·세션 생성을 기다리는 동안 callRef가 비어 있어, 그 사이에 떠나면 정리할 대상이 없다 —
+  // alive로 떠났는지 들고 start()가 await마다 확인해 스스로 멈춘다(리뷰 11/25)
   useEffect(() => {
+    alive.current = true
     const onVisibility = () => callRef.current?.visibilityChanged(document.hidden)
     const onPageHide = () => void callRef.current?.finish('left', { keepalive: true })
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onPageHide)
     return () => {
+      alive.current = false
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', onPageHide)
       void callRef.current?.finish('left', { keepalive: true })
@@ -128,11 +134,22 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
       else setFailure(reason)
     }
 
+    const stopMic = (stream: MediaStream) => {
+      for (const track of stream.getTracks()) track.stop()
+    }
+
     let mic: MediaStream
     try {
       mic = await requestMic()
     } catch (error) {
+      if (!isMicDenied(error))
+        console.warn('[talk] 마이크 실패', { name: (error as { name?: string }).name })
       giveUp(isMicDenied(error) ? 'mic' : 'connect')
+      return
+    }
+    if (!alive.current) {
+      stopMic(mic)
+      meter.close()
       return
     }
 
@@ -143,10 +160,34 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
         topic,
       })
     } catch (error) {
-      for (const track of mic.getTracks()) track.stop()
-      if (error instanceof ApiError && error.status === 403) giveUp('locked')
-      else if (error instanceof ApiError && error.status === 429) giveUp('limit')
-      else giveUp('connect')
+      stopMic(mic)
+      const code = error instanceof ApiError ? error.code : undefined
+      if (code === 'FEATURE_DISABLED') {
+        meter.close()
+        void navigate('/', { replace: true })
+      } else if (code === 'SUBSCRIPTION_REQUIRED') giveUp('locked')
+      else if (code === 'DAILY_LIMIT') giveUp('limit')
+      else {
+        // 사용 기간 아님(LICENSE_INACTIVE)·5xx·끊김 등 — 학생에게는 연결 실패 문구, 원인은 기록(임시 키가 든 응답은 찍지 않는다)
+        console.error('[talk] 세션 생성 실패', {
+          status: error instanceof ApiError ? error.status : undefined,
+          code,
+          requestId: error instanceof ApiError ? error.requestId : undefined,
+          name: (error as { name?: string }).name,
+        })
+        giveUp('connect')
+      }
+      return
+    }
+    if (!alive.current) {
+      // 이미 만든 세션은 0초로 닫는다(서버에 created로 남지 않게)
+      stopMic(mic)
+      meter.close()
+      void endTalkSession(
+        created.id,
+        { durationSec: 0, endReason: 'left', turns: [] },
+        { keepalive: true },
+      ).catch(() => undefined)
       return
     }
 
@@ -177,13 +218,24 @@ function Talk({ config, art }: { config: TalkConfig; art: Art }) {
     meter.listen(mic)
     try {
       await call.start()
-    } catch {
+      await call.whenOpen()
+    } catch (error) {
+      // 연결 중에 학생이 끊었으면 이미 요약으로 넘어갔다 — 연결 실패로 덮지 않는다(리뷰 11/25)
+      if (call.state.phase === 'ending' || call.state.phase === 'ended') {
+        setStarting(false)
+        return
+      }
+      console.error('[talk] 연결 실패', {
+        sessionId: created.id,
+        name: (error as { name?: string }).name,
+        message: (error as { message?: string }).message,
+      })
       callRef.current = undefined
       giveUp('connect')
       return
     }
     setStarting(false)
-  }, [starting, topic, ended])
+  }, [starting, topic, ended, navigate])
 
   // 음량 막대 요소가 그려진 뒤 붙인다
   useEffect(() => {

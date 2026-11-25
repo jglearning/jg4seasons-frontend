@@ -7,7 +7,8 @@ import type { TalkEndBody, TalkEndReason, TalkRole, TalkSessionResult, TalkTurn 
 // - 캐릭터 말 글자는 소리보다 먼저 오고 시각 정보가 없다(공식 문서) → 소리가 시작된 때부터
 //   WORDS_PER_SECOND로 단어를 하나씩 푼다. 소리가 끝나면(output_audio_buffer.stopped) 남은 글자를 모두.
 // - 끼어들기(학생 말 시작·소리 버림 cleared)면 그때까지 보여 준 데서 멈춘다. turns에도 거기까지만.
-//   서버 쪽 대화 기록은 WebRTC에서 소리를 버릴 때 함께 잘린다(문서: cleared는 "truncates the conversation as well")
+//   서버 쪽 대화 기록은 WebRTC에서 안 나간 소리를 버릴 때 함께 잘린다고 공식 가이드(realtime-conversations)에 있어
+//   conversation.item.truncate는 보내지 않는다
 // - 학생 말은 말이 끝난 자리(speech_stopped)에 줄 자리를 잡고, 받아쓰기 글자가 오면 채운다. 비어 오면 줄을 지운다
 //
 // 마무리(나-3): 남은 시간이 CLOSING_AT_SECONDS가 되면 closingInstruction을 한 번만 보낸다(response.create의
@@ -17,7 +18,11 @@ import type { TalkEndBody, TalkEndReason, TalkRole, TalkSessionResult, TalkTurn 
 //
 // 종료 네 경로(끝내기 user · 시간 종료 timeout · 화면 이탈 left · 연결 끊김 disconnected)는 모두 finish() 하나.
 // finish()는 한 번만: 마이크 트랙 정지 → 연결 닫기 → 화면 꺼짐 방지 풀기 → §D-3 종료 요청 한 번.
-// 타이머는 서버 maxSeconds, 이벤트 채널이 열린 때부터(연결 전 시간은 세지 않는다)
+// 타이머는 서버 maxSeconds, 이벤트 채널이 열린 때부터(연결 전 시간은 세지 않는다).
+//
+// 채널이 열리기 전(연결 단계)의 실패는 "연결 실패"다 — OPEN_TIMEOUT_MS 안에 안 열리거나 열리기 전에 끊기면
+// 마이크를 끄고 연결을 닫되 종료 요청은 보내지 않는다(다시 시도에서 같은 세션). 화면은 whenOpen()으로 받는다.
+// UDP를 막는 망에서는 ICE가 failed까지 오래 걸려 "연결하고 있어요"에 마이크가 켜진 채 머물 수 있어서(리뷰 11/25)
 
 export type TalkPhase = 'connecting' | 'listening' | 'speaking' | 'ending' | 'ended'
 
@@ -39,7 +44,7 @@ export type TalkSnapshot = {
   remaining: number
   /** 자막 줄(오래된 것부터). 학생 줄은 글자가 오기 전 text가 빈 채로 자리만 */
   lines: readonly CaptionLine[]
-  /** 화면 낭독기에 한 번 알릴 마지막 완성 문장 */
+  /** 화면 낭독기에 한 번 알릴 마지막 캐릭터 줄(다 들린 줄, 또는 끼어들기로 멈춘 데까지). 학생 줄은 넣지 않는다 */
   announce: string
   /** 마무리 인사를 보냄 */
   closing: boolean
@@ -70,6 +75,8 @@ export const CLOSING_AT_SECONDS = 20
 export const GRACE_SECONDS = 5
 /** 자막을 푸는 속도(단어/초) — 시각 정보가 없어 추정. 실기기에서 맞춘다 */
 export const WORDS_PER_SECOND = 2.5
+/** 연결된 뒤 이벤트 채널이 열리기를 기다리는 최대 시간 — 넘으면 연결 실패 */
+export const OPEN_TIMEOUT_MS = 15_000
 /** 학생 말이 끝난 뒤 서버 자동 응답이 시작되지 않으면 마무리를 보내기까지 기다리는 시간 */
 const CLOSING_AFTER_SPEECH_MS = 1_500
 const TICK_MS = 100
@@ -97,6 +104,12 @@ export class TalkCall {
   private tick: ReturnType<typeof setInterval> | undefined
   private hiddenTimer: ReturnType<typeof setTimeout> | undefined
   private closingTimer: ReturnType<typeof setTimeout> | undefined
+  private openTimer: ReturnType<typeof setTimeout> | undefined
+  /** 채널이 열렸는지(open) · 열리기 전에 실패했는지(failed) — whenOpen()이 기다리는 값 */
+  private openState: { kind: 'waiting' } | { kind: 'open' } | { kind: 'failed'; error: Error } = {
+    kind: 'waiting',
+  }
+  private readonly openWaiters: Array<() => void> = []
   private releaseScreen: (() => void) | undefined
   private readonly now: () => number
   private readonly deps: TalkCallDeps
@@ -137,7 +150,11 @@ export class TalkCall {
     try {
       const connection = await this.deps.connect({
         onOpen: guard(() => this.opened()),
-        onLost: () => void this.finish('disconnected'),
+        // 채널이 열리기 전 끊김은 연결 실패, 열린 뒤 끊김은 대화 종료
+        onLost: () =>
+          this.connectedAt === undefined
+            ? this.failOpen(new Error('채널이 열리기 전에 끊김'))
+            : void this.finish('disconnected'),
         onResponseCreated: guard((id) => this.responseCreated(id)),
         onResponseDone: guard((id) => this.responseDone(id)),
         onTextDelta: guard((id, delta) => this.textDelta(id, delta)),
@@ -154,10 +171,38 @@ export class TalkCall {
         return
       }
       this.connection = connection
+      if (this.openState.kind === 'waiting')
+        this.openTimer = setTimeout(
+          () => this.failOpen(new Error('채널이 열리지 않음')),
+          OPEN_TIMEOUT_MS,
+        )
     } catch (error) {
       this.stopMic()
       throw error
     }
+  }
+
+  /** 이벤트 채널이 열리면 끝나고, 열리기 전에 실패하면(기한 초과·끊김) 던진다 */
+  whenOpen(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const settle = () => {
+        if (this.openState.kind === 'open') resolve()
+        else if (this.openState.kind === 'failed') reject(this.openState.error)
+        else this.openWaiters.push(settle)
+      }
+      settle()
+    })
+  }
+
+  /** 연결 단계 실패 — 마이크·연결을 정리하고 종료 요청은 보내지 않는다(같은 세션으로 다시 시도) */
+  private failOpen(error: Error) {
+    if (this.finished || this.openState.kind !== 'waiting') return
+    this.finished = true
+    clearTimeout(this.openTimer)
+    this.stopMic()
+    this.connection?.close()
+    this.openState = { kind: 'failed', error }
+    this.openWaiters.splice(0).forEach((settle) => settle())
   }
 
   /** 화면이 숨겨짐/다시 보임 — 30초 넘게 숨겨지면 끝낸다 */
@@ -189,6 +234,12 @@ export class TalkCall {
     clearInterval(this.tick)
     clearTimeout(this.hiddenTimer)
     clearTimeout(this.closingTimer)
+    clearTimeout(this.openTimer)
+    // 연결 단계에서 끝냈으면 whenOpen()을 기다리는 쪽도 풀어 준다(화면은 phase로 연결 실패와 가른다)
+    if (this.openState.kind === 'waiting') {
+      this.openState = { kind: 'failed', error: new Error('연결 전에 끝냄') }
+      this.openWaiters.splice(0).forEach((settle) => settle())
+    }
     this.stopMic()
     this.connection?.close()
     this.releaseScreen?.()
@@ -208,7 +259,17 @@ export class TalkCall {
     try {
       const result = await this.deps.end(body, { keepalive })
       this.update({ phase: 'ended', result })
-    } catch {
+    } catch (error) {
+      // 화면은 요약 없는 끝 화면. 대화 시간·사용량 기록이 빠지므로 원인은 남긴다(발화 글자는 찍지 않는다)
+      const problem = error as { status?: number; code?: string; requestId?: string; name?: string }
+      console.error('[talk] 종료 기록 실패', {
+        sessionId: this.deps.sessionId,
+        endReason: reason,
+        status: problem.status,
+        code: problem.code,
+        requestId: problem.requestId,
+        name: problem.name,
+      })
       this.update({ phase: 'ended', endFailed: true })
     }
   }
@@ -216,7 +277,10 @@ export class TalkCall {
   // ── 연결·타이머 ──
 
   private opened() {
-    if (this.connectedAt !== undefined) return
+    if (this.connectedAt !== undefined || this.openState.kind !== 'waiting') return
+    clearTimeout(this.openTimer)
+    this.openState = { kind: 'open' }
+    this.openWaiters.splice(0).forEach((settle) => settle())
     this.connectedAt = this.now()
     this.releaseScreen = this.deps.holdScreen?.()
     this.update({ phase: 'listening' })
