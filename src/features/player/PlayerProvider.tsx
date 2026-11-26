@@ -144,6 +144,9 @@ export function PlayerProvider({ children, lessonTitle, onTrackResult }: Provide
       if (element === null) return
       element.pause()
       wantPlay.current = options.play ?? false
+      // 재생 중에 pause() → src → load() 순서면 브라우저가 pause 이벤트를 보내지 않는다(load가 대기 중인
+      // 이벤트를 버림) — 이어 재생하지 않으면 멈춤 상태를 직접 맞춘다. 이어 재생이면 새 음원의 playing까지 그대로
+      if (!options.play) setPlaying(false)
       if (!options.keepRenew) renewTried.current = false
       pendingAt.current = Math.max(options.atMs ?? 0, 0)
       setSource(next)
