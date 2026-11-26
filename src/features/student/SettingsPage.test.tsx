@@ -87,7 +87,10 @@ describe('S-07 설정', () => {
     expect(steps()).toBeVisible()
     expect(within(steps()).getByRole('img', { name: '점 세 개 메뉴' })).toBeInTheDocument()
     expect(steps()).toHaveTextContent('1. 오른쪽 위 를 눌러요')
-    expect(steps()).toHaveTextContent("2. '앱 설치' 또는 '홈 화면에 추가'를 골라요")
+    // 크롬 버전마다 메뉴 이름이 달라 셋 다(새 이름부터)
+    expect(steps()).toHaveTextContent(
+      "2. '설치 및 바로가기 만들기', '앱 설치', '홈 화면에 추가' 중 보이는 것을 골라요",
+    )
     expect(steps()).toHaveTextContent("3. 창이 뜨면 '설치'를 골라요")
     expect(steps()).toHaveTextContent('4. 홈 화면의 4 Seasons 아이콘으로 열어요')
     // 설치 이벤트가 오지 않았으면 설치 버튼 없음(#164)
@@ -117,8 +120,10 @@ describe('S-07 설정', () => {
     await user.click(await screen.findByRole('button', { name: /홈 화면에 추가/ }))
     expect(within(steps()).getByRole('img', { name: '점 세 개 메뉴' })).toBeInTheDocument()
     expect(within(steps()).getByRole('img', { name: '공유' })).toBeInTheDocument()
-    expect(steps()).toHaveTextContent("2. 아래로 내려 '홈 화면에 추가'를 골라요")
-    expect(steps()).toHaveTextContent("3. '추가'를 눌러요")
+    expect(steps()).toHaveTextContent("2. 동그라미 버튼 줄 끝의 '더 보기'를 눌러요")
+    expect(steps()).toHaveTextContent("3. 아래로 내려 '홈 화면에 추가'를 골라요")
+    expect(steps()).toHaveTextContent("4. '추가'를 눌러요")
+    expect(steps()).toHaveTextContent('5. 홈 화면의 4 Seasons 아이콘으로 열어요')
     expect(steps()).not.toHaveTextContent('설치')
   })
 
@@ -130,6 +135,8 @@ describe('S-07 설정', () => {
     renderSettings()
     await user.click(await screen.findByRole('button', { name: /홈 화면에 추가/ }))
     expect(steps()).toHaveTextContent('1. 공유 버튼 을 눌러요')
+    expect(steps()).toHaveTextContent("2. 동그라미 버튼 줄 끝의 '더 보기'를 눌러요")
+    expect(steps()).toHaveTextContent("3. '홈 화면에 추가'를 골라요")
     expect(steps()).toHaveTextContent('메뉴에 없으면 사파리로 열어 주세요')
   })
 

@@ -118,6 +118,8 @@ function HomeScreenGroup() {
 }
 
 const LAST_STEP = '홈 화면의 4 Seasons 아이콘으로 열어요'
+/** 아이폰 공유 시트의 동그라미 버튼 줄(복사·기기로 보내기…) 끝 — 누르면 '간략히 보기'로 바뀐다 */
+const IOS_MORE_STEP = "동그라미 버튼 줄 끝의 '더 보기'를 눌러요"
 
 /** 메뉴 버튼 그림 — 읽을 때는 이름으로 */
 function MenuIcon({ icon: Icon, label }: { icon: typeof Share; label: string }) {
@@ -176,9 +178,11 @@ function InstallGuide() {
             1. 주소창 옆 <MenuIcon icon={Ellipsis} label="점 세 개 메뉴" /> 를 누르고 '공유'를
             골라요. 공유 버튼 <MenuIcon icon={Share} label="공유" /> 이 보이면 그것을 눌러요
           </li>
-          <li>2. 아래로 내려 '홈 화면에 추가'를 골라요</li>
-          <li>3. '추가'를 눌러요</li>
-          <li>4. {LAST_STEP}</li>
+          {/* 공유 시트는 처음에 접혀 있어 '홈 화면에 추가'가 안 보인다(11/26 동섭 아이폰) */}
+          <li>2. {IOS_MORE_STEP}</li>
+          <li>3. 아래로 내려 '홈 화면에 추가'를 골라요</li>
+          <li>4. '추가'를 눌러요</li>
+          <li>5. {LAST_STEP}</li>
         </ol>
       )
     case 'iosOther':
@@ -188,9 +192,10 @@ function InstallGuide() {
             <li>
               1. 공유 버튼 <MenuIcon icon={Share} label="공유" /> 을 눌러요
             </li>
-            <li>2. '홈 화면에 추가'를 골라요</li>
-            <li>3. '추가'를 눌러요</li>
-            <li>4. {LAST_STEP}</li>
+            <li>2. {IOS_MORE_STEP}</li>
+            <li>3. '홈 화면에 추가'를 골라요</li>
+            <li>4. '추가'를 눌러요</li>
+            <li>5. {LAST_STEP}</li>
           </ol>
           <p className={styles.note}>메뉴에 없으면 사파리로 열어 주세요</p>
         </>
@@ -201,8 +206,9 @@ function InstallGuide() {
           <li>
             1. 오른쪽 위 <MenuIcon icon={EllipsisVertical} label="점 세 개 메뉴" /> 를 눌러요
           </li>
-          {/* 크롬 버전에 따라 메뉴 이름이 '앱 설치' 또는 '홈 화면에 추가'(11/24 조사) */}
-          <li>2. '앱 설치' 또는 '홈 화면에 추가'를 골라요</li>
+          {/* 크롬 버전마다 메뉴 이름이 다르다 — 새 크롬 '설치 및 바로가기 만들기'(11/26 동섭 폰), 갤럭시 노트8 크롬
+              '앱 설치'(11/26), 11/24 조사의 '홈 화면에 추가'. 새 이름부터 */}
+          <li>2. '설치 및 바로가기 만들기', '앱 설치', '홈 화면에 추가' 중 보이는 것을 골라요</li>
           <li>3. 창이 뜨면 '설치'를 골라요</li>
           <li>4. {LAST_STEP}</li>
         </ol>
