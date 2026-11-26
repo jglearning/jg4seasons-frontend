@@ -859,7 +859,7 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
     expect(play).not.toHaveBeenCalled()
   })
 
-  it('지문 탭을 옮기면 이전 트랙에서 들은 구간을 sendBeacon(final)으로 보내고, 새 지문은 자동 재생하지 않는다', async () => {
+  it('재생 중에 지문 탭을 옮기면 이전 트랙에서 들은 구간을 sendBeacon(final)으로 보내고, 새 지문을 이어서 재생', async () => {
     const user = userEvent.setup()
     renderLesson()
     await heading()
@@ -875,7 +875,8 @@ describe('따라 읽기(ADR-26 — 문장 시각은 서버 timings)', () => {
       segments: [expect.objectContaining({ startMs: 0, endMs: 5000 })],
     })
     expect(audio().getAttribute('src')).toBe(`/mock-audio/${LESSON_MOCK.durationMs(6, 'us_w')}.wav`)
-    expect(play).not.toHaveBeenCalled()
+    expect(play).toHaveBeenCalledTimes(1)
+    expect(within(player()).getByRole('button', { name: '일시정지' })).toBeInTheDocument()
   })
 
   it('들은 구간 바는 서버 + 이 화면에서 들은 구간만 채우고 건너뛴 곳은 빗금, 음성을 바꿨다 와도 남는다', async () => {
@@ -1089,6 +1090,39 @@ describe('완료 전 안내 카드(NudgeCard — 막지 않음)', () => {
 
     expect(nudge()).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: LESSON_MOCK.title(2) })).toBeInTheDocument()
+  })
+
+  it('재생 중에 "다음 지문" → 다음 지문을 이어서 재생(누른 동작 안에서 play)', async () => {
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    await user.click(screen.getByRole('button', { name: '지문 1 완료' }))
+    listen(0, 1)
+    play.mockClear()
+
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
+
+    expect(screen.getByRole('heading', { name: LESSON_MOCK.title(2) })).toBeInTheDocument()
+    expect(play).toHaveBeenCalledTimes(1)
+    const second = buildLessonDetail(LESSON_MOCK.code).passages[1]
+    expect(audio().getAttribute('src')).toBe(
+      second.voices.find((v) => v.variant === 'us_w')?.audioUrl,
+    )
+    expect(within(player()).getByRole('button', { name: '일시정지' })).toBeInTheDocument()
+  })
+
+  it('멈춘 채 지문을 바꾸면 재생하지 않고 재생 버튼 — 브라우저가 pause를 보내지 않아도', async () => {
+    const user = userEvent.setup()
+    renderLesson()
+    await heading()
+    await user.click(screen.getByRole('button', { name: '지문 1 완료' }))
+    play.mockClear()
+
+    await user.click(screen.getByRole('button', { name: '다음 지문' }))
+
+    expect(screen.getByRole('heading', { name: LESSON_MOCK.title(2) })).toBeInTheDocument()
+    expect(play).not.toHaveBeenCalled()
+    expect(within(player()).getByRole('button', { name: '재생' })).toBeInTheDocument()
   })
 
   it('어느 음성으로든 완료하면 지문 완료(서버) — 처음 음성은 가장 많이 들은 것이 아니라 미국 여성', async () => {

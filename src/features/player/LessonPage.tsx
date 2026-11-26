@@ -173,19 +173,29 @@ function LessonBody({
   // timings가 []면 문장 시각이 아직 없다(BE #18) — 문장 위치·이동 없이 재생만
   const hasTimings = timings.length > 0
 
-  // 지문을 고르면 그 지문 음원(지금 음성)을 올려 둔다(바로 재생하지는 않는다)
+  // 처음 연 지문의 음원(지금 음성)을 올려 둔다(바로 재생하지는 않는다)
   const { load } = player
   useEffect(() => {
     const target = data.passages.find((p) => p.no === selectedNo)
     const next = target ? voiceOf(target, variant) : undefined
     if (target === undefined || next === undefined) return
     load(passageSource(target, next))
-    // 지문을 바꿀 때만 다시 올린다(데이터 갱신 때마다 올리지 않게. 음성은 selectVariant가 올린다)
-  }, [selectedNo]) // eslint-disable-line react-hooks/exhaustive-deps
+    // 화면을 열 때 한 번만(지문을 바꾸면 selectPassage, 음성을 바꾸면 selectVariant가 올린다)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 복습 본문을 펼친 채 지문을 옮기면 그대로 펼쳐 둔다(지문마다 따라 읽기)
+  /**
+   * 지문을 고르면 그 지문 음원을 올린다 — 재생 중이었으면 이어서 재생, 멈춰 있었으면 멈춘 채.
+   * 누른 그 동작 안에서 load해야 iOS Safari가 play()를 막지 않는다(effect 안이면 막힐 수 있다).
+   * 복습 본문을 펼친 채 지문을 옮기면 그대로 펼쳐 둔다(지문마다 따라 읽기)
+   */
   function selectPassage(no: number) {
     setNudge(null)
+    if (no === selectedNo) return
+    const target = data.passages.find((p) => p.no === no)
+    const voice = target ? voiceOf(target, variant) : undefined
+    if (target !== undefined && voice !== undefined) {
+      load(passageSource(target, voice), { play: player.playing })
+    }
     setSelectedNo(no)
   }
 
