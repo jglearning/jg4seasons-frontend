@@ -23,9 +23,11 @@
   visibility: hidden;
 }
 
-/* 오른쪽 위 "교사" — 글자는 오른 24·위 22, 누르는 자리 44 */
+/* 오른쪽 위 "교사" — 글자는 오른 24·위 22, 누르는 자리 44.
+   뒤에 오는 .center(position: relative)가 좁은 폭에서 위에 겹쳐 클릭을 가져가므로 위로 올린다(#200) */
 .teacher {
   position: absolute;
+  z-index: 1;
   right: 12px;
   top: 10px;
   display: inline-flex;
