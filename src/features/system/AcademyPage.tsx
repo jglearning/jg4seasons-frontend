@@ -253,6 +253,15 @@ function AcademyBody({ id, data }: { id: number; data: AcademyDetail }) {
         />
       </section>
 
+      <section className={styles.section} aria-labelledby="talk-title">
+        <h2 id="talk-title" className={styles.sectionTitle}>
+          프리토킹
+        </h2>
+        <Link to={`/system/academies/${id}/talk`} className={styles.inlineLink}>
+          학생별 켜기·끄기 →
+        </Link>
+      </section>
+
       <section className={styles.section} aria-labelledby="license-form-title">
         <h2 id="license-form-title" className={styles.sectionTitle}>
           사용권 지정
