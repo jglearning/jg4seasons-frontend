@@ -22,6 +22,7 @@ import { SettingsPage } from '../features/student/SettingsPage'
 import { AcademiesPage } from '../features/system/AcademiesPage'
 import { AcademyNewPage } from '../features/system/AcademyNewPage'
 import { AcademyPage } from '../features/system/AcademyPage'
+import { TalkStudentsPage } from '../features/system/TalkStudentsPage'
 import { CardsRedirect, WordsPage } from '../features/words/WordsPage'
 import { SubmitPage as WordTestSubmitPage } from '../features/student/wordtest/SubmitPage'
 import { WordTestsPage } from '../features/student/wordtest/WordTestsPage'
@@ -109,6 +110,7 @@ export const routes: RouteObject[] = [
               { path: '/system/academies', element: <AcademiesPage /> },
               { path: '/system/academies/new', element: <AcademyNewPage /> },
               { path: '/system/academies/:id', element: <AcademyPage /> },
+              { path: '/system/academies/:id/talk', element: <TalkStudentsPage /> },
             ],
           },
         ],

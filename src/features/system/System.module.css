@@ -130,6 +130,139 @@
   white-space: nowrap;
 }
 
+/* O-03 → O-04 링크(ink + 밑줄) */
+.inlineLink {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+
+/* O-04 프리토킹 학생 — 안내 상자, 거르기 줄, 묶음 바, 상태 글자 + 점(색만으로 구분하지 않음) */
+.panel {
+  margin: 0 0 var(--space-5);
+  padding: 10px 14px;
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.classSelect {
+  min-width: 160px;
+}
+
+.classSelect select {
+  min-height: var(--field-h-teacher);
+}
+
+/* 체크 칸 열은 좁게, 켜기·끄기 열은 오른쪽 끝에 붙여 — 표의 열 폭 옵션이 없어 감싼 쪽에서 */
+.talkTable th:first-child,
+.talkTable td:first-child {
+  width: 44px;
+}
+
+.talkTable th:last-child,
+.talkTable td:last-child {
+  width: 1%;
+  text-align: right;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--field-h-teacher);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.check input,
+.rowCheck {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+
+.bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-card) solid var(--line);
+  border-radius: var(--radius-card-teacher);
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.textButton {
+  min-height: var(--touch-min);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.tag {
+  margin-left: var(--space-2);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.on,
+.off {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.on {
+  font-weight: 700;
+  color: var(--ok);
+}
+
+.off {
+  color: var(--muted);
+}
+
+.on::before,
+.off::before {
+  content: '';
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.on::before {
+  background: var(--ok);
+}
+
+.off::before {
+  border: var(--border-control) solid var(--faint);
+}
+
 .mono {
   font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-code);

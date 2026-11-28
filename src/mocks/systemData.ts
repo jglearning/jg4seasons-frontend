@@ -85,8 +85,26 @@ const INITIAL_LICENSES: Record<number, License[]> = {
   ],
 }
 
+type TalkStudent = Schemas['TalkStudentItem']
+
+// O-04 학생별 프리토킹(BE #97) — 재원생, 반 이름 → 이름 순, 반 없는 학생은 맨 뒤(서버 순서 그대로 둔다)
+const BLUE_A = { id: 11, name: '블루 A' }
+const GREEN_B = { id: 12, name: '그린 B' }
+const INITIAL_TALK: Record<number, TalkStudent[]> = {
+  1: [
+    { id: 101, name: '김하늘', class: GREEN_B, talkEnabled: false },
+    { id: 102, name: '정민지', class: GREEN_B, talkEnabled: true },
+    { id: 103, name: '최유나', class: GREEN_B, talkEnabled: false },
+    { id: 104, name: '박서준', class: BLUE_A, talkEnabled: false },
+    { id: 105, name: '이도윤', class: BLUE_A, talkEnabled: true },
+    { id: 106, name: '한지호', class: null, talkEnabled: true },
+  ],
+  2: [],
+}
+
 let academies: Academy[] = []
 let licenses: Record<number, License[]> = {}
+let talkStudents: Record<number, TalkStudent[]> = {}
 let adminLoginIds: string[] = []
 let nextId = 3
 
@@ -94,6 +112,9 @@ export function resetSystemMock() {
   academies = INITIAL.map((a) => ({ ...a }))
   licenses = Object.fromEntries(
     Object.entries(INITIAL_LICENSES).map(([id, rows]) => [id, rows.map((r) => ({ ...r }))]),
+  )
+  talkStudents = Object.fromEntries(
+    Object.entries(INITIAL_TALK).map(([id, rows]) => [id, rows.map((r) => ({ ...r }))]),
   )
   adminLoginIds = [SYSTEM_MOCK.takenLoginId, 'teacher01', 'super01']
   nextId = 3
@@ -227,6 +248,40 @@ export function systemHandlers({ problem, readJson, currentUser }: Helpers): Any
           (a, b) => bookOrder(a.book.code) - bookOrder(b.book.code),
         ),
       })
+    }),
+
+    // O-04 학생별 프리토킹 목록
+    http.get('*/api/v1/system/academies/:id/talk/students', async ({ request, params }) => {
+      await delay()
+      const denied = systemOnly(request)
+      if (denied) return denied
+      const rows = talkStudents[Number(params.id)]
+      if (!rows) return problem(request, 404, 'NOT_FOUND', '학원을 찾을 수 없습니다')
+      return HttpResponse.json<Schemas['TalkStudentListResponse']>({ items: rows })
+    }),
+
+    // O-04 켜기·끄기 — 1~500명, 같은 id는 한 번, 재원생이 아닌 id가 하나라도 있으면 404이고 아무것도 안 바뀜.
+    // 응답은 요청한 학생만(목록 순서)
+    http.put('*/api/v1/system/academies/:id/talk/students', async ({ request, params }) => {
+      await delay()
+      const denied = systemOnly(request)
+      if (denied) return denied
+      const rows = talkStudents[Number(params.id)]
+      if (!rows) return problem(request, 404, 'NOT_FOUND', '학원을 찾을 수 없습니다')
+      const body = await readJson(request)
+      const ids = Array.isArray(body.studentIds) ? [...new Set(body.studentIds as unknown[])] : []
+      if (ids.length < 1 || ids.length > 500) {
+        return problem(request, 400, 'VALIDATION', '입력값을 확인해 주세요', {
+          errors: [{ field: 'studentIds', message: '학생은 1~500명까지 고를 수 있어요' }],
+        })
+      }
+      if (ids.some((id) => !rows.some((r) => r.id === id))) {
+        return problem(request, 404, 'NOT_FOUND', '학생을 찾을 수 없습니다')
+      }
+      const enabled = body.enabled === true
+      const changed = rows.filter((r) => ids.includes(r.id))
+      changed.forEach((r) => (r.talkEnabled = enabled))
+      return HttpResponse.json<Schemas['TalkStudentListResponse']>({ items: changed })
     }),
 
     // 7.4 사용권 지정·변경 — 없으면 만들고 있으면 고친다, 응답은 바뀐 줄 하나

@@ -625,6 +625,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/academies/{id}/talk/students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 학생별 프리토킹 허용 목록
+         * @description 재원생만, 반 이름 → 이름 순, 반 없는 학생(class null)은 맨 뒤. 페이지 없음. 학생이 쓰려면 학원 스위치(features.talk)도 켜져 있어야 한다. 없는 학원 404
+         */
+        get: operations["listTalkStudents"];
+        /**
+         * 학생별 프리토킹 켜기·끄기
+         * @description 한 명·여러 명 한 번에, 같은 값이면 그대로. 응답은 요청한 학생만(목록과 같은 순서·모양). 그 학원 재원생이 아닌 id가 하나라도 있으면 404이고 아무것도 바뀌지 않는다. 없는 학원 404. 꺼진 학생의 프리토킹 API는 404 FEATURE_DISABLED. 감사 기록 TALK_ACCESS_SET. X-CSRF 필요
+         */
+        put: operations["setTalkStudents"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/talk/config": {
         parameters: {
             query?: never;
@@ -634,7 +658,7 @@ export interface paths {
         };
         /**
          * 프리토킹 설정
-         * @description 시작 화면 재료: 구독 여부, 레벨, 시간 제한, 오늘 남은 횟수, 주제 카드, 오늘 회차 단어. 구독이 없으면 200에 entitled false(lessonWords는 빈 배열). 기능 꺼짐 404 FEATURE_DISABLED(진입 버튼을 숨길 신호), 반이 없으면 404 NOT_FOUND
+         * @description 시작 화면 재료: 구독 여부, 레벨, 시간 제한, 오늘 남은 횟수, 주제 카드, 오늘 회차 단어. 구독이 없으면 200에 entitled false(lessonWords는 빈 배열). 학원 기능·학생 허용(ADR 0040) 꺼짐 404 FEATURE_DISABLED(진입 버튼을 숨길 신호), 반이 없으면 404 NOT_FOUND
          */
         get: operations["talkConfig"];
         put?: never;
@@ -656,7 +680,7 @@ export interface paths {
         put?: never;
         /**
          * 프리토킹 세션 시작
-         * @description 세션을 기록하고 서버가 조립한 지시문(레벨·오늘 회차 단어·주제·안전 규칙)과 목소리(반의 레벨 캐릭터 성별 — 학생이 고르지 않음)를 묶은 임시 키를 준다. 같은 clientSessionId를 다시 보내면 새로 만들지 않는다: 그 세션이 created이고 만든 지 60초(임시 키 수명) 안이면 임시 키만 새로 200, 그 밖(끝난 세션·60초 지남)은 200에 realtime null(새 clientSessionId로 다시 시작), 다른 학생이 쓴 값이면 400 VALIDATION. 기능 꺼짐 404 FEATURE_DISABLED, 구독 없음 403 SUBSCRIPTION_REQUIRED, 반이 없으면 404 NOT_FOUND, 사용 기간 아님 403 LICENSE_INACTIVE, 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT(발급에 실패한 세션·연결 전에 떠난 0초 세션은 세지 않음), 모델 서비스에서 임시 키를 받지 못하면 503 REALTIME_UNAVAILABLE
+         * @description 세션을 기록하고 서버가 조립한 지시문(레벨·오늘 회차 단어·주제·안전 규칙)과 목소리(반의 레벨 캐릭터 성별 — 학생이 고르지 않음)를 묶은 임시 키를 준다. 같은 clientSessionId를 다시 보내면 새로 만들지 않는다: 그 세션이 created이고 만든 지 60초(임시 키 수명) 안이면 임시 키만 새로 200, 그 밖(끝난 세션·60초 지남)은 200에 realtime null(새 clientSessionId로 다시 시작), 다른 학생이 쓴 값이면 400 VALIDATION. 학원 기능·학생 허용 꺼짐 404 FEATURE_DISABLED, 구독 없음 403 SUBSCRIPTION_REQUIRED, 반이 없으면 404 NOT_FOUND, 사용 기간 아님 403 LICENSE_INACTIVE, 하루(학원 날짜) 3회 넘으면 429 DAILY_LIMIT(발급에 실패한 세션·연결 전에 떠난 0초 세션은 세지 않음), 모델 서비스에서 임시 키를 받지 못하면 503 REALTIME_UNAVAILABLE
          */
         post: operations["createTalkSession"];
         delete?: never;
@@ -674,7 +698,7 @@ export interface paths {
         };
         /**
          * 프리토킹 세션 조회
-         * @description 종료 응답과 같은 모양. 종료 전이면 durationSec·studentTurnCount·summary null, 종료 직후 요약 중이면 summary null. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 기능 꺼짐 404 FEATURE_DISABLED
+         * @description 종료 응답과 같은 모양. 종료 전이면 durationSec·studentTurnCount·summary null, 종료 직후 요약 중이면 summary null. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 학원 기능·학생 허용이 꺼져도 조회된다
          */
         get: operations["getTalkSession"];
         put?: never;
@@ -696,7 +720,7 @@ export interface paths {
         put?: never;
         /**
          * 프리토킹 세션 종료
-         * @description 글자 기록·대화 시간·종료 이유를 저장하고 요약(잘 쓴 표현·고쳐볼 문장)을 만들어 돌려준다(최대 20초). 저장은 공백 줄을 버리고 앞에서부터 200줄·한 줄 500자, durationSec는 maxSeconds까지 자른다. 요약을 만들지 못하면 summary null(세션은 ended). 종료할 수 있는 건 created뿐 — 이미 ended면 저장된 결과를 그대로 200(다시 저장·요약하지 않음), 발급에 실패한(failed)·정리된(expired) 세션도 저장하지 않고 그대로. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 기능 꺼짐 404 FEATURE_DISABLED, 입력 형식 400 VALIDATION(usage는 JSON 객체 16KB까지)
+         * @description 글자 기록·대화 시간·종료 이유를 저장하고 요약(잘 쓴 표현·고쳐볼 문장)을 만들어 돌려준다(최대 20초). 저장은 공백 줄을 버리고 앞에서부터 200줄·한 줄 500자, durationSec는 maxSeconds까지 자른다. 요약을 만들지 못하면 summary null(세션은 ended). 종료할 수 있는 건 created뿐 — 이미 ended면 저장된 결과를 그대로 200(다시 저장·요약하지 않음), 발급에 실패한(failed)·정리된(expired) 세션도 저장하지 않고 그대로. 본인 세션만(남의 세션·없는 세션 404 NOT_FOUND), 대화 중에 학원 기능·학생 허용이 꺼져도 저장한다, 입력 형식 400 VALIDATION(usage는 JSON 객체 16KB까지)
          */
         post: operations["endTalkSession"];
         delete?: never;
@@ -2319,6 +2343,28 @@ export interface components {
             studentTurnCount: number | null;
             /** @description 대화 요약. 종료 전·요약 실패·요약 중(종료 직후 조회)·학생이 말한 줄이 없으면 null */
             summary: components["schemas"]["TalkSummary"] | null;
+        };
+        TalkStudentClassRef: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        TalkStudentItem: {
+            /** @description 지금 반(여러 반이면 id가 가장 작은 반). 반 이동 중이라 반이 없으면 null — 켜 둘 수는 있지만 반이 생겨야 쓸 수 있다 */
+            class: components["schemas"]["TalkStudentClassRef"] | null;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @description 운영자 허용. 학원 스위치(features.talk)가 꺼져 있으면 true여도 학생은 쓸 수 없다 */
+            talkEnabled: boolean;
+        };
+        TalkStudentListResponse: {
+            items: components["schemas"]["TalkStudentItem"][];
+        };
+        TalkStudentsSetRequest: {
+            enabled: boolean;
+            /** @description 1~500명. 같은 id는 한 번으로. 그 학원 재원생이 아닌 id가 하나라도 있으면 404이고 아무것도 바뀌지 않는다 */
+            studentIds: number[];
         };
         TalkSummary: {
             /** @description 고쳐볼 문장 0~3개. said는 학생이 실제로 말한 문장(학생 줄이 2개 미만이면 빈 배열) */
@@ -4043,6 +4089,72 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["LicenseItem"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listTalkStudents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TalkStudentListResponse"];
+                };
+            };
+            /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    setTalkStudents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TalkStudentsSetRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TalkStudentListResponse"];
                 };
             };
             /** @description 오류(Problem Details). 프론트는 code로 분기하고 title·detail을 보여 준다 */
