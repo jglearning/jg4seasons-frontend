@@ -84,7 +84,8 @@ describe('O-04 프리토킹 학생', () => {
 
     await user.click(screen.getByRole('button', { name: '최유나 프리토킹 켜기' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('최유나 프리토킹을 켰습니다')
+    // 결과 자리(role=status)는 비어 있어도 늘 있어 findByRole('status')는 응답 전에 바로 잡힌다 — 글자를 기다린다
+    expect(await screen.findByText('최유나 프리토킹을 켰습니다')).toHaveAttribute('role', 'status')
     expect(puts()).toEqual([{ studentIds: [103], enabled: true }])
     expect(await screen.findByRole('button', { name: '최유나 프리토킹 끄기' })).toBeInTheDocument()
     expect(rows()[2]).toEqual(['그린 B', '최유나', '켜짐'])
