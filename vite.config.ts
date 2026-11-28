@@ -30,13 +30,14 @@ export default defineConfig({
         display: 'standalone',
         theme_color: token('ink'),
         background_color: token('white'),
-        // 아이콘은 회사 심볼(가이드 §8) — 원본 docs-internal/design/logo, 흰 바탕 PNG로 뽑아 public/icons에.
-        // maskable은 Android가 원·둥근 사각으로 잘라도 심볼이 남게 가운데 작게
+        // 아이콘은 블루 캐릭터(11/28 동섭) — 원본 docs-internal/design/app-icon, 바탕 블루 레벨 색.
+        // maskable은 Android가 원·둥근 사각으로 잘라도 얼굴이 남게 가운데 80% 안에.
+        // 기기·CDN이 옛 아이콘을 캐시하므로 그림을 바꾸면 파일 이름(-v2)도 바꾼다
         icons: [
-          { src: '/icons/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icons/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/pwa-192-v2.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/pwa-512-v2.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           {
-            src: '/icons/maskable-512.png',
+            src: '/icons/maskable-512-v2.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
